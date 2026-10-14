@@ -58,24 +58,28 @@ html, body { margin: 0; height: 100%; background: transparent; }
 
 @keyframes vy-spin { to { transform: rotate(360deg); } }
 
-/* Bac à disques : pochettes carrées rangées serrées, qu'on ressort au survol (transformations 2D : images nettes). */
+/* Étagère 3D : boîtiers carrés vus de biais, tranche avec le nom ; au survol, les voisins s'écartent. */
 .shelf-scroll { scrollbar-width: none; }
 .shelf-scroll::-webkit-scrollbar { display: none; }
-.vy-crate { position: relative; width: 300px; height: 300px; flex: none; margin-left: -236px; cursor: pointer; border: 0; padding: 0; background: none; }
-.vy-crate:first-child { margin-left: 0; }
-.vy-crate .vy-cover { position: absolute; inset: 0; border-radius: 4px; background: #2a2220 center / cover; box-shadow: -14px 0 24px rgba(20,8,6,.45), inset 0 0 0 1px rgba(255,255,255,.08); transition: transform .45s cubic-bezier(.25,.8,.25,1.15), box-shadow .45s; }
-.vy-crate .vy-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 64px; display: flex; align-items: flex-end; justify-content: center; border-radius: 4px 0 0 4px; background: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.25) 80%, transparent); color: #fff; transition: opacity .3s; }
-.vy-crate .vy-edge span { writing-mode: vertical-rl; transform: rotate(180deg); padding: 14px 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 270px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
-.vy-crate:hover, .vy-crate:focus-visible { z-index: 50; }
-.vy-crate:hover .vy-cover, .vy-crate:focus-visible .vy-cover { transform: translateY(-140px) scale(1.04); box-shadow: 0 30px 50px rgba(20,8,6,.55); }
-.vy-crate:hover .vy-edge, .vy-crate:focus-visible .vy-edge { opacity: 0; }
-.vy-lip { position: absolute; left: 0; right: 0; bottom: 0; height: 120px; z-index: 40; pointer-events: none; border-radius: 22px 22px 0 0; }
+.vy-row { display: flex; align-items: center; perspective: 1300px; perspective-origin: 50% 35%; }
+.vy-slot { position: relative; width: 118px; height: 320px; flex: none; cursor: pointer; border: 0; padding: 0; background: none; transition: transform .5s cubic-bezier(.25,.8,.25,1); }
+.vy-box { position: absolute; left: 0; top: 10px; width: 300px; height: 300px; transform-style: preserve-3d; transform-origin: 0 50%; transform: rotateY(58deg); transition: transform .55s cubic-bezier(.25,.8,.25,1); -webkit-box-reflect: below 6px linear-gradient(transparent 62%, rgba(0,0,0,.22)); }
+.vy-face { position: absolute; inset: 0; background: #2a2220 center / cover; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); backface-visibility: hidden; }
+.vy-face::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.28), transparent 40%); }
+.vy-spine { position: absolute; left: -34px; top: 0; width: 34px; height: 300px; transform-origin: 100% 50%; transform: rotateY(-90deg); display: flex; align-items: flex-end; justify-content: center; box-shadow: inset -5px 0 9px rgba(0,0,0,.28), inset 1px 0 0 rgba(255,255,255,.14); transition: background .6s; }
+.vy-spine span { writing-mode: vertical-rl; transform: rotate(180deg); padding: 14px 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 280px; }
+.vy-row:has(.vy-slot:hover) .vy-slot { transform: translateX(-36px); }
+.vy-row .vy-slot:hover ~ .vy-slot { transform: translateX(150px); }
+.vy-row .vy-slot:hover { transform: translateX(10px); z-index: 10; }
+.vy-slot:hover .vy-box, .vy-slot:focus-visible .vy-box { transform: rotateY(18deg) translateZ(80px); }
 /* Pile : pochettes carrées empilées de haut en bas, qu'on ressort vers la droite. */
 .vy-pile { position: relative; width: 300px; height: 300px; flex: none; margin-top: -244px; cursor: pointer; border: 0; padding: 0; background: none; }
 .vy-pile:first-child { margin-top: 0; }
 .vy-pile .vy-cover { position: absolute; inset: 0; border-radius: 4px; background: #2a2220 center / cover; box-shadow: 0 -14px 24px rgba(20,8,6,.45), inset 0 0 0 1px rgba(255,255,255,.08); transition: transform .45s cubic-bezier(.25,.8,.25,1.15), box-shadow .45s; }
 .vy-pile .vy-edge { position: absolute; left: 0; right: 0; top: 0; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.2) 85%, transparent); color: #fff; font-size: 14px; white-space: nowrap; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,.6); transition: opacity .3s; }
+.vy-pile { transition: transform .45s cubic-bezier(.25,.8,.25,1); }
 .vy-pile:hover, .vy-pile:focus-visible { z-index: 50; }
+.vy-pile:hover ~ .vy-pile { transform: translateY(70px); }
 .vy-pile:hover .vy-cover, .vy-pile:focus-visible .vy-cover { transform: translateX(330px) rotate(-2deg) scale(1.04); box-shadow: 0 30px 50px rgba(20,8,6,.55); }
 .vy-pile:hover .vy-edge, .vy-pile:focus-visible .vy-edge { opacity: 0; }
 

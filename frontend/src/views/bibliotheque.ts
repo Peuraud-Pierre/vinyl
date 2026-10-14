@@ -63,8 +63,9 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     const label = `${escapeHtml(it.title)}${it.subtitle ? ` — ${escapeHtml(it.subtitle)}` : ""}`;
     const cover = `<div class="vy-cover" style="${art}">${word}</div>`;
     if (mode === "side") {
-      return `<button class="vy-crate ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">${cover}
-        <div class="vy-edge"><span><b>${escapeHtml(it.title)}</b>  ${escapeHtml(it.subtitle)}</span></div></button>`;
+      return `<button class="vy-slot ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">
+        <div class="vy-box"><div class="vy-face" style="${art}">${word}</div>
+        <div class="vy-spine" style="background:${c.bg};color:${c.ink}"><span><b>${escapeHtml(it.title)}</b>  ${escapeHtml(it.subtitle)}</span></div></div></button>`;
     }
     return `<button class="vy-pile ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">${cover}
       <div class="vy-edge"><b>${escapeHtml(it.title)}</b><span class="opacity-80">${escapeHtml(it.subtitle)}</span></div></button>`;
@@ -74,8 +75,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     const shown = filterItems(items, query);
     const html = shown.map((it, i) => itemHtml(it, i, animate)).join("");
     area.innerHTML = mode === "side"
-      ? `<div id="sh-scroll" class="shelf-scroll flex h-full items-end overflow-x-auto overflow-y-hidden px-[120px] pb-[40px] pt-[150px]">${html}</div>
-         <div class="vy-lip glass" style="background:color-mix(in srgb, var(--glass) 70%, transparent)"></div>`
+      ? `<div id="sh-scroll" class="shelf-scroll vy-row h-full overflow-x-auto overflow-y-hidden px-[160px]" style="padding-right:420px">${html}</div>`
       : `<div id="sh-scroll" class="shelf-scroll h-full overflow-y-auto"><div class="flex flex-col py-[80px]" style="padding-left:160px;padding-bottom:300px">${html}</div></div>`;
     scroller = $("sh-scroll");
     scroller.addEventListener("scroll", maybeLoad, { passive: true });
@@ -89,8 +89,12 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
 
   const recolor = (it: Item) => {
     const c = spine(it);
-    area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover`).forEach((n) => {
+    area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover, [data-id="${CSS.escape(it.id)}"] .vy-face`).forEach((n) => {
       n.style.backgroundColor = c.bg;
+    });
+    area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-spine`).forEach((n) => {
+      n.style.background = c.bg;
+      n.style.color = c.ink;
     });
   };
 
@@ -98,7 +102,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (!it.artworkUrl && source === "applemusic" && it.kind !== "artist") {
       it.artworkUrl = await api.ItemArtwork(source, it.id).catch(() => "");
       if (!alive || !it.artworkUrl) return;
-      area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover`).forEach((n) => {
+      area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover, [data-id="${CSS.escape(it.id)}"] .vy-face`).forEach((n) => {
         n.style.backgroundImage = cssUrl(it.artworkUrl);
         n.innerHTML = "";
       });
@@ -157,6 +161,9 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       : scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
     if (left < 600) load();
   }
+
+  // Fin de l'arrivée en cascade : on retire l'animation pour que le survol puisse glisser.
+  area.addEventListener("animationend", (e) => (e.target as HTMLElement).classList.remove("vy-fly", "vy-rise"));
 
   area.addEventListener("click", async (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-id]");
