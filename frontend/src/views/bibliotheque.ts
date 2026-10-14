@@ -140,7 +140,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   const fit = () => {
     const row = area.querySelector<HTMLElement>("#cf-row");
     if (!row) return;
-    scale = Math.max(0.8, (area.clientHeight * 0.5) / 300); // boîtiers sur ~50 % de la hauteur, bien séparés
+    scale = Math.max(0.8, (area.clientHeight * 0.8) / 300); // vidéo : boîtiers sur ~80 % de la hauteur
     row.style.scale = String(scale);
     // La profondeur grandit avec l'échelle : sans ça, la perspective serait bien plus forte que dans la vidéo.
     (row.parentElement as HTMLElement).style.perspective = `${SHELF_PERSPECTIVE * scale}px`;
