@@ -1,0 +1,179 @@
+package player
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+type fakeRunner struct {
+	outputs []string // une sortie par appel, dans l'ordre
+	errs    []error
+	calls   []fakeCall
+}
+
+type fakeCall struct {
+	script string
+	args   []string
+}
+
+func (f *fakeRunner) Run(_ context.Context, script string, args ...string) (string, error) {
+	i := len(f.calls)
+	f.calls = append(f.calls, fakeCall{script, args})
+	var out string
+	var err error
+	if i < len(f.outputs) {
+		out = f.outputs[i]
+	}
+	if i < len(f.errs) {
+		err = f.errs[i]
+	}
+	return out, err
+}
+
+func join(fields ...string) string { return strings.Join(fields, Sep) }
+
+func TestAppleMusicNowPlayingParsesFrenchLocale(t *testing.T) {
+	r := &exportRunner{
+		nowPlaying: join("playing", "ABC123", `Don't Stop "Live"`, "Beyoncé", "Album", "213,5", "12,25", "1"),
+		exportOut:  "OK", content: []byte("\x89PNG"),
+	}
+	m := NewAppleMusic(r, t.TempDir())
+	np, err := m.NowPlaying(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := NowPlaying{Source: "applemusic", TrackID: "ABC123", Title: `Don't Stop "Live"`, Artist: "Beyoncé",
+		Album: "Album", DurationMs: 213500, PositionMs: 12250, State: StatePlaying,
+		ArtworkURL: "/artwork/" + ArtworkFileName("ABC123")}
+	if np != want {
+		t.Errorf("got %+v\nwant %+v", np, want)
+	}
+	if r.exports != 1 {
+		t.Errorf("un export de pochette attendu, obtenu %d", r.exports)
+	}
+}
+
+func TestAppleMusicArtworkExportedOncePerTrack(t *testing.T) {
+	dir := t.TempDir()
+	r := &exportRunner{nowPlaying: join("playing", "ABC123", "T", "A", "B", "200", "1", "1"), exportOut: "OK", content: []byte("x")}
+	m := NewAppleMusic(r, dir)
+	m.NowPlaying(context.Background())
+	m.NowPlaying(context.Background())
+	if r.exports != 1 {
+		t.Errorf("la pochette ne doit être exportée qu'une fois, obtenu %d", r.exports)
+	}
+}
+
+func TestAppleMusicNoArtwork(t *testing.T) {
+	r := &fakeRunner{outputs: []string{join("paused", "X", "T", "A", "B", "missing value", "0", "0")}}
+	np, err := NewAppleMusic(r, t.TempDir()).NowPlaying(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if np.ArtworkURL != "" || np.DurationMs != 0 || np.State != StatePaused {
+		t.Errorf("got %+v", np)
+	}
+}
+
+func TestAppleMusicNotRunningAndStopped(t *testing.T) {
+	m := NewAppleMusic(&fakeRunner{outputs: []string{"NOTRUNNING"}}, t.TempDir())
+	if _, err := m.NowPlaying(context.Background()); err != ErrNotRunning {
+		t.Errorf("attendu ErrNotRunning, obtenu %v", err)
+	}
+	m = NewAppleMusic(&fakeRunner{outputs: []string{"stopped"}}, t.TempDir())
+	np, err := m.NowPlaying(context.Background())
+	if err != nil || np.State != StateStopped || np.Source != "applemusic" {
+		t.Errorf("got %+v, %v", np, err)
+	}
+}
+
+func TestAppleMusicMalformedOutput(t *testing.T) {
+	m := NewAppleMusic(&fakeRunner{outputs: []string{"playing" + Sep + "x"}}, t.TempDir())
+	if _, err := m.NowPlaying(context.Background()); err == nil {
+		t.Error("une sortie tronquée doit renvoyer une erreur")
+	}
+}
+
+func TestAppleMusicSeekUsesIntegerSecondsInArgv(t *testing.T) {
+	r := &fakeRunner{}
+	NewAppleMusic(r, t.TempDir()).Seek(context.Background(), 93700*time.Millisecond)
+	if len(r.calls) != 1 || r.calls[0].args[0] != "93" {
+		t.Errorf("got %+v", r.calls)
+	}
+}
+
+func TestAppleMusicPlayItemRouting(t *testing.T) {
+	cases := []struct {
+		id       string
+		wantArgs []string
+		wantIn   string
+	}{
+		{"playlist:P1", []string{"P1"}, "user playlist"},
+		{"track:T1", []string{"T1"}, "persistent ID"},
+		{"album:Mon \"Album\"" + Sep + "Artiste", []string{`Mon "Album"`, "Artiste"}, "Vinyl — Album"},
+	}
+	for _, c := range cases {
+		r := &fakeRunner{}
+		if err := NewAppleMusic(r, t.TempDir()).PlayItem(context.Background(), c.id); err != nil {
+			t.Fatalf("%s: %v", c.id, err)
+		}
+		got := r.calls[0]
+		if strings.Join(got.args, "|") != strings.Join(c.wantArgs, "|") || !strings.Contains(got.script, c.wantIn) {
+			t.Errorf("%s: args=%q script contient %q ? %v", c.id, got.args, c.wantIn, strings.Contains(got.script, c.wantIn))
+		}
+	}
+	if err := NewAppleMusic(&fakeRunner{}, t.TempDir()).PlayItem(context.Background(), "inconnu:1"); err == nil {
+		t.Error("un ID inconnu doit renvoyer une erreur")
+	}
+}
+
+// exportRunner simule Musique : lecture du morceau puis export de la pochette dans le fichier argv[0].
+type exportRunner struct {
+	nowPlaying string
+	exportOut  string // "OK" ou "CHANGED"
+	content    []byte
+	exports    int
+}
+
+func (r *exportRunner) Run(_ context.Context, script string, args ...string) (string, error) {
+	if script == musicExportArtworkScript {
+		r.exports++
+		if r.exportOut == "OK" {
+			os.WriteFile(args[0], r.content, 0o644)
+		}
+		return r.exportOut, nil
+	}
+	return r.nowPlaying, nil
+}
+
+func TestArtworkNotSavedWhenTrackChangedDuringExport(t *testing.T) {
+	dir := t.TempDir()
+	r := &exportRunner{nowPlaying: join("playing", "OLD", "T", "A", "B", "200", "1", "1"), exportOut: "CHANGED"}
+	np, err := NewAppleMusic(r, dir).NowPlaying(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if np.ArtworkURL != "" {
+		t.Errorf("pochette d'un autre morceau : ne doit pas être utilisée, got %q", np.ArtworkURL)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ArtworkFileName("OLD"))); err == nil {
+		t.Error("aucun fichier ne doit être enregistré sous l'ID de l'ancien morceau")
+	}
+}
+
+func TestEmptyArtworkFileIsReexported(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, ArtworkFileName("X")), nil, 0o644) // export précédent raté
+	r := &exportRunner{nowPlaying: join("playing", "X", "T", "A", "B", "200", "1", "1"), exportOut: "OK", content: []byte("\x89PNG")}
+	np, _ := NewAppleMusic(r, dir).NowPlaying(context.Background())
+	if r.exports != 1 || np.ArtworkURL == "" {
+		t.Errorf("un fichier vide doit être réexporté : exports=%d url=%q", r.exports, np.ArtworkURL)
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, ArtworkFileName("X"))); string(data) != "\x89PNG" {
+		t.Errorf("contenu final = %q", data)
+	}
+}

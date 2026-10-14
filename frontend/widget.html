@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="UTF-8" /><title>Vinyl widget</title><link rel="stylesheet" href="/src/styles.css" /></head>
+<body class="drag select-none overflow-hidden">
+  <div class="group relative flex h-screen w-screen items-center justify-center">
+    <div id="disc"></div>
+    <div id="hint" class="pointer-events-none absolute inset-0 hidden items-center justify-center text-center text-xs text-white/80"></div>
+    <div class="no-drag absolute bottom-1 left-1/2 flex -translate-x-1/2 gap-3 rounded-full bg-neutral-900/85 px-3 py-1 text-sm text-white opacity-0 transition group-hover:opacity-100">
+      <button id="prev" aria-label="Précédent">⏮</button>
+      <button id="pp" aria-label="Lecture / pause">⏯</button>
+      <button id="next" aria-label="Suivant">⏭</button>
+      <button id="open" aria-label="Ouvrir la fenêtre principale">⤢</button>
+    </div>
+  </div>
+  <script type="module" src="/src/widget.ts"></script>
+</body>
+</html>

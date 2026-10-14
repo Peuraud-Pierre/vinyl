@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Vinyl
+Comment=Platine vinyle pour Apple Music et Spotify
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/vinyl %u
+Terminal=false
+Type=Application
+Icon=vinyl
+Categories=Utility;
+StartupWMClass=vinyl
+
+ 
