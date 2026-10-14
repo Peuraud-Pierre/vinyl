@@ -77,6 +77,13 @@ export function PlayCatalogTrack(source: string, item: catalog$0.Item, artist: s
 }
 
 /**
+ * PlayFrom lance un album ou une playlist à partir d'un titre (vide = début), avec ou sans aléatoire.
+ */
+export function PlayFrom(source: string, collectionID: string, trackID: string, shuffle: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1604581322, source, collectionID, trackID, shuffle);
+}
+
+/**
  * PlayItem lance une playlist, un album ou un titre sur la source donnée ("applemusic" ou "spotify").
  */
 export function PlayItem(source: string, id: string): $CancellablePromise<void> {

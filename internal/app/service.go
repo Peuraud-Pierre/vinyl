@@ -246,3 +246,28 @@ func (s *VinylService) Tracks(source, id string) (catalog.Collection, error) {
 	defer cancel()
 	return c.Tracks(ctx, id)
 }
+
+// PlayFrom lance un album ou une playlist à partir d'un titre (vide = début), avec ou sans aléatoire.
+func (s *VinylService) PlayFrom(source, collectionID, trackID string, shuffle bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	defer s.watcher.Wake()
+	switch p := s.watcher.Player(source).(type) {
+	case *player.AppleMusic:
+		if pid, ok := strings.CutPrefix(collectionID, "playlist:"); ok {
+			return p.PlayInPlaylist(ctx, pid, trackID, shuffle)
+		}
+		col, err := s.Tracks(source, collectionID)
+		if err != nil {
+			return err
+		}
+		ids := make([]string, len(col.Tracks))
+		for i, t := range col.Tracks {
+			ids[i] = t.ID
+		}
+		return p.PlayList(ctx, ids, trackID, shuffle)
+	case *player.Spotify:
+		return p.PlayInContext(ctx, collectionID, trackID, shuffle)
+	}
+	return errors.New("source inconnue")
+}

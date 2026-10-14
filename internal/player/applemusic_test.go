@@ -177,3 +177,23 @@ func TestEmptyArtworkFileIsReexported(t *testing.T) {
 		t.Errorf("contenu final = %q", data)
 	}
 }
+
+func TestPlayListPassesIDsInOrderThroughArgv(t *testing.T) {
+	r := &fakeRunner{}
+	err := NewAppleMusic(r, t.TempDir()).PlayList(context.Background(), []string{"-e", "B", "C"}, "B", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := r.calls[0]
+	if strings.Join(got.args, "|") != "B|1|-e|B|C" || !strings.Contains(got.script, "Vinyl — Album") {
+		t.Errorf("args = %q", got.args)
+	}
+}
+
+func TestPlayInPlaylistArgs(t *testing.T) {
+	r := &fakeRunner{}
+	NewAppleMusic(r, t.TempDir()).PlayInPlaylist(context.Background(), "P1", "", false)
+	if strings.Join(r.calls[0].args, "|") != "P1||0" {
+		t.Errorf("args = %q", r.calls[0].args)
+	}
+}

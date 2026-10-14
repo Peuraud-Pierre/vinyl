@@ -83,3 +83,36 @@ func (s *Spotify) PlayItem(ctx context.Context, uri string) error {
 end run`, uri)
 	return err
 }
+
+// argv : contexte (album/playlist), titre (vide = début), aléatoire (1/0).
+// « play track X in context Y » démarre au titre X dans le contexte Y ; sinon on lance le contexte au début.
+const spotifyPlayInContextScript = `on run argv
+	if application id "com.spotify.client" is not running then return "NOTRUNNING"
+	tell application id "com.spotify.client"
+		set shuffling to ((item 3 of argv) is "1")
+		if (item 2 of argv) is "" then
+			play track (item 1 of argv)
+		else
+			try
+				play track (item 2 of argv) in context (item 1 of argv)
+			on error
+				play track (item 1 of argv)
+			end try
+		end if
+	end tell
+end run`
+
+func (s *Spotify) PlayInContext(ctx context.Context, contextURI, trackURI string, shuffle bool) error {
+	if !strings.HasPrefix(contextURI, "spotify:") {
+		return fmt.Errorf("spotify: contexte invalide %q", contextURI)
+	}
+	shuf := "0"
+	if shuffle {
+		shuf = "1"
+	}
+	out, err := s.run.Run(ctx, spotifyPlayInContextScript, contextURI, trackURI, shuf)
+	if err == nil && out == "NOTRUNNING" {
+		return ErrNotRunning
+	}
+	return err
+}

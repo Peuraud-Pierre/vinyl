@@ -194,3 +194,64 @@ func (m *AppleMusic) PlayLibraryTrack(ctx context.Context, title, artist string)
 	}
 	return out == "OK", nil
 }
+
+// argv : titre de départ (vide = début), aléatoire (1/0), puis les persistent ID dans l'ordre.
+const musicPlayListScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	set startID to item 1 of argv
+	tell application id "com.apple.Music"
+		if not (exists user playlist "Vinyl — Album") then make new user playlist with properties {name:"Vinyl — Album"}
+		set p to user playlist "Vinyl — Album"
+		delete every track of p
+		repeat with i from 3 to count of argv
+			try
+				duplicate (first track of library playlist 1 whose persistent ID is (item i of argv)) to p
+			end try
+		end repeat
+		set shuffle enabled to ((item 2 of argv) is "1")
+		if startID is "" then
+			play p
+		else
+			play (first track of p whose persistent ID is startID)
+		end if
+	end tell
+end run`
+
+// argv : playlist, titre de départ (vide = début), aléatoire (1/0).
+const musicPlayInPlaylistScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	tell application id "com.apple.Music"
+		set p to (first user playlist whose persistent ID is (item 1 of argv))
+		set shuffle enabled to ((item 3 of argv) is "1")
+		if (item 2 of argv) is "" then
+			play p
+		else
+			play (first track of p whose persistent ID is (item 2 of argv))
+		end if
+	end tell
+end run`
+
+func flag(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
+}
+
+// PlayList remplit la playlist temporaire « Vinyl — Album » avec ids (dans l'ordre) puis joue à partir de startID.
+func (m *AppleMusic) PlayList(ctx context.Context, ids []string, startID string, shuffle bool) error {
+	out, err := m.run.Run(ctx, musicPlayListScript, append([]string{startID, flag(shuffle)}, ids...)...)
+	if err == nil && out == "NOTRUNNING" {
+		return ErrNotRunning
+	}
+	return err
+}
+
+// PlayInPlaylist joue une playlist de la bibliothèque à partir d'un titre ; la suite continue dans la playlist.
+func (m *AppleMusic) PlayInPlaylist(ctx context.Context, playlistID, startID string, shuffle bool) error {
+	out, err := m.run.Run(ctx, musicPlayInPlaylistScript, playlistID, startID, flag(shuffle))
+	if err == nil && out == "NOTRUNNING" {
+		return ErrNotRunning
+	}
+	return err
+}

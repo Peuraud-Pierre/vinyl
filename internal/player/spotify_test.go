@@ -2,6 +2,7 @@ package player
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -45,5 +46,19 @@ func TestSpotifySeekAndPlayItem(t *testing.T) {
 	}
 	if err := s.PlayItem(context.Background(), "playlist:1"); err == nil {
 		t.Error("une URI non Spotify doit être refusée")
+	}
+}
+
+func TestSpotifyPlayInContext(t *testing.T) {
+	r := &fakeRunner{}
+	s := NewSpotify(r)
+	if err := s.PlayInContext(context.Background(), "spotify:album:9", "spotify:track:3", true); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(r.calls[0].args, "|") != "spotify:album:9|spotify:track:3|1" {
+		t.Errorf("args = %q", r.calls[0].args)
+	}
+	if err := s.PlayInContext(context.Background(), "playlist:1", "", false); err == nil {
+		t.Error("contexte non Spotify → erreur")
 	}
 }
