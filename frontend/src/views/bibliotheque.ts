@@ -1,12 +1,15 @@
-// Étagère : pochettes debout vues par la tranche, ou empilées à plat.
+// Étagère façon MD Vinyl (cf. screen/playlistvisual.jpg) : coverflow 3D avec tranches nommées,
+// ou pile de pochettes. Un clic ouvre la page de l'album ou de la playlist.
 import { activeSource, api, type Item } from "../api";
-import { go, TABS, type Tab } from "../router";
+import { albumParam, go, TABS, type Tab } from "../router";
 import { icons } from "../ui/icons";
 import { imageTint } from "../ui/theme";
+import { slotTransform, visibleRange, WheelStepper } from "./coverflow";
 import { escapeHtml, initials } from "./grid";
 import { filterItems, spineColors } from "./shelf";
 
-const TAB_LABELS: Record<Tab, string> = { albums: "Albums", playlists: "Playlists", artistes: "Artistes", likes: "Likés" };
+const SEGMENTS: Tab[] = ["albums", "playlists"];
+const TAB_LABELS: Record<Tab, string> = { albums: "Albums", playlists: "Playlists", artistes: "Artistes", likes: "Titres likés" };
 const KIND: Record<Tab, string> = { albums: "albums", playlists: "playlists", artistes: "artists", likes: "likes" };
 type Mode = "side" | "flat";
 
@@ -25,11 +28,17 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     <section class="relative h-screen">
       <div id="sh-area" class="absolute" style="left:0;right:130px;top:96px;bottom:50px"></div>
       <p id="sh-status" class="absolute left-0 text-center text-[15px]" style="right:130px;bottom:18px;color:var(--ink-soft)"></p>
-      <button id="sh-back" class="glass round-btn vy-drop fixed z-30" style="left:92px;top:28px" aria-label="Revenir à la platine">${icons.shelf}</button>
-      <button id="sh-mode" class="glass round-btn vy-drop fixed z-30" style="left:152px;top:28px"></button>
-      <div class="glass vy-slide fixed z-30 flex gap-1 rounded-[30px] p-1" style="left:calc(50% - 65px);top:30px;translate:-50% 0" role="tablist" aria-label="Type de collection">
-        ${TABS.map((t) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}" class="pill h-10 cursor-pointer px-4 text-[16px] font-medium ${t === tab ? "pill-on" : ""}">${TAB_LABELS[t]}</button>`).join("")}
+      <button id="sh-menu" class="glass round-btn vy-drop fixed z-30" style="left:92px;top:28px" aria-label="Menu de l'étagère" aria-expanded="false">${icons.shelf}</button>
+      <div id="sh-menu-pop" class="glass fixed z-30 hidden w-64 rounded-[30px] p-2" style="left:92px;top:88px">
+        <button data-nav="platine" class="menu-item">${icons.mini} Platine</button>
+        <button data-nav="artistes" class="menu-item">${icons.person} Artistes</button>
+        <button data-nav="likes" class="menu-item">${icons.play} Titres likés</button>
+        <button id="sh-mode" class="menu-item"></button>
       </div>
+      <div id="sh-tabs" class="glass vy-slide fixed z-30 flex gap-1 rounded-[30px] p-1" style="left:calc(50% - 65px);top:30px;translate:-50% 0" role="tablist" aria-label="Type de collection">
+        ${SEGMENTS.map((t) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}" class="pill h-11 cursor-pointer px-6 text-[17px] font-medium ${t === tab ? "pill-on" : ""}">${TAB_LABELS[t]}</button>`).join("")}
+      </div>
+      <h2 id="sh-title" class="glass vy-slide fixed z-30 hidden rounded-[30px] px-6 py-2.5 text-[17px] font-semibold" style="left:calc(50% - 65px);top:30px;translate:-50% 0"></h2>
       <div class="vy-drop fixed z-30 flex items-center gap-3" style="right:51px;top:28px">
         <input id="sh-q" class="field glass hidden h-10 w-60" placeholder="Rechercher" aria-label="Rechercher dans la bibliothèque">
         <button id="sh-search" class="glass round-btn" aria-label="Rechercher">${icons.search}</button>
@@ -40,51 +49,112 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   const status = $("sh-status");
   const items: Item[] = [];
   const tints = new Map<string, string>();
+  const stepper = new WheelStepper();
   let source: "applemusic" | "spotify" = "applemusic";
   let next = 0;
   let loading = false;
+  let focus = 0;
   let scroller: HTMLElement | null = null;
 
-  const paintModeButton = () => {
-    $("sh-mode").innerHTML = mode === "side" ? icons.stack : icons.shelf;
-    const label = mode === "side" ? "Passer en pile verticale" : "Passer en étagère";
-    $("sh-mode").setAttribute("aria-label", label);
-    $("sh-mode").title = label;
+  const paintHeader = () => {
+    $("sh-mode").innerHTML = mode === "side" ? `${icons.stack} Vue pile` : `${icons.shelf} Vue étagère`;
+    const segmented = SEGMENTS.includes(tab);
+    $("sh-tabs").classList.toggle("hidden", !segmented);
+    $("sh-title").classList.toggle("hidden", segmented);
+    $("sh-title").textContent = TAB_LABELS[tab];
+    el.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle("pill-on", on);
+      b.setAttribute("aria-selected", String(on));
+    });
   };
 
   const spine = (it: Item) => spineColors(it.title, tints.get(it.id));
+  const shown = () => filterItems(items, query);
 
-  const MAX_STAGGER = 18;
-  const itemHtml = (it: Item, i: number, animate: boolean) => {
-    const anim = animate ? `${mode === "side" ? "vy-fly" : "vy-rise"}" style="--i:${Math.min(i, MAX_STAGGER)}` : "";
+  const artStyle = (it: Item) => {
     const c = spine(it);
-    const art = `background-color:${c.bg};` + (it.artworkUrl ? `background-image:${escapeHtml(cssUrl(it.artworkUrl))}` : "");
-    const word = it.artworkUrl ? "" : `<span class="absolute left-6 top-6 text-[44px] font-black" style="color:${c.ink}">${escapeHtml(initials(it.title))}</span>`;
-    const label = `${escapeHtml(it.title)}${it.subtitle ? ` — ${escapeHtml(it.subtitle)}` : ""}`;
-    const cover = `<div class="vy-cover" style="${art}">${word}</div>`;
-    if (mode === "side") {
-      return `<button class="vy-slot ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">
-        <div class="vy-box"><div class="vy-face" style="${art}">${word}</div>
-        <div class="vy-spine" style="background:${c.bg};color:${c.ink}"><span><b>${escapeHtml(it.title)}</b>  ${escapeHtml(it.subtitle)}</span></div></div></button>`;
-    }
-    return `<button class="vy-pile ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">${cover}
+    return `background-color:${c.bg};` + (it.artworkUrl ? `background-image:${escapeHtml(cssUrl(it.artworkUrl))}` : "");
+  };
+  const word = (it: Item) =>
+    it.artworkUrl ? "" : `<span class="absolute left-6 top-6 text-[44px] font-black" style="color:${spine(it).ink}">${escapeHtml(initials(it.title))}</span>`;
+  const label = (it: Item) => `${escapeHtml(it.title)}${it.subtitle ? ` — ${escapeHtml(it.subtitle)}` : ""}`;
+
+  // Boîtier du coverflow : face (pochette) + tranche nommée, reflet sur la face.
+  const boxHtml = (it: Item) => {
+    const c = spine(it);
+    return `<button class="vy-cf" data-id="${escapeHtml(it.id)}" aria-label="${label(it)}">
+      <div class="vy-face" style="${artStyle(it)}">${word(it)}</div>
+      <div class="vy-spine" style="background:${c.bg};color:${c.ink}"><span><b>${escapeHtml(it.title)}</b>  ${escapeHtml(it.subtitle)}</span></div></button>`;
+  };
+  const MAX_STAGGER = 18;
+  const pileHtml = (it: Item, i: number, animate: boolean) => {
+    const anim = animate ? `vy-rise" style="--i:${Math.min(i, MAX_STAGGER)}` : "";
+    return `<button class="vy-pile ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label(it)}"><div class="vy-cover" style="${artStyle(it)}">${word(it)}</div>
       <div class="vy-edge"><b>${escapeHtml(it.title)}</b><span class="opacity-80">${escapeHtml(it.subtitle)}</span></div></button>`;
   };
 
-  const render = (animate = false) => {
-    const shown = filterItems(items, query);
-    const html = shown.map((it, i) => itemHtml(it, i, animate)).join("");
-    area.innerHTML = mode === "side"
-      ? `<div id="sh-scroll" class="shelf-scroll vy-row h-full overflow-x-auto overflow-y-hidden px-[160px]" style="padding-right:420px">${html}</div>`
-      : `<div id="sh-scroll" class="shelf-scroll h-full overflow-y-auto"><div class="flex flex-col py-[80px]" style="padding-left:160px;padding-bottom:300px">${html}</div></div>`;
-    scroller = $("sh-scroll");
-    scroller.addEventListener("scroll", maybeLoad, { passive: true });
-    if (mode === "side") {
-      // La molette verticale fait défiler l'étagère de côté.
-      scroller.addEventListener("wheel", (e) => {
-        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { scroller!.scrollLeft += e.deltaY; e.preventDefault(); }
-      }, { passive: false });
+  // Coverflow : seuls les boîtiers à ±12 de la sélection sont dans le DOM.
+  const layout = () => {
+    const row = area.querySelector<HTMLElement>("#cf-row");
+    if (!row) return;
+    const list = shown();
+    focus = Math.min(Math.max(0, focus), Math.max(0, list.length - 1));
+    const [a, b] = visibleRange(focus, list.length);
+    const keep = new Set<string>();
+    for (let i = a; i <= b; i++) {
+      const it = list[i]!;
+      keep.add(it.id);
+      let slot = row.querySelector<HTMLElement>(`[data-id="${CSS.escape(it.id)}"]`);
+      if (!slot) {
+        row.insertAdjacentHTML("beforeend", boxHtml(it));
+        slot = row.lastElementChild as HTMLElement;
+      }
+      const t = slotTransform(i, focus);
+      slot.style.transform = `translate(-50%,-50%) translateX(${t.x}px) translateZ(${t.z}px) rotateY(${t.rotateY}deg)`;
+      slot.style.zIndex = String(t.zIndex);
+      slot.dataset.index = String(i);
+      slot.classList.toggle("cf-right", i > focus);
+      slot.classList.toggle("cf-on", i === focus);
     }
+    row.querySelectorAll<HTMLElement>("[data-id]").forEach((n) => { if (!keep.has(n.dataset.id!)) n.remove(); });
+    if (!query && b >= list.length - 6) load();
+  };
+
+  const move = (delta: number) => {
+    const list = shown();
+    const target = Math.min(Math.max(0, focus + delta), Math.max(0, list.length - 1));
+    if (target !== focus) { focus = target; layout(); }
+  };
+
+  const render = (animate = false) => {
+    if (mode === "side") {
+      area.innerHTML = `<div id="cf" class="relative h-full w-full overflow-hidden" style="perspective:1300px;perspective-origin:50% 40%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)">
+        <div id="cf-row" class="absolute left-1/2 top-[44%]" style="transform-style:preserve-3d"></div></div>`;
+      scroller = null;
+      // Boîtiers à l'échelle de la fenêtre : environ 62 % de la hauteur, comme sur MD Vinyl.
+      const fit = () => {
+        const row = area.querySelector<HTMLElement>("#cf-row");
+        if (row) row.style.scale = String(Math.min(1.7, Math.max(0.8, (area.clientHeight * 0.62) / 300)));
+      };
+      fit();
+      new ResizeObserver(fit).observe(area);
+      area.querySelector("#cf")!.addEventListener("wheel", (e) => {
+        const w = e as WheelEvent;
+        const n = stepper.push(Math.abs(w.deltaX) > Math.abs(w.deltaY) ? w.deltaX : w.deltaY);
+        if (n) move(n);
+        w.preventDefault();
+      }, { passive: false });
+      layout();
+      return;
+    }
+    const html = shown().map((it, i) => pileHtml(it, i, animate)).join("");
+    area.innerHTML = `<div id="sh-scroll" class="shelf-scroll h-full overflow-y-auto"><div class="flex flex-col py-[80px]" style="padding-left:160px;padding-bottom:300px">${html}</div></div>`;
+    scroller = $("sh-scroll");
+    scroller.addEventListener("scroll", () => {
+      if (!scroller || query) return;
+      if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 600) load();
+    }, { passive: true });
   };
 
   const recolor = (it: Item) => {
@@ -139,12 +209,17 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       const page = await api.Library(source, KIND[tab], next);
       if (!alive) return;
       const fresh = page.items ?? [];
+      const first = items.length === 0;
       items.push(...fresh);
       next = page.next;
-      const keep = scroller ? [scroller.scrollLeft, scroller.scrollTop] : [0, 0];
-      render(items.length === fresh.length);
-      scroller!.scrollLeft = keep[0]!;
-      scroller!.scrollTop = keep[1]!;
+      if (mode === "side") {
+        if (!area.querySelector("#cf-row")) render();
+        else layout();
+      } else {
+        const keep = scroller?.scrollTop ?? 0;
+        render(first);
+        scroller!.scrollTop = keep;
+      }
       fresh.forEach(decorate);
       status.textContent = items.length === 0 ? "Rien ici pour l'instant." : "";
     } catch (e) {
@@ -154,46 +229,55 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     }
   }
 
-  function maybeLoad() {
-    if (!scroller || query) return;
-    const left = mode === "side"
-      ? scroller.scrollWidth - scroller.scrollLeft - scroller.clientWidth
-      : scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-    if (left < 600) load();
-  }
+  const open = async (it: Item) => {
+    if (it.kind === "artist") return go("artiste", it.title);
+    if (it.kind === "track") {
+      try {
+        await api.PlayItem(source, it.id);
+        go("platine");
+      } catch (err) {
+        showError(err);
+      }
+      return;
+    }
+    go("album", albumParam(source, it.id));
+  };
 
-  // Fin de l'arrivée en cascade : on retire l'animation pour que le survol puisse glisser.
   area.addEventListener("animationend", (e) => (e.target as HTMLElement).classList.remove("vy-fly", "vy-rise"));
-
-  area.addEventListener("click", async (e) => {
+  area.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-id]");
     const it = btn && items.find((i) => i.id === btn.dataset.id);
-    if (!it) return;
-    if (it.kind === "artist") return go("artiste", it.title);
-    try {
-      await api.PlayItem(source, it.id);
-      go("platine");
-    } catch (err) {
-      showError(err);
+    if (!it || !btn) return;
+    if (mode === "side" && btn.dataset.index !== undefined && Number(btn.dataset.index) !== focus) {
+      focus = Number(btn.dataset.index);
+      layout();
+      return;
     }
+    open(it);
   });
 
-  // Changement d'onglet sur place : les pochettes s'effacent en flou, les nouvelles arrivent en cascade.
+  const onKey = (e: KeyboardEvent) => {
+    const t = e.target;
+    if ((t instanceof Element && t.closest("input, select, textarea")) || mode !== "side") return;
+    if (e.key === "ArrowLeft") { move(-1); e.stopPropagation(); e.preventDefault(); }
+    if (e.key === "ArrowRight") { move(1); e.stopPropagation(); e.preventDefault(); }
+    if (e.key === "Enter") { const it = shown()[focus]; if (it) open(it); }
+  };
+  window.addEventListener("keydown", onKey, true); // avant les raccourcis précédent/suivant de main.ts
+
+  // Changement d'onglet sur place : les pochettes s'effacent en flou, les nouvelles arrivent.
   const switchTab = async (target: Tab) => {
     if (target === tab || loading) return;
     tab = target;
     history.replaceState(null, "", `#/bibliotheque/${tab}`);
-    el.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) => {
-      const on = b.dataset.tab === tab;
-      b.classList.toggle("pill-on", on);
-      b.setAttribute("aria-selected", String(on));
-    });
+    paintHeader();
     area.firstElementChild?.classList.add("vy-leave");
     await new Promise((r) => setTimeout(r, 220));
     if (!alive || tab !== target) return;
     items.length = 0;
     tints.clear();
     next = 0;
+    focus = 0;
     area.innerHTML = "";
     scroller = null;
     status.textContent = "";
@@ -203,27 +287,43 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     }
     load();
   };
+
+  const toggleMenu = (force?: boolean) => {
+    const open = force ?? $("sh-menu-pop").classList.contains("hidden");
+    $("sh-menu-pop").classList.toggle("hidden", !open);
+    $("sh-menu").setAttribute("aria-expanded", String(open));
+  };
+  $("sh-menu").onclick = (e) => { e.stopPropagation(); toggleMenu(); };
+  const closeMenu = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest("#sh-menu-pop, #sh-menu")) toggleMenu(false); };
+  document.addEventListener("click", closeMenu);
+  el.querySelectorAll<HTMLElement>("[data-nav]").forEach((b) => (b.onclick = () => {
+    toggleMenu(false);
+    const nav = b.dataset.nav!;
+    if (nav === "platine") go("platine");
+    else switchTab(nav as Tab);
+  }));
   el.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) => (b.onclick = () => switchTab(b.dataset.tab as Tab)));
-  $("sh-back").onclick = () => go("platine");
   $("sh-mode").onclick = () => {
+    toggleMenu(false);
     mode = mode === "side" ? "flat" : "side";
     saveMode(mode);
-    paintModeButton();
+    paintHeader();
     render(true);
   };
   $("sh-search").onclick = () => {
     const q = $<HTMLInputElement>("sh-q");
     q.classList.toggle("hidden");
     if (!q.classList.contains("hidden")) q.focus();
-    else if (query) { query = ""; q.value = ""; render(); }
+    else if (query) { query = ""; q.value = ""; focus = 0; render(); }
   };
   $<HTMLInputElement>("sh-q").addEventListener("input", (e) => {
     query = (e.target as HTMLInputElement).value;
+    focus = 0;
     render();
-    status.textContent = query && filterItems(items, query).length === 0 ? "Aucun résultat dans ce qui est chargé." : "";
+    status.textContent = query && shown().length === 0 ? "Aucun résultat dans ce qui est chargé." : "";
   });
 
-  paintModeButton();
+  paintHeader();
   activeSource().then((s) => {
     source = s;
     if (tab === "likes" && s !== "spotify") {
@@ -232,5 +332,9 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     }
     load();
   });
-  return () => { alive = false; };
+  return () => {
+    alive = false;
+    window.removeEventListener("keydown", onKey, true);
+    document.removeEventListener("click", closeMenu);
+  };
 }
