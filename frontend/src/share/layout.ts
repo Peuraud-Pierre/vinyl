@@ -13,3 +13,7 @@ export function fitText(measure: (s: string) => number, text: string, maxWidth: 
   }
   return text.slice(0, lo).trimEnd() + "…";
 }
+
+// Format story (cf. screen/visible vinyle (preview).png).
+export const STORY_W = 1080;
+export const STORY_H = 1920;
