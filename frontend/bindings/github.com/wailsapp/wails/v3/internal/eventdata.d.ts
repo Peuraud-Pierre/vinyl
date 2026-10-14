@@ -11,12 +11,16 @@ import type * as player$0 from "../../../../../vinyl/internal/player/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import type * as settings$0 from "../../../../../vinyl/internal/settings/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as widgetupdate$0 from "../../../../../vinyl/internal/widgetupdate/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
             "nowplaying": player$0.Snapshot;
             "settings": settings$0.Settings;
+            "widgetupdate": widgetupdate$0.Status;
         }
     }
 }

@@ -1,5 +1,6 @@
 import "./styles.css";
-import { api, applyAccent, onSettings, type Settings } from "./api";
+import { api, applyAccent, onSettings, onWidgetUpdate, type Settings } from "./api";
+import { render as renderWidgetUpdate, type WidgetStatus } from "./widgetupdate";
 import { parseRoute, type Route } from "./router";
 import * as platine from "./views/platine";
 import * as personnaliser from "./views/personnaliser";
@@ -53,3 +54,9 @@ const refreshSpotify = async () => {
 };
 refreshSpotify();
 window.addEventListener("hashchange", refreshSpotify);
+
+const widgetUpdateEl = document.getElementById("widget-update")!;
+const showWidgetUpdate = (s: WidgetStatus) =>
+  renderWidgetUpdate(widgetUpdateEl, s, { update: () => void api.UpdateWidget().catch(console.error) });
+api.WidgetUpdateStatus().then(showWidgetUpdate);
+onWidgetUpdate(showWidgetUpdate);

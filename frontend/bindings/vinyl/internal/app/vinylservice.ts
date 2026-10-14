@@ -17,6 +17,9 @@ import * as player$0 from "../player/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as settings$0 from "../settings/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as widgetupdate$0 from "../widgetupdate/models.js";
 
 export function Artist(source: string, name: string, trackID: string): $CancellablePromise<catalog$0.ArtistPage> {
     return $Call.ByID(610413143, source, name, trackID);
@@ -107,6 +110,13 @@ export function SetSpotifyAuth(a: auth$0.SpotifyAuth | null): $CancellablePromis
     return $Call.ByID(1187128612, a);
 }
 
+/**
+ * SetWidgetUpdates branche le gestionnaire de mise à jour du widget de bureau.
+ */
+export function SetWidgetUpdates(m: widgetupdate$0.Manager | null): $CancellablePromise<void> {
+    return $Call.ByID(2775870054, m);
+}
+
 export function SpotifyLogin(): $CancellablePromise<void> {
     return $Call.ByID(3553867523);
 }
@@ -124,4 +134,18 @@ export function SpotifyStatus(): $CancellablePromise<boolean> {
  */
 export function UpdateSettings(p: settings$0.Patch): $CancellablePromise<settings$0.Settings> {
     return $Call.ByID(3481957832, p);
+}
+
+/**
+ * UpdateWidget lance la recompilation et la réinstallation du widget en arrière-plan.
+ */
+export function UpdateWidget(): $CancellablePromise<void> {
+    return $Call.ByID(2835288261);
+}
+
+/**
+ * WidgetUpdateStatus indique si l'icône ☁️↓ doit s'afficher.
+ */
+export function WidgetUpdateStatus(): $CancellablePromise<widgetupdate$0.Status> {
+    return $Call.ByID(2766031579);
 }

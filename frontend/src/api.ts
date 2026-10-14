@@ -1,5 +1,6 @@
 import { Events } from "@wailsio/runtime";
 import { VinylService } from "../bindings/vinyl/internal/app";
+import type { WidgetStatus } from "./widgetupdate";
 
 // Types volontairement « larges » (string, string[]) pour rester compatibles avec les interfaces
 // générées par `wails3 generate bindings` ; les valeurs possibles sont commentées.
@@ -22,6 +23,9 @@ export function onSnapshot(cb: (s: Snapshot) => void): () => void {
 }
 export function onSettings(cb: (s: Settings) => void): () => void {
   return Events.On("settings", (ev) => cb(ev.data as Settings));
+}
+export function onWidgetUpdate(cb: (s: WidgetStatus) => void): () => void {
+  return Events.On("widgetupdate", (ev) => cb(ev.data as WidgetStatus));
 }
 export function applyAccent(color: string): void {
   document.documentElement.style.setProperty("--accent", color);

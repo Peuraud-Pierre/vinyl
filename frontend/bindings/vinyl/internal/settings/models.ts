@@ -23,4 +23,9 @@ export interface Settings {
     "widgetY": number;
     "widgetPlaced": boolean;
     "spotifyClientId": string;
+
+    /**
+     * dossier du dépôt (widget/), facultatif
+     */
+    "widgetProjectDir"?: string;
 }
