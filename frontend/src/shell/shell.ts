@@ -20,6 +20,8 @@ export function mountShell(root: HTMLElement, accent: () => string): { refreshTh
     </nav>
     <button id="sh-more" class="glass round-btn fixed z-30" style="right:51px;bottom:32px" aria-label="Plus" aria-expanded="false">${icons.more}</button>
     <div id="sh-more-pop" class="glass fixed z-30 hidden w-64 rounded-[30px] p-2" style="right:51px;bottom:92px">
+      <button id="sh-prev" class="menu-item">${icons.prev} Morceau précédent</button>
+      <button id="sh-next" class="menu-item">${icons.next} Morceau suivant</button>
       <button data-go="personnaliser" class="menu-item">${icons.palette} Personnaliser</button>
       <button data-go="reglages" class="menu-item">${icons.settings.replace('width="28" height="28"', 'width="20" height="20"')} Réglages</button>
       <button id="sh-artist" class="menu-item">${icons.person} <span>Page de l'artiste</span></button>
@@ -44,6 +46,8 @@ export function mountShell(root: HTMLElement, accent: () => string): { refreshTh
     queue.toggle();
   };
   queue.onToggle((open) => $("sh-queue").setAttribute("aria-expanded", String(open)));
+  $("sh-prev").onclick = () => { closeAll(); api.Previous().catch(() => {}); };
+  $("sh-next").onclick = () => { closeAll(); api.Next().catch(() => {}); };
   $("sh-more").onclick = (e) => { e.stopPropagation(); queue.toggle(false); toggle("sh-more", "sh-more-pop"); };
   $("sh-artist").onclick = () => { if (snap?.nowPlaying.artist) go("artiste", snap.nowPlaying.artist); };
   root.querySelectorAll<HTMLElement>("[data-go]").forEach((b) => (b.onclick = () => go(b.dataset.go as "personnaliser" | "reglages")));
