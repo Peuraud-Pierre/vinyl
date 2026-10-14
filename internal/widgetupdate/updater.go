@@ -126,7 +126,9 @@ func (u *Updater) Update(ctx context.Context) error {
 	}
 	out, err := u.Run.Run(ctx, u.widgetDir(), "/usr/bin/xcodebuild",
 		"-project", "VinylWidget.xcodeproj", "-scheme", "Vinyl Widget", "-configuration", "Release",
-		"-derivedDataPath", u.BuildDir, "-allowProvisioningUpdates", "DEVELOPMENT_TEAM="+team, "build")
+		"-derivedDataPath", u.BuildDir, "-allowProvisioningUpdates", "DEVELOPMENT_TEAM="+team,
+		// Version croissante : si plusieurs copies de l'extension sont enregistrées, macOS prend la plus récente.
+		fmt.Sprintf("CURRENT_PROJECT_VERSION=%d", u.Now().Unix()), "build")
 	if err != nil {
 		if isAccountProblem(out) {
 			return userErr(msgAccount)
@@ -136,8 +138,13 @@ func (u *Updater) Update(ctx context.Context) error {
 	built := filepath.Join(u.BuildDir, "Build", "Products", "Release", "Vinyl Widget.app")
 	u.Run.Run(ctx, "", "/usr/bin/killall", "Vinyl Widget") // erreur ignorée : l'assistant peut être arrêté
 	if err := u.install(ctx, built); err != nil {
+		if _, statErr := os.Stat(u.AppPath); statErr == nil {
+			u.Run.Run(ctx, "", "/usr/bin/open", "-a", u.AppPath) // l'ancienne version reprend du service
+		}
 		return err
 	}
+	// Une seule copie de l'app sur le disque : sinon macOS peut enregistrer l'extension de la copie de build.
+	os.RemoveAll(built)
 	if out, err := u.Run.Run(ctx, "", "/usr/bin/open", "-a", u.AppPath); err != nil {
 		return failure(err, "Widget installé, mais impossible de relancer l'assistant", out)
 	}

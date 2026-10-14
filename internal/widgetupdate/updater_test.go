@@ -267,3 +267,43 @@ func TestObserveNotInstalled(t *testing.T) {
 		t.Fatalf("Observe = %+v", o)
 	}
 }
+
+func TestUpdateCopyFailsRelaunchesOldApp(t *testing.T) {
+	base := defaultRespond(makeCert(t, "TEAM123", testNow.Add(time.Hour*24*300)))
+	r := &fakeRunner{respond: func(c call) (string, error) {
+		if filepath.Base(c.name) == "ditto" {
+			return "ditto: No space left on device", errors.New("exit status 1")
+		}
+		return base(c)
+	}}
+	u := newTestUpdater(t, r)
+	installOld(t, u)
+	u.Update(context.Background())
+	last := r.calls[len(r.calls)-1]
+	if filepath.Base(last.name) != "open" || !slices.Equal(last.args, []string{"-a", u.AppPath}) {
+		t.Fatalf("l'ancien assistant doit être relancé, dernière commande : %+v", last)
+	}
+}
+
+func TestUpdateBumpsVersionAndRemovesBuildCopy(t *testing.T) {
+	base := defaultRespond(makeCert(t, "TEAM123", testNow.Add(time.Hour*24*300)))
+	var built string
+	r := &fakeRunner{}
+	u := newTestUpdater(t, r)
+	built = filepath.Join(u.BuildDir, "Build", "Products", "Release", "Vinyl Widget.app")
+	r.respond = func(c call) (string, error) {
+		if filepath.Base(c.name) == "xcodebuild" {
+			return "", os.MkdirAll(filepath.Join(built, "Contents", "PlugIns"), 0o755)
+		}
+		return base(c)
+	}
+	if err := u.Update(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(r.calls[2].args, fmt.Sprintf("CURRENT_PROJECT_VERSION=%d", testNow.Unix())) {
+		t.Fatalf("version de build absente : %v", r.calls[2].args)
+	}
+	if _, err := os.Stat(built); !os.IsNotExist(err) {
+		t.Fatal("la copie compilée doit être supprimée (une seule extension enregistrée)")
+	}
+}

@@ -128,10 +128,12 @@ func main() {
 		service.OpenMainWindow()
 	})
 
-	// Menu de l'app : ⌘⇧M affiche ou masque le disque flottant.
+	// Menus macOS par défaut (⌘W, ⌘M, plein écran…) ; le menu Fenêtre gagne « Mini-platine » (⌘⇧M).
 	menu := application.NewMenu()
 	menu.AddRole(application.AppMenu)
+	menu.AddRole(application.FileMenu)
 	menu.AddRole(application.EditMenu)
+	menu.AddRole(application.ViewMenu)
 	fenetre := menu.AddSubmenu("Fenêtre")
 	fenetre.Add("Mini-platine").SetAccelerator("CmdOrCtrl+Shift+M").OnClick(func(*application.Context) {
 		if widget.IsVisible() {
@@ -140,6 +142,12 @@ func main() {
 			widget.Show()
 		}
 	})
+	fenetre.AddSeparator()
+	fenetre.AddRole(application.Minimise)
+	fenetre.AddRole(application.Zoom)
+	fenetre.AddSeparator()
+	fenetre.AddRole(application.Front)
+	menu.AddRole(application.HelpMenu)
 	wailsApp.Menu.Set(menu)
 
 	wailsApp.OnShutdown(func() {
