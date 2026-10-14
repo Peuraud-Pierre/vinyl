@@ -4,7 +4,7 @@ import { activeSource, api, type Item } from "../api";
 import { albumParam, go, TABS, type Tab } from "../router";
 import { icons } from "../ui/icons";
 import { imageTint } from "../ui/theme";
-import { clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, visibleIndices } from "./coverflow";
+import { clampOffset, flipTransition, SHELF_ANGLE, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, visibleIndices } from "./coverflow";
 import { albumCoverRect, flightFrames } from "../ui/flight";
 import { escapeHtml, initials } from "./grid";
 import { filterItems, spineColors } from "./shelf";
@@ -120,6 +120,10 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
         }
       }
       const t = shelfTransform(i, offset, half);
+      // Passage du centre : bascule immédiate, sans pivoter pendant le défilement.
+      const prevSide = slot.dataset.side === undefined ? undefined : slot.dataset.side === "r";
+      slot.style.transition = flipTransition(prevSide, t.spineRight);
+      slot.dataset.side = t.spineRight ? "r" : "l";
       slot.style.transform = `translate(-50%,-50%) translateX(${t.x}px) rotateY(${t.rotateY}deg)`;
       slot.style.zIndex = String(t.zIndex);
       slot.classList.toggle("cf-right", t.spineRight);

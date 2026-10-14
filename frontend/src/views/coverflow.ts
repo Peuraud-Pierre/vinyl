@@ -29,3 +29,11 @@ export function visibleIndices(offset: number, count: number, halfWidth: number)
   const last = Math.ceil((offset + 2 * halfWidth - SHELF_MARGIN - CENTER_GAP + SHELF_GAP) / SHELF_GAP);
   return [Math.max(0, first), Math.min(count - 1, last)];
 }
+
+/**
+ * Transition à appliquer quand un boîtier est repositionné. S'il change de côté (il passe le centre),
+ * on coupe la transition : il bascule d'un coup au lieu de pivoter sous les yeux pendant le défilement.
+ */
+export function flipTransition(prevSpineRight: boolean | undefined, spineRight: boolean): string {
+  return prevSpineRight !== undefined && prevSpineRight !== spineRight ? "none" : "";
+}

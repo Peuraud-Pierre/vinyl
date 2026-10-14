@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { CENTER_GAP, clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_MARGIN, shelfTransform, visibleIndices } from "./coverflow";
+import { CENTER_GAP, clampOffset, flipTransition, SHELF_ANGLE, SHELF_GAP, SHELF_MARGIN, shelfTransform, visibleIndices } from "./coverflow";
 
 const HALF = 600; // demi-largeur de la scène
 
@@ -56,4 +56,11 @@ test("pochettes presque perpendiculaires : près du centre, à peine 10–15 % d
   const visibleRatio = Math.cos((SHELF_ANGLE * Math.PI) / 180);
   expect(visibleRatio).toBeGreaterThan(0.08);
   expect(visibleRatio).toBeLessThan(0.18);
+});
+
+test("en défilant, un boîtier qui passe le centre change de côté sans pivoter (pas de transition)", () => {
+  expect(flipTransition(false, true)).toBe("none");
+  expect(flipTransition(true, false)).toBe("none");
+  expect(flipTransition(true, true)).toBe("");
+  expect(flipTransition(undefined, true)).toBe(""); // boîtier qui vient d'apparaître
 });
