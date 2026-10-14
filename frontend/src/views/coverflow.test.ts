@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { CENTER_GAP, clampOffset, SHELF_GAP, SHELF_MARGIN, shelfTransform, visibleIndices } from "./coverflow";
+import { CENTER_GAP, clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_MARGIN, shelfTransform, visibleIndices } from "./coverflow";
 
 const HALF = 600; // demi-largeur de la scène
 
@@ -10,14 +10,20 @@ test("défilement continu : les boîtiers glissent du décalage, au pixel près"
   expect(shelfTransform(3, 0, HALF).x - shelfTransform(3, 37, HALF).x).toBe(37);
   expect(shelfTransform(4, 0, HALF).x - shelfTransform(3, 0, HALF).x).toBe(SHELF_GAP);
 });
-test("tous vus par la tranche : tranche côté centre, face à l'utilisateur ; pochette en biais", () => {
-  // Vérifié en capture : à gauche, rotateY négatif (bord droit vers l'avant) et tranche sur le bord droit.
-  const left = shelfTransform(0, 0, HALF), right = shelfTransform(12, 0, HALF);
-  expect(left.rotateY).toBe(-72);
-  expect(left.spineRight).toBe(true);
+test("comme dans la vidéo : tranche sur le bord extérieur, pochette qui part vers le centre", () => {
+  // Vidéo (16–18 s) : à gauche, la tranche « Colors - Single Egofear » est à gauche et la pochette s'étend
+  // vers la droite ; à droite, la tranche « Amy Winehouse » est à droite et la pochette s'étend vers la gauche.
+  const left = shelfTransform(0, 0, HALF), right = shelfTransform(14, 0, HALF);
+  expect(left.rotateY).toBe(SHELF_ANGLE);
+  expect(left.spineRight).toBe(false);
   expect(right.x).toBeGreaterThan(0);
-  expect(right.rotateY).toBe(72);
-  expect(right.spineRight).toBe(false);
+  expect(right.rotateY).toBe(-SHELF_ANGLE);
+  expect(right.spineRight).toBe(true);
+});
+test("environ dix tranches sur la largeur (vidéo : une tranche tous les 10 % de l'écran)", () => {
+  const visible = (2 * (HALF - SHELF_MARGIN)) / SHELF_GAP;
+  expect(visible).toBeGreaterThan(8);
+  expect(visible).toBeLessThan(20);
 });
 test("les boîtiers proches du centre passent devant leurs voisins", () => {
   const near = shelfTransform(4, 0, HALF), far = shelfTransform(0, 0, HALF);
@@ -38,9 +44,16 @@ test("seuls les boîtiers visibles (plus une marge) sont rendus", () => {
   expect(visibleIndices(0, 0, HALF)).toEqual([0, -1]);
 });
 test("au passage du centre, un écart supplémentaire évite que les deux tranches se chevauchent", () => {
-  // Le boîtier 4 est à gauche du centre (−94), le 5 à droite (+10 avant écart) : HALF 600, marge 90, pas 104.
-  const a = shelfTransform(4, 0, HALF), b = shelfTransform(5, 0, HALF);
+  // Les deux boîtiers qui encadrent le centre.
+  const k = Math.floor((HALF - SHELF_MARGIN) / SHELF_GAP);
+  const a = shelfTransform(k, 0, HALF), b = shelfTransform(k + 1, 0, HALF);
   expect(a.x).toBeLessThan(0);
   expect(b.x).toBeGreaterThan(0);
   expect(b.x - a.x).toBe(SHELF_GAP + CENTER_GAP);
+});
+
+test("pochettes presque perpendiculaires : près du centre, à peine 10–15 % de leur hauteur en largeur", () => {
+  const visibleRatio = Math.cos((SHELF_ANGLE * Math.PI) / 180);
+  expect(visibleRatio).toBeGreaterThan(0.08);
+  expect(visibleRatio).toBeLessThan(0.18);
 });

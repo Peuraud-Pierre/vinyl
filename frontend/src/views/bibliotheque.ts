@@ -4,7 +4,7 @@ import { activeSource, api, type Item } from "../api";
 import { albumParam, go, TABS, type Tab } from "../router";
 import { icons } from "../ui/icons";
 import { imageTint } from "../ui/theme";
-import { clampOffset, SHELF_GAP, shelfTransform, visibleIndices } from "./coverflow";
+import { clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, visibleIndices } from "./coverflow";
 import { albumCoverRect, flightFrames } from "../ui/flight";
 import { escapeHtml, initials } from "./grid";
 import { filterItems, spineColors } from "./shelf";
@@ -28,7 +28,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   let query = "";
   el.innerHTML = `
     <section class="relative h-screen">
-      <div id="sh-area" class="absolute" style="left:0;right:130px;top:96px;bottom:50px"></div>
+      <div id="sh-area" class="absolute" style="left:0;right:0;top:0;bottom:0"></div>
       <p id="sh-status" class="absolute left-0 text-center text-[15px]" style="right:130px;bottom:18px;color:var(--ink-soft)"></p>
       <button id="sh-menu" class="glass round-btn vy-drop fixed z-30" style="left:92px;top:28px" aria-label="Menu de l'étagère" aria-expanded="false">${icons.shelf}</button>
       <div id="sh-menu-pop" class="glass fixed z-30 hidden w-64 rounded-[30px] p-2" style="left:92px;top:88px">
@@ -136,12 +136,14 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (target !== offset) { offset = target; layout(); memo(); }
   };
 
-  // Mise à l'échelle : boîtiers d'environ 62 % de la hauteur, comme sur MD Vinyl.
+  // Mise à l'échelle : boîtiers d'environ 80 % de la hauteur, comme dans la vidéo.
   const fit = () => {
     const row = area.querySelector<HTMLElement>("#cf-row");
     if (!row) return;
-    scale = Math.min(1.7, Math.max(0.8, (area.clientHeight * 0.62) / 300));
+    scale = Math.max(0.8, (area.clientHeight * 0.8) / 300); // vidéo : boîtiers sur ~80 % de la hauteur
     row.style.scale = String(scale);
+    // La profondeur grandit avec l'échelle : sans ça, la perspective serait bien plus forte que dans la vidéo.
+    (row.parentElement as HTMLElement).style.perspective = `${SHELF_PERSPECTIVE * scale}px`;
     layout();
   };
   const ro = new ResizeObserver(fit);
@@ -149,8 +151,8 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
 
   const render = (animate = false) => {
     if (mode === "side") {
-      area.innerHTML = `<div id="cf" class="relative h-full w-full overflow-hidden" style="perspective:1300px;perspective-origin:50% 40%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)">
-        <div id="cf-row" class="absolute left-1/2 top-[44%]" style="transform-style:preserve-3d"></div></div>`;
+      area.innerHTML = `<div id="cf" class="relative h-full w-full overflow-hidden" style="perspective-origin:50% 50%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)">
+        <div id="cf-row" class="absolute left-1/2 top-1/2" style="transform-style:preserve-3d"></div></div>`;
       scroller = null;
       // Défilement continu à la molette ou au trackpad (horizontal ou vertical).
       area.querySelector("#cf")!.addEventListener("wheel", (e) => {
@@ -264,7 +266,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (!face || !it.artworkUrl || mode !== "side") return;
     const r = face.getBoundingClientRect();
     const slot = face.closest<HTMLElement>("[data-id]")!;
-    const angle = slot.classList.contains("cf-right") ? -72 : 72; // même angle que le boîtier
+    const angle = slot.classList.contains("cf-right") ? -SHELF_ANGLE : SHELF_ANGLE; // même angle que le boîtier
     const ghost = document.createElement("div");
     ghost.className = "pointer-events-none fixed z-[60] bg-cover bg-center";
     ghost.style.backgroundImage = cssUrl(it.artworkUrl);

@@ -63,12 +63,12 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .shelf-scroll::-webkit-scrollbar { display: none; }
 .vy-face { position: absolute; inset: 0; background: #2a2220 center / cover; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); backface-visibility: hidden; }
 .vy-face::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.28), transparent 40%); }
-.vy-spine { position: absolute; left: -28px; top: 0; width: 28px; height: 300px; transform-origin: 100% 50%; transform: rotateY(-90deg); display: flex; align-items: flex-end; justify-content: center; box-shadow: inset -5px 0 9px rgba(0,0,0,.28), inset 1px 0 0 rgba(255,255,255,.14); transition: background .6s; }
-.vy-spine span { writing-mode: vertical-rl; transform: rotate(180deg); padding: 14px 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 280px; }
+.vy-spine { position: absolute; left: -14px; top: 0; width: 14px; height: 300px; transform-origin: 100% 50%; transform: rotateY(-90deg); display: flex; align-items: flex-end; justify-content: center; box-shadow: inset -5px 0 9px rgba(0,0,0,.28), inset 1px 0 0 rgba(255,255,255,.14); transition: background .6s; }
+.vy-spine span { writing-mode: vertical-rl; transform: rotate(180deg); padding: 10px 0; font-size: 8.5px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 280px; }
 /* Coverflow (cf. screen/playlistvisual.jpg) : boîtiers carrés, tranche du côté visible, reflet au sol. */
 .vy-cf { position: absolute; left: 0; top: 0; width: 300px; height: 300px; border: 0; padding: 0; background: none; cursor: pointer; transform-style: preserve-3d; transition: transform .22s ease-out; }
 .vy-cf .vy-face { -webkit-box-reflect: below 6px linear-gradient(transparent 62%, rgba(0,0,0,.22)); }
-.vy-cf.cf-right .vy-spine { left: auto; right: -28px; transform-origin: 0 50%; transform: rotateY(90deg); }
+.vy-cf.cf-right .vy-spine { left: auto; right: -14px; transform-origin: 0 50%; transform: rotateY(90deg); }
 .vy-cf:hover .vy-face { filter: brightness(1.08); }
 /* Arrivée des boîtiers en cascade (vidéo MD Vinyl, 15,5 s) : fondu flou, sans toucher au transform 3D. */
 @keyframes vy-shelf-in { from { opacity: 0; filter: blur(14px); } }
