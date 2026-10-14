@@ -1,31 +1,13 @@
 <!doctype html>
 <html lang="fr">
 <head><meta charset="UTF-8" /><title>Vinyl</title><link rel="stylesheet" href="/src/styles.css" /></head>
-<body class="bg-ink font-sans text-neutral-100 select-none">
-  <div class="drag fixed left-0 top-0 z-40 h-12 w-full"></div>
-  <div id="widget-update" class="no-drag fixed right-4 top-2 z-50" hidden></div>
-  <div class="flex h-screen">
-    <nav class="flex w-52 flex-col gap-1 bg-ink-2 px-3 pb-3 pt-12 text-sm">
-      <p class="mx-2 mb-1 mt-3 text-[10px] uppercase tracking-widest text-neutral-500">Lecture</p>
-      <a href="#/platine" data-route="platine" class="nav-item">◉ Platine</a>
-      <p class="mx-2 mb-1 mt-4 text-[10px] uppercase tracking-widest text-neutral-500">Bibliothèque</p>
-      <a href="#/playlists" data-route="playlists" class="nav-item">Playlists</a>
-      <a href="#/albums" data-route="albums" class="nav-item">Albums</a>
-      <a href="#/likes" data-route="likes" class="nav-item" id="nav-likes">Titres likés</a>
-      <a href="#/artistes" data-route="artistes" class="nav-item">Artistes</a>
-      <p class="mx-2 mb-1 mt-4 text-[10px] uppercase tracking-widest text-neutral-500">App</p>
-      <a href="#/personnaliser" data-route="personnaliser" class="nav-item">Personnaliser</a>
-      <a href="#/reglages" data-route="reglages" class="nav-item">Réglages</a>
-      <div class="flex-1"></div>
-      <label class="mx-2 text-[11px] text-neutral-500">Source
-        <select id="source" class="mt-1 w-full rounded bg-neutral-800 px-2 py-1 text-neutral-200">
-          <option value="auto">Auto</option><option value="applemusic">Apple Music</option><option value="spotify">Spotify</option>
-        </select>
-      </label>
-      <p id="spotify-status" class="mx-2 mt-2 text-[11px] text-neutral-500"></p>
-    </nav>
-    <main id="view" class="relative flex-1 overflow-y-auto"></main>
-  </div>
+<body class="font-sans select-none overflow-hidden" style="color:var(--ink)">
+  <div id="bg-a" class="bg-layer"></div>
+  <div id="bg-b" class="bg-layer" style="opacity:0"></div>
+  <div class="drag fixed left-0 top-0 z-40 h-10 w-full"></div>
+  <main id="view" class="relative z-10 h-screen overflow-y-auto overflow-x-hidden"></main>
+  <div id="shell" class="no-drag"></div>
+  <div id="widget-update" class="no-drag fixed left-24 top-3 z-50" hidden></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

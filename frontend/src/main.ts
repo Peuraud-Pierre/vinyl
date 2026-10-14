@@ -1,42 +1,41 @@
 import "./styles.css";
-import { api, applyAccent, onSettings, onWidgetUpdate, type Settings } from "./api";
-import { render as renderWidgetUpdate, type WidgetStatus } from "./widgetupdate";
+import { api, applyAccent, onSettings, onWidgetUpdate } from "./api";
 import { parseRoute, type Route } from "./router";
+import { mountShell } from "./shell/shell";
 import * as platine from "./views/platine";
 import * as personnaliser from "./views/personnaliser";
 import * as reglages from "./views/reglages";
 import * as bibliotheque from "./views/bibliotheque";
 import * as artiste from "./views/artiste";
+import { render as renderWidgetUpdate, type WidgetStatus } from "./widgetupdate";
 
 type View = { mount: (el: HTMLElement, param: string) => () => void };
-const lib: View = { mount: (el) => bibliotheque.mount(el, parseRoute(location.hash).route) };
-const views: Partial<Record<Route, View>> = {
-  platine, personnaliser, reglages, artiste,
-  playlists: lib, albums: lib, likes: lib, artistes: lib,
-};
+const views: Record<Route, View> = { platine, bibliotheque, artiste, personnaliser, reglages };
 
 const viewEl = document.getElementById("view")!;
 let cleanup: () => void = () => {};
+let accent = "#f5c542";
+
+const shell = mountShell(document.getElementById("shell")!, () => accent);
 
 function route() {
   const { route, param } = parseRoute(location.hash);
   cleanup();
   viewEl.innerHTML = "";
-  cleanup = (views[route] ?? platine).mount(viewEl, param);
-  document.querySelectorAll<HTMLElement>("[data-route]").forEach((a) => a.classList.toggle("active", a.dataset.route === route));
+  viewEl.scrollTop = 0;
+  cleanup = views[route].mount(viewEl, param);
 }
-
 window.addEventListener("hashchange", route);
 route();
 
-const source = document.getElementById("source") as HTMLSelectElement;
-const syncSettings = (s: Settings) => {
+const syncAccent = (s: { accent: string }) => {
+  const changed = s.accent !== accent;
+  accent = s.accent;
   applyAccent(s.accent);
-  source.value = s.source;
+  if (changed) shell.refreshTheme();
 };
-api.GetSettings().then(syncSettings);
-onSettings(syncSettings);
-source.onchange = () => api.UpdateSettings({ source: source.value });
+api.GetSettings().then(syncAccent);
+onSettings(syncAccent);
 
 window.addEventListener("keydown", (e) => {
   if ((e.target as HTMLElement).closest("input, select, textarea")) return;
@@ -47,13 +46,6 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") api.Previous();
   if (e.key === "ArrowRight") api.Next();
 });
-
-const spStatus = document.getElementById("spotify-status")!;
-const refreshSpotify = async () => {
-  spStatus.textContent = (await api.SpotifyStatus()) ? "Spotify : connecté" : "Spotify : non connecté";
-};
-refreshSpotify();
-window.addEventListener("hashchange", refreshSpotify);
 
 const widgetUpdateEl = document.getElementById("widget-update")!;
 const showWidgetUpdate = (s: WidgetStatus) =>

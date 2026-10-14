@@ -3,19 +3,73 @@
 @theme {
   --color-ink: #141414;
   --color-ink-2: #0d0d0d;
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
 }
 
 :root {
   --accent: #f5c542;
+  --tint: #8a5f57;
+  --ink: #fbf3ef;
+  --ink-soft: rgba(251, 243, 239, .7);
+  --glass: color-mix(in srgb, #8a5f57 25%, rgba(255, 236, 230, .58));
   color-scheme: dark;
 }
+:root[data-tone="light"] { color-scheme: light; }
 
 html, body { margin: 0; height: 100%; background: transparent; }
 .drag { --wails-draggable: drag; }
 .no-drag { --wails-draggable: no-drag; }
 
+/* Fond teinté par la pochette : deux calques qui se relaient en fondu. */
+.bg-layer { position: fixed; inset: 0; transition: opacity .8s ease; z-index: 0; }
+
 @layer components {
-  .nav-item { @apply rounded-md px-2 py-1.5 text-neutral-300 hover:bg-white/5; }
-  .nav-item.active { background: var(--accent); @apply font-semibold text-neutral-900; }
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(22px) saturate(1.5);
+    backdrop-filter: blur(22px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, .38);
+    box-shadow: 0 10px 30px rgba(30, 14, 10, .28), inset 0 1px 0 rgba(255, 255, 255, .55);
+    color: #2a1d1b;
+    transition: background .8s ease;
+  }
+  .round-btn {
+    @apply flex h-16 w-16 cursor-pointer items-center justify-center rounded-full;
+  }
+  .round-btn:hover { filter: brightness(1.06); }
+  .round-btn:active { transform: scale(.96); }
+  .icon-btn { @apply flex cursor-pointer items-center justify-center bg-transparent; color: #2a1d1b; }
+  .panel {
+    @apply rounded-[34px] p-8;
+    background: color-mix(in srgb, var(--glass) 100%, rgba(255, 255, 255, .12));
+    -webkit-backdrop-filter: blur(28px) saturate(1.5);
+    backdrop-filter: blur(28px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, .5);
+    box-shadow: 0 24px 60px rgba(30, 12, 10, .4), inset 0 1px 0 rgba(255, 255, 255, .6);
+    color: #2a1d1b;
+  }
+  .panel h2 { @apply text-[13px] font-bold tracking-[.1em] uppercase; color: rgba(42, 29, 27, .7); }
+  .pill { @apply rounded-full px-5 py-2 font-semibold; }
+  .pill-on { background: #fff; box-shadow: 0 2px 8px rgba(40, 18, 14, .16); }
+  .field { @apply h-11 rounded-full border px-4 text-[15px]; border-color: rgba(42, 29, 27, .18); background: rgba(255, 255, 255, .65); color: #2a1d1b; }
+  .btn-dark { @apply rounded-full px-5 py-2 font-semibold text-[15px]; background: #2a1d1b; color: #fff4ef; }
+  .menu-item { @apply flex w-full items-center gap-3 rounded-2xl px-4 py-2.5 text-left text-[15px] font-medium hover:bg-white/40; }
 }
+
+@keyframes vy-spin { to { transform: rotate(360deg); } }
+
+/* Étagère : pochettes debout vues par la tranche. */
+.shelf-scroll { scrollbar-width: none; }
+.shelf-scroll::-webkit-scrollbar { display: none; }
+.vy-slot { width: 64px; height: 330px; display: flex; justify-content: center; flex: none; cursor: pointer; }
+.vy-box { position: relative; width: 330px; height: 330px; transform-style: preserve-3d; transform: rotateY(80deg); -webkit-box-reflect: below 4px linear-gradient(transparent 60%, rgba(0,0,0,.25)); transition: transform .5s cubic-bezier(.3,.7,.2,1); }
+.vy-slot:hover .vy-box, .vy-slot:focus-visible .vy-box { transform: rotateY(38deg) translateZ(70px); }
+.vy-face { position: absolute; inset: 0; background: #2a2220 center / cover; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.vy-spine { position: absolute; left: -19px; top: 0; width: 38px; height: 330px; transform: rotateY(-90deg); display: flex; align-items: flex-end; justify-content: center; box-shadow: inset -6px 0 10px rgba(0,0,0,.25), inset 2px 0 0 rgba(255,255,255,.12); transition: background .6s; }
+.vy-spine span { writing-mode: vertical-rl; transform: rotate(180deg); padding: 16px 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 300px; }
+/* Pile : pochettes à plat. */
+.vy-layer { position: relative; height: 46px; flex: none; cursor: pointer; }
+.vy-flat { position: absolute; left: 0; top: 0; width: 620px; height: 46px; border-radius: 3px; transform: perspective(1400px) rotateX(18deg); transform-origin: 50% 100%; transition: transform .45s cubic-bezier(.3,.7,.2,1), background .6s; display: flex; align-items: center; gap: 14px; padding: 0 22px; box-sizing: border-box; box-shadow: 0 6px 12px rgba(20,8,6,.35), inset 0 2px 0 rgba(255,255,255,.12), inset 0 -3px 6px rgba(0,0,0,.25); white-space: nowrap; overflow: hidden; }
+.vy-sleeve { position: absolute; left: 640px; top: -150px; width: 300px; height: 300px; opacity: 0; transform: translateX(-60px) rotate(-3deg); transition: opacity .35s, transform .45s cubic-bezier(.3,.7,.2,1); box-shadow: 0 20px 40px rgba(20,8,6,.5); pointer-events: none; z-index: 5; background: #2a2220 center / cover; }
+.vy-layer:hover .vy-flat, .vy-layer:focus-visible .vy-flat { transform: perspective(1400px) rotateX(0deg) translateX(24px); }
+.vy-layer:hover .vy-sleeve, .vy-layer:focus-visible .vy-sleeve { opacity: 1; transform: translateX(0) rotate(-3deg); }

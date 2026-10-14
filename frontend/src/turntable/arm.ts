@@ -31,13 +31,14 @@ export function angleFromPointer(pivot: { x: number; y: number }, pointer: { x: 
   return (Math.atan2(-dx, dy) * 180) / Math.PI;
 }
 
-// Géométrie du bras dans le socle de 420×320 px (coordonnées en px depuis le coin haut-gauche du socle).
+// Géométrie de la scène de la platine (960×660 px, coordonnées depuis le coin haut-gauche) :
+// pochette à gauche, disque au centre, bras vertical à droite.
 export const ARM_GEOMETRY = {
-  pivot: { x: 324, y: 24 },
-  length: 222, // du pivot à la pointe de l'aiguille
-  discCenter: { x: 162, y: 160 },
-  discRadius: 132,
-  labelRadius: 132 * 0.36,
+  pivot: { x: 880, y: 70 },
+  length: 460, // du pivot à la pointe de l'aiguille
+  discCenter: { x: 630, y: 340 },
+  discRadius: 224,
+  labelRadius: 224 * 0.45,
 };
 
 const PIVOT_DEADZONE = 30; // px autour du pivot où un clic ne déplace pas le bras
