@@ -348,3 +348,16 @@ func (s *VinylService) SetRepeat(mode string) error {
 	defer cancel()
 	return m.SetRepeat(ctx, player.RepeatMode(mode))
 }
+
+// ToggleMiniPlatine affiche ou masque la mini-platine flottante (comme ⌘⇧M).
+func (s *VinylService) ToggleMiniPlatine() {
+	w, ok := application.Get().Window.GetByName("widget")
+	if !ok {
+		return
+	}
+	if w.IsVisible() {
+		w.Hide()
+	} else {
+		w.Show()
+	}
+}

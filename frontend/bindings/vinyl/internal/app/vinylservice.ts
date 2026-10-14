@@ -170,6 +170,13 @@ export function Stats(): $CancellablePromise<stats$0.Snapshot> {
 }
 
 /**
+ * ToggleMiniPlatine affiche ou masque la mini-platine flottante (comme ⌘⇧M).
+ */
+export function ToggleMiniPlatine(): $CancellablePromise<void> {
+    return $Call.ByID(4052361012);
+}
+
+/**
  * Tracks renvoie l'album ou la playlist avec ses titres.
  */
 export function Tracks(source: string, id: string): $CancellablePromise<catalog$0.Collection> {

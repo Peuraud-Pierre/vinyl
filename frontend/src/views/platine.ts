@@ -18,6 +18,7 @@ export function mount(el: HTMLElement): () => void {
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
       <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
+      <button id="pl-mini" class="vy-drop fixed z-30 h-[58px] w-[58px] overflow-hidden rounded-[16px] bg-cover bg-center" style="left:44px;bottom:32px;box-shadow:0 0 0 2px rgba(255,255,255,.45),0 8px 20px rgba(0,0,0,.35);background-color:#2a2220" aria-label="Mini-platine" title="Mini-platine (⌘⇧M)"></button>
       <div id="pl-problem" class="glass absolute bottom-10 left-1/2 hidden -translate-x-1/2 rounded-[28px] px-7 py-4 text-center text-[15px]" style="margin-left:-${CONTROLS_W / 2}px"></div>
     </section>
     <footer class="relative flex flex-col items-center gap-7 pb-20 pt-16" style="background:#1b1b1b">
@@ -60,6 +61,7 @@ export function mount(el: HTMLElement): () => void {
   const render = (s: Snapshot) => {
     snap = s;
     tt.update(s);
+    $("pl-mini").style.backgroundImage = s.nowPlaying.artworkUrl ? `url("${s.nowPlaying.artworkUrl.replace(/["\\]/g, "\\$&")}")` : "";
     $("pl-title").textContent = s.problem ? "Vinyl" : `${s.nowPlaying.title} — ${s.nowPlaying.artist}`;
     const p = $("pl-problem");
     p.classList.toggle("hidden", !s.problem);
@@ -73,6 +75,7 @@ export function mount(el: HTMLElement): () => void {
   };
 
   $("pl-settings").onclick = () => go("reglages");
+  $("pl-mini").onclick = () => api.ToggleMiniPlatine().catch(() => {});
   $("pl-share").onclick = () => {
     const np = snap?.nowPlaying;
     if (np && !snap!.problem) openShareCard({ title: np.title, subtitle: np.artist, artworkUrl: np.artworkUrl });
