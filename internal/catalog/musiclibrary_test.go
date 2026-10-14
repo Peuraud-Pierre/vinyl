@@ -130,10 +130,11 @@ func rec(fields ...string) string { return strings.Join(fields, player.Sep) + rs
 
 func TestMusicAlbumTracksSortedByDiscThenNumber(t *testing.T) {
 	// id, disque, piste, titre, artiste, durée, aimé, genre, année
-	out := rec("C", "2", "1", "Disque 2 piste 1", "Nirvana", "120,5", "0", "Alternative", "1993") +
-		rec("B", "1", "2", `Heart-Shaped "Box"`, "Nirvana", "281", "1", "Alternative", "1993") +
-		rec("Z", "1", "0", "Sans numéro", "Nirvana", "60", "0", "Alternative", "1993") +
-		rec("A", "1", "1", "Serve the Servants", "Nirvana", "217", "0", "Alternative", "1993")
+	out := columns("",
+		[]string{"C", "2", "1", "Disque 2 piste 1", "Nirvana", "120,5", "false", "Alternative", "1993"},
+		[]string{"B", "1", "2", `Heart-Shaped "Box"`, "Nirvana", "281", "true", "Alternative", "1993"},
+		[]string{"Z", "1", "0", "Sans numéro", "Nirvana", "60", "false", "Alternative", "1993"},
+		[]string{"A", "1", "1", "Serve the Servants", "Nirvana", "217", "false", "Alternative", "1993"})
 	r := &fakeRunner{out: []string{out}}
 	c, err := NewMusicLibrary(r, nil, t.TempDir()).Tracks(context.Background(), "album:In Utero"+player.Sep+"Nirvana")
 	if err != nil {
@@ -158,7 +159,9 @@ func TestMusicAlbumTracksSortedByDiscThenNumber(t *testing.T) {
 }
 
 func TestMusicPlaylistTracksKeepOrderAndName(t *testing.T) {
-	out := rec("Ma playlist") + rec("Y", "0", "7", "Deux", "B", "200", "0", "", "0") + rec("X", "0", "3", "Un", "A", "100", "0", "", "0")
+	out := columns("Ma playlist",
+		[]string{"Y", "0", "7", "Deux", "B", "200", "false", "", "0"},
+		[]string{"X", "0", "3", "Un", "A", "100", "false", "", "0"})
 	c, err := NewMusicLibrary(&fakeRunner{out: []string{out}}, nil, t.TempDir()).Tracks(context.Background(), "playlist:P1")
 	if err != nil {
 		t.Fatal(err)
@@ -199,5 +202,30 @@ func TestAlbumTracksScriptTriesTrackArtistBeforeAlbumOnly(t *testing.T) {
 	j := strings.LastIndex(albumTracksScript, "whose album is (item 1 of argv))")
 	if i < 0 || j < 0 || i > j {
 		t.Error("ordre attendu : album + album artist, puis album + artist, puis album seul")
+	}
+}
+
+// columns construit la sortie « en colonnes » des scripts de titres : en-tête, puis 9 colonnes
+// (id, disque, piste, titre, artiste, durée, aimé, genre, année) séparées par \x1d.
+func columns(header string, rows ...[]string) string {
+	cols := make([][]string, 9)
+	for _, r := range rows {
+		for i := range cols {
+			cols[i] = append(cols[i], r[i])
+		}
+	}
+	parts := []string{header}
+	for _, c := range cols {
+		parts = append(parts, strings.Join(c, rs))
+	}
+	return strings.Join(parts, "\x1d")
+}
+
+// Les grosses playlists doivent être lues en bloc (une requête par colonne), pas titre par titre.
+func TestTracksScriptsReadColumnsInBulk(t *testing.T) {
+	for name, script := range map[string]string{"album": albumTracksScript, "playlist": playlistTracksScript} {
+		if strings.Contains(script, "repeat with t in") {
+			t.Errorf("%s : lecture titre par titre (lent sur les grosses playlists)", name)
+		}
 	}
 }

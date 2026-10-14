@@ -203,64 +203,102 @@ func (m *MusicLibrary) Artwork(ctx context.Context, id string) (string, error) {
 	return "/artwork/" + file, nil
 }
 
-// Champs : persistent ID, disque, piste, titre, artiste, durée, aimé (1/0), genre, année.
-const trackFields = `(persistent ID of t) & us & ((disc number of t) as string) & us & ((track number of t) as string) & us & (name of t) & us & (artist of t) & us & ((duration of t) as string) & us & lv & us & (genre of t) & us & ((year of t) as string) & rs`
+// Lecture en bloc : une requête Apple Event par colonne, quelle que soit la taille de la liste.
+// Sortie : en-tête, puis 9 colonnes séparées par GS (id, disque, piste, titre, artiste, durée,
+// aimé, genre, année), chaque colonne ayant ses valeurs séparées par RS.
+const trackColumns = `
+	set c1 to persistent ID of ts
+	set c2 to disc number of ts
+	set c3 to track number of ts
+	set c4 to name of ts
+	set c5 to artist of ts
+	set c6 to duration of ts
+	set c8 to genre of ts
+	set c9 to year of ts
+	set c7 to {}
+	try
+		set c7 to favorited of ts
+	on error
+		try
+			set c7 to loved of ts
+		end try
+	end try`
 
-// « favorited » (macOS récents) ou « loved » (anciens) : un terme inconnu échoue à l'exécution, rattrapé par try.
-const lovedSnippet = `
-			set lv to "0"
-			try
-				if favorited of t then set lv to "1"
-			on error
-				try
-					if loved of t then set lv to "1"
-				end try
-			end try`
+const columnsOutput = `
+	set AppleScript's text item delimiters to rs
+	set out to hd & gs & (c1 as text) & gs & (c2 as text) & gs & (c3 as text) & gs & (c4 as text) & gs & (c5 as text) & gs & (c6 as text) & gs & (c7 as text) & gs & (c8 as text) & gs & (c9 as text)
+	set AppleScript's text item delimiters to ""
+	return out`
 
-// argv : album, artiste d'album (repli sur l'album seul si aucun titre ne correspond).
+// argv : album, artiste. Essais successifs : album + album artist, album + artist (album sans
+// album artist, listé sous l'artiste du titre), puis album seul en dernier recours.
 const albumTracksScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	set us to character id 31
+	set gs to character id 29
 	set rs to character id 30
+	set hd to ""
 	tell application id "com.apple.Music"
-		set ts to (every track of library playlist 1 whose album is (item 1 of argv) and album artist is (item 2 of argv))
-		if (count of ts) is 0 then set ts to (every track of library playlist 1 whose album is (item 1 of argv) and artist is (item 2 of argv))
-		if (count of ts) is 0 then set ts to (every track of library playlist 1 whose album is (item 1 of argv))
-		set out to ""
-		repeat with t in ts` + lovedSnippet + `
-			set out to out & ` + trackFields + `
-		end repeat
-		return out
-	end tell
+		set ts to a reference to (every track of library playlist 1 whose album is (item 1 of argv) and album artist is (item 2 of argv))
+		if (count of ts) is 0 then set ts to a reference to (every track of library playlist 1 whose album is (item 1 of argv) and artist is (item 2 of argv))
+		if (count of ts) is 0 then set ts to a reference to (every track of library playlist 1 whose album is (item 1 of argv))
+		if (count of ts) is 0 then return ""` + trackColumns + `
+	end tell` + columnsOutput + `
 end run`
 
-// argv : persistent ID de la playlist. Premier enregistrement : nom de la playlist.
+// argv : persistent ID de la playlist (créée par l'utilisateur ou ajoutée depuis Apple Music).
 const playlistTracksScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	set us to character id 31
+	set gs to character id 29
 	set rs to character id 30
 	tell application id "com.apple.Music"
 		set p to (first playlist whose persistent ID is (item 1 of argv))
-		set out to (name of p) & rs
-		repeat with t in (tracks of p)` + lovedSnippet + `
-			set out to out & ` + trackFields + `
-		end repeat
-		return out
-	end tell
+		set hd to name of p
+		set ts to a reference to (every track of p)
+		if (count of ts) is 0 then return hd` + trackColumns + `
+	end tell` + columnsOutput + `
 end run`
 
+// parseColumns lit la sortie en colonnes : en-tête et lignes de 9 champs.
+func parseColumns(out string) (header string, rows [][]string) {
+	parts := strings.Split(out, "\x1d")
+	header = parts[0]
+	if len(parts) != 10 || parts[1] == "" {
+		return header, nil
+	}
+	cols := make([][]string, 9)
+	for i := range cols {
+		cols[i] = strings.Split(parts[i+1], recordSep)
+	}
+	n := len(cols[0])
+	for i := 0; i < n; i++ {
+		r := make([]string, 9)
+		for c := range cols {
+			if i < len(cols[c]) {
+				r[c] = cols[c][i]
+			}
+		}
+		rows = append(rows, r)
+	}
+	return header, rows
+}
+
 func parseTrackRecord(r []string) (t player.Track, disc int, genre, year string, ok bool) {
-	if len(r) != 9 {
+	if len(r) != 9 || r[0] == "" {
 		return t, 0, "", "", false
 	}
 	disc, _ = strconv.Atoi(strings.TrimSpace(r[1]))
 	num, _ := strconv.Atoi(strings.TrimSpace(r[2]))
 	year = strings.TrimSpace(r[8])
-	if year == "0" {
+	if year == "0" || year == "missing value" {
 		year = ""
 	}
-	t = player.Track{ID: r[0], Number: num, Title: r[3], Artist: r[4], DurationMs: player.ParseSeconds(r[5]), Loved: r[6] == "1"}
-	return t, disc, strings.TrimSpace(r[7]), year, true
+	genre = strings.TrimSpace(r[7])
+	if genre == "missing value" {
+		genre = ""
+	}
+	loved := strings.TrimSpace(r[6]) == "true"
+	t = player.Track{ID: r[0], Number: num, Title: r[3], Artist: r[4], DurationMs: player.ParseSeconds(r[5]), Loved: loved}
+	return t, disc, genre, year, true
 }
 
 // Tracks renvoie un album (trié par disque puis piste) ou une playlist (dans son ordre) avec ses titres.
@@ -270,21 +308,24 @@ func (m *MusicLibrary) Tracks(ctx context.Context, id string) (Collection, error
 		return Collection{}, fmt.Errorf("musique : ID de collection invalide %q", id)
 	}
 	c := Collection{ID: id, Kind: kind, Source: "applemusic"}
-	var recs [][]string
+	var out string
 	var err error
 	if kind == "album" {
 		album, artist, _ := strings.Cut(rest, player.Sep)
 		c.Title, c.Artist = album, artist
-		recs, err = m.recordsArgs(ctx, albumTracksScript, album, artist)
+		out, err = m.run.Run(ctx, albumTracksScript, album, artist)
 	} else {
-		recs, err = m.recordsArgs(ctx, playlistTracksScript, rest)
-		if err == nil && len(recs) > 0 {
-			c.Title = recs[0][0]
-			recs = recs[1:]
-		}
+		out, err = m.run.Run(ctx, playlistTracksScript, rest)
 	}
 	if err != nil {
 		return Collection{}, err
+	}
+	if out == "NOTRUNNING" {
+		return Collection{}, player.ErrNotRunning
+	}
+	header, recs := parseColumns(out)
+	if kind == "playlist" {
+		c.Title = header
 	}
 	type row struct {
 		t    player.Track
