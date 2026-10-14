@@ -17,5 +17,11 @@ func TestLiveNowPlaying(t *testing.T) {
 			t.Errorf("%s : %v", p.Name(), err)
 		}
 		t.Logf("%s : %+v (err=%v)", p.Name(), np, err)
+		if m, ok := p.(Modes); ok {
+			_, _, err := m.PlaybackModes(context.Background())
+			if err != nil && err != ErrNotRunning && err != ErrNotAuthorized {
+				t.Errorf("%s modes : %v", p.Name(), err)
+			}
+		}
 	}
 }

@@ -197,3 +197,55 @@ func TestPlayInPlaylistArgs(t *testing.T) {
 		t.Errorf("args = %q", r.calls[0].args)
 	}
 }
+
+func TestMusicPlaybackModes(t *testing.T) {
+	r := &fakeRunner{outputs: []string{join("true", "all")}}
+	sh, rep, err := NewAppleMusic(r, t.TempDir()).PlaybackModes(context.Background())
+	if err != nil || !sh || rep != RepeatAll {
+		t.Errorf("got %v %v %v", sh, rep, err)
+	}
+	r = &fakeRunner{outputs: []string{join("false", "bizarre")}}
+	_, rep, _ = NewAppleMusic(r, t.TempDir()).PlaybackModes(context.Background())
+	if rep != RepeatOff {
+		t.Errorf("valeur inconnue → off, got %v", rep)
+	}
+}
+
+func TestMusicSetRepeatAndShuffleArgs(t *testing.T) {
+	r := &fakeRunner{}
+	m := NewAppleMusic(r, t.TempDir())
+	m.SetRepeat(context.Background(), RepeatOne)
+	m.SetShuffle(context.Background(), true)
+	if r.calls[0].args[0] != "one" || r.calls[1].args[0] != "1" {
+		t.Errorf("args = %+v", r.calls)
+	}
+	if err := m.SetRepeat(context.Background(), "jamais"); err == nil {
+		t.Error("mode inconnu → erreur")
+	}
+}
+
+func TestMusicUpcomingAtEndOfPlaylist(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"5" + Sep + "5" + "\x1e"}}
+	ts, err := NewAppleMusic(r, t.TempDir()).Upcoming(context.Background(), 30, false)
+	if err != nil || len(ts) != 0 {
+		t.Errorf("got %v %v", ts, err)
+	}
+	if strings.Join(r.calls[0].args, "|") != "30|0" {
+		t.Errorf("args = %q", r.calls[0].args)
+	}
+}
+
+func TestMusicUpcomingParsesTracks(t *testing.T) {
+	out := "2" + Sep + "4" + "\x1e" + join("X", "Trois", "A", "200") + "\x1e" + join("Y", "Quatre", "B", "180,5") + "\x1e"
+	ts, _ := NewAppleMusic(&fakeRunner{outputs: []string{out}}, t.TempDir()).Upcoming(context.Background(), 30, true)
+	if len(ts) != 2 || ts[1].Title != "Quatre" || ts[1].DurationMs != 180500 {
+		t.Errorf("got %+v", ts)
+	}
+}
+
+func TestMusicUpcomingNoCurrentPlaylist(t *testing.T) {
+	ts, err := NewAppleMusic(&fakeRunner{outputs: []string{"NONE"}}, t.TempDir()).Upcoming(context.Background(), 30, false)
+	if err != nil || ts != nil {
+		t.Errorf("radio/flux : liste vide sans erreur, got %v %v", ts, err)
+	}
+}

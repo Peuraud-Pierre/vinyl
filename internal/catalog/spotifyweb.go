@@ -341,3 +341,21 @@ func (c *SpotifyWeb) markLoved(ctx context.Context, ts []player.Track) {
 		}
 	}
 }
+
+// Queue renvoie les titres de la file Spotify (30 au plus).
+func (c *SpotifyWeb) Queue(ctx context.Context) ([]player.Track, error) {
+	var q struct {
+		Queue []spFullTrack `json:"queue"`
+	}
+	if err := c.get(ctx, "/me/player/queue", nil, &q); err != nil {
+		return nil, err
+	}
+	out := []player.Track{}
+	for i, t := range q.Queue {
+		if i == 30 {
+			break
+		}
+		out = append(out, toTrack(t, i+1))
+	}
+	return out, nil
+}

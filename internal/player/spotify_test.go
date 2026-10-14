@@ -62,3 +62,16 @@ func TestSpotifyPlayInContext(t *testing.T) {
 		t.Error("contexte non Spotify → erreur")
 	}
 }
+
+func TestSpotifyModes(t *testing.T) {
+	r := &fakeRunner{outputs: []string{join("false", "true")}}
+	s := NewSpotify(r)
+	sh, rep, _ := s.PlaybackModes(context.Background())
+	if sh || rep != RepeatAll {
+		t.Errorf("got %v %v", sh, rep)
+	}
+	s.SetRepeat(context.Background(), RepeatOne)
+	if r.calls[1].args[0] != "1" {
+		t.Errorf("« un seul » n'existe pas sur Spotify : traité comme « tout », args = %q", r.calls[1].args)
+	}
+}

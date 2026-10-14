@@ -24,6 +24,10 @@ import * as stats$0 from "../stats/models.js";
 // @ts-ignore: Unused imports
 import * as widgetupdate$0 from "../widgetupdate/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
 export function Artist(source: string, name: string, trackID: string): $CancellablePromise<catalog$0.ArtistPage> {
     return $Call.ByID(610413143, source, name, trackID);
 }
@@ -99,6 +103,13 @@ export function Previous(): $CancellablePromise<void> {
 }
 
 /**
+ * Queue renvoie l'aléatoire, la répétition et les titres à venir du lecteur actif.
+ */
+export function Queue(): $CancellablePromise<$models.QueueState> {
+    return $Call.ByID(9951819);
+}
+
+/**
  * SaveShareImage demande où enregistrer la carte de partage puis écrit le PNG. Renvoie "" si annulé.
  */
 export function SaveShareImage(pngBase64: string, suggestedName: string): $CancellablePromise<string> {
@@ -114,6 +125,14 @@ export function SeekMs(ms: number): $CancellablePromise<void> {
  */
 export function SetCatalog(source: string, c: catalog$0.Catalog): $CancellablePromise<void> {
     return $Call.ByID(411284595, source, c);
+}
+
+export function SetRepeat(mode: string): $CancellablePromise<void> {
+    return $Call.ByID(1812568899, mode);
+}
+
+export function SetShuffle(on: boolean): $CancellablePromise<void> {
+    return $Call.ByID(860276085, on);
 }
 
 export function SetSpotifyAuth(a: auth$0.SpotifyAuth | null): $CancellablePromise<void> {

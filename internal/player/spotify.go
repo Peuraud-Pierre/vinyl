@@ -116,3 +116,46 @@ func (s *Spotify) PlayInContext(ctx context.Context, contextURI, trackURI string
 	}
 	return err
 }
+
+const spotifyModesScript = spotifyGuard + `tell application id "com.spotify.client"
+	return ((shuffling) as string) & (character id 31) & ((repeating) as string)
+end tell`
+
+func (s *Spotify) PlaybackModes(ctx context.Context) (bool, RepeatMode, error) {
+	out, err := s.run.Run(ctx, spotifyModesScript)
+	if err != nil {
+		return false, RepeatOff, err
+	}
+	if out == "NOTRUNNING" {
+		return false, RepeatOff, ErrNotRunning
+	}
+	sh, rep, _ := strings.Cut(out, Sep)
+	mode := RepeatOff
+	if rep == "true" {
+		mode = RepeatAll
+	}
+	return sh == "true", mode, nil
+}
+
+func (s *Spotify) SetShuffle(ctx context.Context, on bool) error {
+	v := "0"
+	if on {
+		v = "1"
+	}
+	_, err := s.run.Run(ctx, `on run argv
+	tell application id "com.spotify.client" to set shuffling to ((item 1 of argv) is "1")
+end run`, v)
+	return err
+}
+
+// SetRepeat : Spotify ne connaît que oui/non ; « un seul » est traité comme « tout ».
+func (s *Spotify) SetRepeat(ctx context.Context, mode RepeatMode) error {
+	v := "0"
+	if mode == RepeatAll || mode == RepeatOne {
+		v = "1"
+	}
+	_, err := s.run.Run(ctx, `on run argv
+	tell application id "com.spotify.client" to set repeating to ((item 1 of argv) is "1")
+end run`, v)
+	return err
+}

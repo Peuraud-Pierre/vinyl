@@ -5,3 +5,7 @@ import * as VinylService from "./vinylservice.js";
 export {
     VinylService
 };
+
+export type {
+    QueueState
+} from "./models.js";

@@ -125,3 +125,17 @@ func TestSpotifyPlaylistTracksPaginated(t *testing.T) {
 		t.Errorf("got %+v", col)
 	}
 }
+
+func TestSpotifyQueue(t *testing.T) {
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/me/player/queue" {
+			http.Error(w, r.URL.Path, 404)
+			return
+		}
+		w.Write([]byte(`{"currently_playing":{"uri":"spotify:track:0"},"queue":[{"uri":"spotify:track:1","name":"Heart Flutters","duration_ms":1000,"artists":[{"name":"Egofear"}]}]}`))
+	})
+	q, err := c.Queue(context.Background())
+	if err != nil || len(q) != 1 || q[0].Title != "Heart Flutters" || q[0].Artist != "Egofear" {
+		t.Errorf("got %+v %v", q, err)
+	}
+}

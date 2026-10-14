@@ -255,3 +255,102 @@ func (m *AppleMusic) PlayInPlaylist(ctx context.Context, playlistID, startID str
 	}
 	return err
 }
+
+const musicModesScript = musicGuard + `tell application id "com.apple.Music"
+	return ((shuffle enabled) as string) & (character id 31) & ((song repeat) as string)
+end tell`
+
+const musicSetShuffleScript = `on run argv
+	tell application id "com.apple.Music" to set shuffle enabled to ((item 1 of argv) is "1")
+end run`
+
+const musicSetRepeatScript = `on run argv
+	tell application id "com.apple.Music"
+		if (item 1 of argv) is "one" then
+			set song repeat to one
+		else if (item 1 of argv) is "all" then
+			set song repeat to all
+		else
+			set song repeat to off
+		end if
+	end tell
+end run`
+
+// argv : limite, reprise au début (1/0). Sortie : "index␟total␞" puis un enregistrement par titre.
+const musicUpcomingScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	set us to character id 31
+	set rs to character id 30
+	set lim to (item 1 of argv) as integer
+	tell application id "com.apple.Music"
+		try
+			set cp to current playlist
+			set idx to index of current track
+		on error
+			return "NONE"
+		end try
+		set n to count of tracks of cp
+		set out to (idx as string) & us & (n as string) & rs
+		set k to 0
+		set i to idx + 1
+		repeat while k < lim and k < n - 1
+			if i > n then
+				if (item 2 of argv) is not "1" then exit repeat
+				set i to 1
+			end if
+			set t to track i of cp
+			set out to out & (persistent ID of t) & us & (name of t) & us & (artist of t) & us & ((duration of t) as string) & rs
+			set k to k + 1
+			set i to i + 1
+		end repeat
+		return out
+	end tell
+end run`
+
+func (m *AppleMusic) PlaybackModes(ctx context.Context) (bool, RepeatMode, error) {
+	out, err := m.run.Run(ctx, musicModesScript)
+	if err != nil {
+		return false, RepeatOff, err
+	}
+	if out == "NOTRUNNING" {
+		return false, RepeatOff, ErrNotRunning
+	}
+	sh, rep, _ := strings.Cut(out, Sep)
+	return sh == "true", parseRepeat(rep), nil
+}
+
+func (m *AppleMusic) SetShuffle(ctx context.Context, on bool) error {
+	_, err := m.run.Run(ctx, musicSetShuffleScript, flag(on))
+	return err
+}
+
+func (m *AppleMusic) SetRepeat(ctx context.Context, mode RepeatMode) error {
+	if mode != RepeatOff && mode != RepeatAll && mode != RepeatOne {
+		return fmt.Errorf("applemusic: mode de répétition inconnu %q", mode)
+	}
+	_, err := m.run.Run(ctx, musicSetRepeatScript, string(mode))
+	return err
+}
+
+// Upcoming renvoie les titres qui suivent dans la playlist en cours (nil si aucune : radio, flux).
+func (m *AppleMusic) Upcoming(ctx context.Context, limit int, wrap bool) ([]Track, error) {
+	out, err := m.run.Run(ctx, musicUpcomingScript, strconv.Itoa(limit), flag(wrap))
+	if err != nil {
+		return nil, err
+	}
+	switch out {
+	case "NOTRUNNING":
+		return nil, ErrNotRunning
+	case "NONE", "":
+		return nil, nil
+	}
+	recs := strings.Split(out, "\x1e")
+	tracks := []Track{}
+	for _, r := range recs[1:] {
+		f := strings.Split(r, Sep)
+		if len(f) == 4 {
+			tracks = append(tracks, Track{ID: f[0], Title: f[1], Artist: f[2], DurationMs: parseSeconds(f[3]), Number: len(tracks) + 1})
+		}
+	}
+	return tracks, nil
+}

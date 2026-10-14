@@ -4,6 +4,7 @@ package player
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -65,3 +66,28 @@ type Track struct {
 
 // ParseSeconds est exporté pour les autres paquets (catalog) : secondes AppleScript → ms.
 func ParseSeconds(s string) int64 { return parseSeconds(s) }
+
+type RepeatMode string
+
+const (
+	RepeatOff RepeatMode = "off"
+	RepeatAll RepeatMode = "all"
+	RepeatOne RepeatMode = "one"
+)
+
+// Modes est implémentée par les lecteurs qui savent lire et régler l'aléatoire et la répétition.
+type Modes interface {
+	PlaybackModes(ctx context.Context) (shuffle bool, repeat RepeatMode, err error)
+	SetShuffle(ctx context.Context, on bool) error
+	SetRepeat(ctx context.Context, mode RepeatMode) error
+}
+
+func parseRepeat(s string) RepeatMode {
+	switch RepeatMode(strings.TrimSpace(s)) {
+	case RepeatAll:
+		return RepeatAll
+	case RepeatOne:
+		return RepeatOne
+	}
+	return RepeatOff
+}

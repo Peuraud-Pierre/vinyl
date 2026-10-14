@@ -271,3 +271,80 @@ func (s *VinylService) PlayFrom(source, collectionID, trackID string, shuffle bo
 	}
 	return errors.New("source inconnue")
 }
+
+type QueueState struct {
+	Shuffle  bool           `json:"shuffle"`
+	Repeat   string         `json:"repeat"`
+	Upcoming []player.Track `json:"upcoming"`
+	Note     string         `json:"note"`
+}
+
+func (s *VinylService) modes() (player.Modes, error) {
+	p := s.watcher.Active()
+	if p == nil {
+		return nil, errNoPlayer
+	}
+	m, ok := p.(player.Modes)
+	if !ok {
+		return nil, errors.New("modes de lecture non pris en charge")
+	}
+	return m, nil
+}
+
+// Queue renvoie l'aléatoire, la répétition et les titres à venir du lecteur actif.
+func (s *VinylService) Queue() (QueueState, error) {
+	m, err := s.modes()
+	if err != nil {
+		return QueueState{Upcoming: []player.Track{}}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	sh, rep, err := m.PlaybackModes(ctx)
+	if err != nil {
+		return QueueState{Upcoming: []player.Track{}}, err
+	}
+	q := QueueState{Shuffle: sh, Repeat: string(rep), Upcoming: []player.Track{}}
+	switch p := m.(type) {
+	case *player.AppleMusic:
+		if sh {
+			q.Note = "Ordre aléatoire"
+			break
+		}
+		if ts, err := p.Upcoming(ctx, 30, rep == player.RepeatAll); err == nil && ts != nil {
+			q.Upcoming = ts
+		}
+	case *player.Spotify:
+		web, ok := s.catalogs["spotify"].(*catalog.SpotifyWeb)
+		if !ok || s.spotifyAuth == nil || !s.spotifyAuth.LoggedIn() {
+			q.Note = "Connecte Spotify pour voir la suite"
+			break
+		}
+		if ts, err := web.Queue(ctx); err == nil {
+			q.Upcoming = ts
+		} else {
+			q.Note = "File Spotify indisponible"
+		}
+	}
+	return q, nil
+}
+
+func (s *VinylService) SetShuffle(on bool) error {
+	m, err := s.modes()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+	defer cancel()
+	defer s.watcher.Wake()
+	return m.SetShuffle(ctx, on)
+}
+
+func (s *VinylService) SetRepeat(mode string) error {
+	m, err := s.modes()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+	defer cancel()
+	return m.SetRepeat(ctx, player.RepeatMode(mode))
+}
