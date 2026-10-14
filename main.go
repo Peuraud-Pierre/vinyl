@@ -72,6 +72,7 @@ func main() {
 		URL:            "/widget.html",
 		Width:          220,
 		Height:         220,
+		Hidden:         true, // le widget de bureau le remplace ; ⌘⇧M l'affiche
 		Frameless:      true,
 		AlwaysOnTop:    true,
 		DisableResize:  true,
@@ -92,7 +93,6 @@ func main() {
 		Height:           720,
 		MinWidth:         760,
 		MinHeight:        520,
-		Hidden:           true,
 		BackgroundColour: application.NewRGB(20, 20, 20),
 		Mac: application.MacWindow{
 			TitleBar:                application.MacTitleBarHiddenInsetUnified,
@@ -108,6 +108,20 @@ func main() {
 	wailsApp.Event.OnApplicationEvent(events.Mac.ApplicationShouldHandleReopen, func(*application.ApplicationEvent) {
 		service.OpenMainWindow()
 	})
+
+	// Menu de l'app : ⌘⇧M affiche ou masque le disque flottant.
+	menu := application.NewMenu()
+	menu.AddRole(application.AppMenu)
+	menu.AddRole(application.EditMenu)
+	fenetre := menu.AddSubmenu("Fenêtre")
+	fenetre.Add("Mini-platine").SetAccelerator("CmdOrCtrl+Shift+M").OnClick(func(*application.Context) {
+		if widget.IsVisible() {
+			widget.Hide()
+		} else {
+			widget.Show()
+		}
+	})
+	wailsApp.Menu.Set(menu)
 
 	wailsApp.OnShutdown(func() {
 		x, y := widget.Position()
