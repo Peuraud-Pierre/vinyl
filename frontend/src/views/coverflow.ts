@@ -1,8 +1,8 @@
 // Étagère façon MD Vinyl (vidéo screen/ScreenRecording…, 15–30 s) : tous les boîtiers sont vus
 // par la tranche, comme des livres, la pochette en biais tournée vers le centre. Défilement continu.
-export const SHELF_GAP = 60; // vidéo : une tranche tous les ~10 % de la largeur // distance entre deux tranches (px, avant mise à l'échelle)
+export const SHELF_GAP = 240; // plus large que la pochette vue de biais : boîtiers séparés
 export const SHELF_MARGIN = 55; // marge du premier boîtier par rapport au bord gauche
-export const SHELF_ANGLE = 85; // vidéo : près du centre, la pochette ne montre que ~10 % de sa largeur
+export const SHELF_ANGLE = 45; // demande utilisateur : moins tournées, pour bien voir les pochettes
 export const SHELF_PERSPECTIVE = 1650; // px par unité d’échelle : la perspective suit l’agrandissement de la rangée
 export const CENTER_GAP = 0; // vidéo : aucun vide au centre (les pochettes partent des tranches vers le centre)
 

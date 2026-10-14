@@ -20,10 +20,10 @@ test("comme dans la vidéo : tranche sur le bord extérieur, pochette qui part v
   expect(right.rotateY).toBe(-SHELF_ANGLE);
   expect(right.spineRight).toBe(true);
 });
-test("environ dix tranches sur la largeur (vidéo : une tranche tous les 10 % de l'écran)", () => {
+test("cinq à dix boîtiers sur la largeur", () => {
   const visible = (2 * (HALF - SHELF_MARGIN)) / SHELF_GAP;
-  expect(visible).toBeGreaterThan(8);
-  expect(visible).toBeLessThan(20);
+  expect(visible).toBeGreaterThan(4);
+  expect(visible).toBeLessThan(11);
 });
 test("les boîtiers proches du centre passent devant leurs voisins", () => {
   const near = shelfTransform(4, 0, HALF), far = shelfTransform(0, 0, HALF);
@@ -52,8 +52,12 @@ test("au passage du centre, un écart supplémentaire évite que les deux tranch
   expect(b.x - a.x).toBe(SHELF_GAP + CENTER_GAP);
 });
 
-test("pochettes presque perpendiculaires : près du centre, à peine 10–15 % de leur hauteur en largeur", () => {
+test("pochettes moins tournées (demande utilisateur) : on en voit 60 à 75 % de la largeur", () => {
   const visibleRatio = Math.cos((SHELF_ANGLE * Math.PI) / 180);
-  expect(visibleRatio).toBeGreaterThan(0.08);
-  expect(visibleRatio).toBeLessThan(0.18);
+  expect(visibleRatio).toBeGreaterThan(0.6);
+  expect(visibleRatio).toBeLessThan(0.75);
+});
+test("boîtiers bien séparés : l'écart dépasse la largeur visible d'une pochette (pas de chevauchement)", () => {
+  const visibleWidth = 300 * Math.cos((SHELF_ANGLE * Math.PI) / 180);
+  expect(SHELF_GAP).toBeGreaterThan(visibleWidth);
 });
