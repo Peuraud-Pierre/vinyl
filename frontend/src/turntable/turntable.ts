@@ -5,7 +5,7 @@ import { estimatePosition } from "./clock";
 import { playCrackle } from "./crackle";
 import { Spinner } from "./spin";
 import { discBackground, type Texture } from "./textures";
-import { labelMarkup } from "./label";
+import { labelColorFor, labelMarkup } from "./label";
 import { imageTint } from "../ui/theme";
 
 type Variant = "stage" | "widget";
@@ -79,7 +79,7 @@ export class Turntable {
   private armWasDown = false;
 
   private variant: Variant;
-  private labelColor = "#0b0b0b";
+  private labelTint: string | null = null;
   private tintFor = "";
 
   constructor(root: HTMLElement, opts: { variant: Variant }) {
@@ -143,14 +143,15 @@ export class Turntable {
     empty.textContent = np?.artist ?? "";
     const title = np?.title || "Vinyl";
     const ring = ["VINYL", "33⅓ RPM", np?.source === "spotify" ? "SPOTIFY" : "APPLE MUSIC", np?.album || "FACE A", "STÉRÉO"].join(" · ") + " ·";
-    this.label.innerHTML = tex === "picture" && art ? "" : labelMarkup({ title, artist: np?.artist ?? "", color: this.labelColor, ring });
+    const color = labelColorFor(tex, this.labelTint);
+    this.label.innerHTML = labelMarkup({ title, artist: np?.artist ?? "", color, ring });
   }
 
   private async loadLabelColor(art: string): Promise<void> {
     this.tintFor = art;
     const tint = await imageTint(art);
     if (this.tintFor !== art) return; // un autre morceau est arrivé entre-temps
-    this.labelColor = tint ?? "#0b0b0b";
+    this.labelTint = tint;
     this.paint();
   }
 

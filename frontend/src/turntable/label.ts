@@ -28,3 +28,9 @@ export function labelMarkup(o: { title: string; artist: string; color: string; r
   <div class="absolute" style="left:22%;bottom:17%;width:13%;height:6%;opacity:.8;background:repeating-linear-gradient(90deg,${ink} 0 1px,transparent 1px 2px,${ink} 2px 4px,transparent 4px 5px)"></div>
   <div class="absolute rounded-full" style="left:47%;top:47%;width:6%;height:6%;background:radial-gradient(circle,#d9d4ce 0 35%,#6b6560 40%,#2a2726 100%)"></div>`;
 }
+
+// Étiquette noire comme sur MD Vinyl ; en picture disc, elle prend la teinte de la pochette.
+export function labelColorFor(texture: string, tint: string | null): string {
+  if (texture === "picture") return tint ?? "#efe6d2";
+  return "#0b0b0b";
+}

@@ -91,3 +91,7 @@ describe("geste sur le bras", () => {
     expect(armRelease({ endAngle: 26, movedPx: 40, playing: false, durationMs: 0 })).toEqual({ kind: "play" });
   });
 });
+
+test("au repos, le bras est vertical", () => {
+  expect(ARM_REST).toBe(0);
+});

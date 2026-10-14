@@ -1,5 +1,5 @@
 // Angles du bras en degrés. 0° = bras vertical ; positif = rotation horaire, vers le disque.
-export const ARM_REST = 4;
+export const ARM_REST = 0;
 export const ARM_START = 18;
 export const ARM_END = 34;
 export const ARM_LIFT = 12;
