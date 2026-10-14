@@ -11,7 +11,7 @@ Afficher sur le bureau macOS un **vrai widget** (WidgetKit) qui montre et pilote
 - **Signature** : compte Apple **gratuit** (Personal Team). La signature expire au bout d'environ 7 jours. Il faut alors recompiler depuis Xcode.
 - **Source** : Apple Music uniquement. Spotify est hors périmètre.
 - **Indépendance** : le widget fonctionne sans que l'app Vinyl (Go/Wails) soit lancée, et même quand Musique est fermée.
-- **L'app Vinyl existante n'est pas modifiée.**
+- **L'app Vinyl existante reste intacte**, à l'exception du bouton de mise à jour du widget (§7).
 
 ### Critères de réussite
 
@@ -21,6 +21,7 @@ Afficher sur le bureau macOS un **vrai widget** (WidgetKit) qui montre et pilote
 4. Les boutons ⏮ ⏯ ⏭ du widget pilotent Musique. Si Musique est fermée, ⏯ la lance et reprend la lecture.
 5. Musique fermée : le widget montre le dernier morceau joué. L'assistant ne lance **jamais** Musique de lui-même, il le fait seulement sur un appui de bouton.
 6. Après un redémarrage du Mac, le widget fonctionne sans rien ouvrir.
+7. Quand le widget doit être mis à jour, une icône ☁️↓ apparaît en haut à droite de la fenêtre de Vinyl. Un clic suffit à le recompiler et le réinstaller.
 
 ### Limites acceptées
 
@@ -162,7 +163,7 @@ Style repris de Vinyl : fond sombre, disque noir avec sillons et reflet, pochett
 | `state.json` absent ou illisible côté widget | Affichage « Jamais rien joué ». |
 | Pochette illisible | Étiquette générique. |
 | Assistant arrêté | Le widget garde le dernier état et les boutons sont sans effet. Il revient à la prochaine ouverture de session. |
-| Signature gratuite expirée | Documenté dans le README : recompiler depuis Xcode (⌘R). |
+| Signature gratuite expirée | Icône ☁️↓ dans Vinyl (§7). En secours, documenté dans le README : recompiler depuis Xcode (⌘R). |
 
 ## 5. Tests
 
@@ -186,8 +187,83 @@ Style repris de Vinyl : fond sombre, disque noir avec sillons et reflet, pochett
 
 1. `brew install xcodegen`, puis `cd widget && xcodegen generate`.
 2. Xcode → Réglages → Comptes : ajouter l'identifiant Apple. Dans le projet, choisir l'équipe « Personal Team » pour les deux cibles.
-3. Lancer la cible « Vinyl Widget » (⌘R) et accepter l'accès à Musique.
+3. Installer : bouton ☁️↓ dans Vinyl (§7), ou cible « Vinyl Widget » dans Xcode (⌘R). Au premier lancement, accepter l'accès à Musique.
 4. Clic droit sur le bureau → Modifier les widgets → Vinyl → choisir une taille.
-5. Tous les ~7 jours (expiration de la signature gratuite) : relancer ⌘R depuis Xcode.
+5. Ensuite, les mises à jour se font depuis Vinyl (§7). En secours, ⌘R depuis Xcode.
 
 `widget/VinylWidget.xcodeproj` est ajouté au `.gitignore` : seul `project.yml` est versionné.
+
+## 7. Mise à jour du widget depuis Vinyl
+
+Ajout dans l'app Vinyl (Go/Wails) d'une icône qui signale et installe les mises à jour du widget. Cette icône est placée dans Vinyl et non dans l'assistant, car une signature expirée peut empêcher l'assistant de se lancer alors que Vinyl n'est pas concerné.
+
+### Interface
+
+- **Emplacement** : coin en haut à droite de la fenêtre principale, visible sur toutes les vues.
+- **Icône ☁️↓** (nuage + flèche, SVG) **visible seulement si une mise à jour est nécessaire**. Une bulle au survol donne la raison :
+  - « Widget pas encore installé » ;
+  - « Signature du widget expirée » ;
+  - « Signature du widget : expire dans N jour(s) » ;
+  - « Nouvelle version du widget ».
+- **Clic** : lance la mise à jour. L'icône tourne pendant l'opération, puis disparaît en cas de succès.
+- **Échec** : l'icône devient ⚠️. Un clic ouvre une bulle avec le message d'erreur et un bouton « Réessayer ».
+
+### Détection (au démarrage de Vinyl, puis toutes les 6 h)
+
+| Raison | Condition |
+|---|---|
+| `notInstalled` | `/Applications/Vinyl Widget.app` absent. |
+| `expired` / `expiresSoon` | `ExpirationDate` du profil `Contents/embedded.provisionprofile`, décodé par `security cms -D -i`, est passée ou à moins de 48 h. Sans profil lisible, cette raison est ignorée. |
+| `newVersion` | `git -C <projet> rev-parse HEAD:widget` diffère de l'empreinte enregistrée lors de la dernière installation. Si le dépôt est introuvable, cette raison est ignorée. |
+
+Plusieurs raisons peuvent s'appliquer en même temps. La bulle affiche la première dans l'ordre du tableau.
+
+### Mise à jour (en arrière-plan, une seule à la fois)
+
+1. `xcodegen generate` dans `<projet>/widget`.
+2. `xcodebuild -project VinylWidget.xcodeproj -scheme "Vinyl Widget" -configuration Release -derivedDataPath ~/Library/Caches/Vinyl/widget-build -allowProvisioningUpdates build`.
+3. Arrêt de l'assistant (`killall "Vinyl Widget"`, sans erreur s'il ne tourne pas).
+4. Copie (`ditto`) de l'app compilée vers `/Applications/.Vinyl Widget.app.new`, puis échange atomique avec `/Applications/Vinyl Widget.app`. En cas d'échec, l'ancienne version reste en place.
+5. Relance (`open -a "/Applications/Vinyl Widget.app"`).
+6. Enregistrement de l'empreinte installée dans `~/Library/Application Support/Vinyl/widget-install.json` (`{"tree": "...", "installedAt": "..."}`), puis nouvelle détection.
+
+- **Chemins des outils** : Vinyl.app est une app graphique sans le `PATH` du Terminal. Les outils sont donc cherchés par chemin absolu : `/opt/homebrew/bin` et `/usr/local/bin` pour `xcodegen`, `/usr/bin` pour `xcodebuild`, `git`, `security` et `ditto`.
+- **Délai maximal** : 10 min pour l'ensemble.
+
+### Erreurs traduites
+
+| Cause détectée | Message |
+|---|---|
+| `xcodegen` introuvable | « Installe XcodeGen : brew install xcodegen » |
+| Dossier du projet introuvable | « Dossier du projet introuvable : <chemin>. Corrige widgetProjectDir dans settings.json » |
+| Sortie de xcodebuild mentionnant l'absence de compte ou d'équipe | « Connecte ton compte Apple dans Xcode → Réglages → Comptes » |
+| Autre échec de compilation | « La compilation a échoué » + les 20 dernières lignes de la sortie |
+| Dépassement du délai | « La mise à jour a pris trop de temps » |
+
+### Dossier du projet
+
+- **Valeur par défaut** : chemin du dépôt inscrit dans le binaire à la compilation (`-ldflags "-X main.projectDir=<racine>"` dans `build/darwin/Taskfile.yml`).
+- **Remplacement** : champ facultatif `widgetProjectDir` de `settings.json`.
+
+### Code ajouté à Vinyl
+
+- `internal/widgetupdate/` :
+  - détection : fonction pure à partir de l'état observé (app présente, date d'expiration, empreintes, heure courante) ;
+  - mise à jour : étapes exécutées via un exécuteur de commandes injectable, comme `osascript.go` ;
+  - traduction des erreurs ;
+  - tests unitaires pour chacun de ces trois points.
+- `internal/app/service.go` :
+  - `WidgetUpdateStatus() Status` ;
+  - `UpdateWidget() error` ;
+  - événement `widgetupdate` émis à chaque changement d'état (`none | available | running | error`, raison, message).
+- `internal/settings` : champ `widgetProjectDir` facultatif.
+- Frontend : composant d'icône dans la fenêtre principale, avec un test de l'affichage selon l'état.
+
+### Tests de la mise à jour
+
+- **Tests unitaires** : chaque raison de détection, et l'ordre de priorité entre raisons.
+- **Exécuteur simulé** : enchaînement des étapes, arrêt à la première erreur et traduction des erreurs.
+- **Recette manuelle** :
+  - première installation depuis Vinyl ;
+  - modification d'un fichier de `widget/` puis commit, qui doit faire apparaître ☁️↓ ;
+  - compte Apple retiré de Xcode, qui doit faire apparaître ⚠️ avec le bon message.
