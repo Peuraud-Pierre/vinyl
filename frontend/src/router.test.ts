@@ -25,3 +25,8 @@ test("route album avec source et ID contenant / et séparateur", () => {
   expect(r.route).toBe("album");
   expect(parseAlbumParam(r.param)).toEqual({ source: "applemusic", id });
 });
+
+test("l'étagère ne propose plus que Albums et Playlists ; anciens onglets toujours routables", () => {
+  expect(parseRoute("#/bibliotheque/playlists")).toEqual({ route: "bibliotheque", param: "playlists" });
+  expect(parseRoute("#/bibliotheque/likes")).toEqual({ route: "bibliotheque", param: "likes" });
+});
