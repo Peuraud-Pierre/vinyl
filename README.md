@@ -31,6 +31,12 @@ Pour la modifier : Réglages Système → Confidentialité et sécurité → Aut
 Le jeton est stocké dans le Trousseau macOS (entrée « Vinyl.Spotify »).
 La lecture et la platine passent par l'app Spotify et fonctionnent sans connexion ; la connexion sert à la bibliothèque et aux pages artiste.
 
+## Widget de bureau
+
+Le dossier `widget/` contient un vrai widget macOS (Apple Music) indépendant de Vinyl.
+Installation et recette : `widget/README.md`. Une fois installé, Vinyl signale ses mises à jour
+par une icône ☁️↓ en haut à droite de la fenêtre principale.
+
 ## Tests
 
     CGO_ENABLED=1 go test . ./internal/...
