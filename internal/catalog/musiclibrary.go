@@ -25,6 +25,10 @@ const playlistsScript = musicGuard + `tell application id "com.apple.Music"
 	repeat with p in (every user playlist whose special kind is none)
 		set out to out & (name of p) & us & (persistent ID of p) & us & ((count of tracks of p) as string) & rs
 	end repeat
+	-- Playlists ajoutées depuis le catalogue Apple Music (créées par Apple ou par d'autres).
+	repeat with p in (every subscription playlist)
+		set out to out & (name of p) & us & (persistent ID of p) & us & ((count of tracks of p) as string) & rs
+	end repeat
 	return out
 end tell`
 
@@ -54,7 +58,7 @@ const itemArtworkScript = `on run argv
 	set k to item 1 of argv
 	tell application id "com.apple.Music"
 		if k is "playlist" then
-			set ts to tracks of (first user playlist whose persistent ID is (item 2 of argv))
+			set ts to tracks of (first playlist whose persistent ID is (item 2 of argv))
 		else
 			set ts to (every track of library playlist 1 whose album is (item 2 of argv))
 		end if
@@ -235,7 +239,7 @@ const playlistTracksScript = `on run argv
 	set us to character id 31
 	set rs to character id 30
 	tell application id "com.apple.Music"
-		set p to (first user playlist whose persistent ID is (item 1 of argv))
+		set p to (first playlist whose persistent ID is (item 1 of argv))
 		set out to (name of p) & rs
 		repeat with t in (tracks of p)` + lovedSnippet + `
 			set out to out & ` + trackFields + `

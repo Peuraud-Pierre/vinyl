@@ -50,7 +50,7 @@ const musicExportArtworkScript = `on run argv
 end run`
 
 const musicPlayPlaylistScript = `on run argv
-	tell application id "com.apple.Music" to play (first user playlist whose persistent ID is (item 1 of argv))
+	tell application id "com.apple.Music" to play (first playlist whose persistent ID is (item 1 of argv))
 end run`
 
 const musicPlayTrackScript = `on run argv
@@ -221,7 +221,7 @@ end run`
 const musicPlayInPlaylistScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
 	tell application id "com.apple.Music"
-		set p to (first user playlist whose persistent ID is (item 1 of argv))
+		set p to (first playlist whose persistent ID is (item 1 of argv))
 		set shuffle enabled to ((item 3 of argv) is "1")
 		if (item 2 of argv) is "" then
 			play p

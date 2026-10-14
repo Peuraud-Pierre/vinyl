@@ -112,7 +112,7 @@ func TestAppleMusicPlayItemRouting(t *testing.T) {
 		wantArgs []string
 		wantIn   string
 	}{
-		{"playlist:P1", []string{"P1"}, "user playlist"},
+		{"playlist:P1", []string{"P1"}, "first playlist whose persistent ID"},
 		{"track:T1", []string{"T1"}, "persistent ID"},
 		{"album:Mon \"Album\"" + Sep + "Artiste", []string{`Mon "Album"`, "Artiste"}, "Vinyl — Album"},
 	}
@@ -247,5 +247,13 @@ func TestMusicUpcomingNoCurrentPlaylist(t *testing.T) {
 	ts, err := NewAppleMusic(&fakeRunner{outputs: []string{"NONE"}}, t.TempDir()).Upcoming(context.Background(), 30, false)
 	if err != nil || ts != nil {
 		t.Errorf("radio/flux : liste vide sans erreur, got %v %v", ts, err)
+	}
+}
+
+func TestPlaylistScriptsFindSubscriptionPlaylists(t *testing.T) {
+	for name, script := range map[string]string{"PlayItem": musicPlayPlaylistScript, "PlayInPlaylist": musicPlayInPlaylistScript} {
+		if strings.Contains(script, "user playlist whose persistent ID") {
+			t.Errorf("%s : doit chercher parmi toutes les playlists, pas seulement les « user playlist »", name)
+		}
 	}
 }

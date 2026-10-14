@@ -177,3 +177,16 @@ func TestMusicTracksNotRunningAndBadID(t *testing.T) {
 		t.Error("ID invalide → erreur")
 	}
 }
+
+// Les playlists ajoutées depuis Apple Music (ex. « zons ») sont des « subscription playlist »,
+// pas des « user playlist » : elles doivent être listées, lues et lancées comme les autres.
+func TestApplemusicSubscriptionPlaylistsAreIncluded(t *testing.T) {
+	if !strings.Contains(playlistsScript, "every subscription playlist") {
+		t.Error("la liste des playlists doit inclure les playlists Apple Music ajoutées (subscription playlist)")
+	}
+	for name, script := range map[string]string{"titres": playlistTracksScript, "pochette": itemArtworkScript} {
+		if strings.Contains(script, "first user playlist whose persistent ID") {
+			t.Errorf("%s : la recherche par ID doit couvrir toutes les playlists (first playlist whose …)", name)
+		}
+	}
+}
