@@ -1,7 +1,7 @@
 # Vinyl Widget (widget de bureau macOS) — Spec de conception
 
 Date : 2026-10-14
-Statut : en relecture
+Statut : validée
 
 ## 1. Objectif
 
@@ -11,7 +11,7 @@ Afficher sur le bureau macOS un **vrai widget** (WidgetKit) qui montre et pilote
 - **Signature** : compte Apple **gratuit** (Personal Team). La signature expire au bout d'environ 7 jours. Il faut alors recompiler depuis Xcode.
 - **Source** : Apple Music uniquement. Spotify est hors périmètre.
 - **Indépendance** : le widget fonctionne sans que l'app Vinyl (Go/Wails) soit lancée, et même quand Musique est fermée.
-- **L'app Vinyl existante reste intacte**, à l'exception du bouton de mise à jour du widget (§7).
+- **L'app Vinyl existante reste intacte**, à l'exception du bouton de mise à jour du widget (§7) et du démarrage sans disque flottant (§8).
 
 ### Critères de réussite
 
@@ -267,3 +267,15 @@ Plusieurs raisons peuvent s'appliquer en même temps. La bulle affiche la premi�
   - première installation depuis Vinyl ;
   - modification d'un fichier de `widget/` puis commit, qui doit faire apparaître ☁️↓ ;
   - compte Apple retiré de Xcode, qui doit faire apparaître ⚠️ avec le bon message.
+
+## 8. Démarrage de Vinyl sans le disque flottant
+
+Le widget de bureau remplace le disque flottant au quotidien.
+
+- **Au lancement de Vinyl**, seule la **fenêtre principale** s'ouvre. Le disque flottant (fenêtre `widget`, 220×220) n'est plus affiché.
+- **Disque flottant toujours disponible** : la fenêtre est créée masquée (`Hidden: true`). Un élément de menu « Fenêtre → Mini-platine » (⌘⇧M) l'affiche ou la masque.
+- **Position** : elle est toujours mémorisée à la fermeture de l'app (`widgetX`, `widgetY`), comme aujourd'hui.
+- **Fichiers touchés** : `main.go` uniquement. La fenêtre principale passe à `Hidden: false`, la fenêtre `widget` à `Hidden: true`, et le menu « Fenêtre » est ajouté.
+- **Recette manuelle** :
+  - au lancement, la fenêtre principale s'ouvre et aucun disque flottant n'apparaît ;
+  - ⌘⇧M affiche puis masque le disque flottant.
