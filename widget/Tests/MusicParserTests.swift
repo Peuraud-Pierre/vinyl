@@ -35,3 +35,15 @@ struct MusicParserTests {
         #expect(MusicParser.parse("") == nil)
     }
 }
+
+struct MusicParserMissingValueTests {
+    let us = MusicParser.separator
+
+    @Test func missingValueDevientVide() {
+        let out = ["playing", "ID", "missing value", "missing value", "missing value", "100", "1"].joined(separator: us)
+        guard case .track(let t)? = MusicParser.parse(out) else { Issue.record("pas un morceau"); return }
+        #expect(t.title == "")
+        #expect(t.artist == "")
+        #expect(t.album == "")
+    }
+}

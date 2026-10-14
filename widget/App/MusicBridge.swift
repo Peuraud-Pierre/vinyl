@@ -10,7 +10,10 @@ enum BridgeError: Error {
 final class MusicBridge {
     static let bundleID = "com.apple.Music"
 
-    var isRunning: Bool { !NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).isEmpty }
+    /// Une app en cours de fermeture ne compte pas : lui parler la relancerait.
+    var isRunning: Bool {
+        NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).contains { !$0.isTerminated }
+    }
 
     private static let stateScript = """
     if application id "com.apple.Music" is not running then return "closed"

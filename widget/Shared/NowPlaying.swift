@@ -34,6 +34,18 @@ struct NowPlaying: Codable, Equatable {
         return duration > 0 ? min(p, duration) : p
     }
 
+    /// État « arrêté » construit sans interroger Musique (notification « Stopped »).
+    func stopped(accentHex: String, now: Date) -> NowPlaying {
+        guard trackID != nil else { return .neverPlayed(accentHex: accentHex, now: now) }
+        var n = self
+        n.availability = .running
+        n.state = .stopped
+        n.position = 0
+        n.capturedAt = now
+        n.accentHex = accentHex
+        return n
+    }
+
     /// État « Musique fermée » : garde le dernier morceau, ou « jamais rien joué » s'il n'y en a pas.
     func closed(accentHex: String, now: Date) -> NowPlaying {
         guard trackID != nil else { return .neverPlayed(accentHex: accentHex, now: now) }

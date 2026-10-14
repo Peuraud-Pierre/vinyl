@@ -11,6 +11,9 @@ final class NowPlayingMonitor {
     private var pending = false
     private var observers: [NSObjectProtocol] = []
     private var timer: Timer?
+    /// Après un « Stopped » (arrêt ou fermeture de Musique), pas d'AppleScript pendant ce délai.
+    private var quietUntil = Date.distantPast
+    private static let quietDelay: TimeInterval = 2
 
     init(bridge: MusicBridge, store: StateStore, reload: @escaping () -> Void) {
         self.bridge = bridge
@@ -22,7 +25,16 @@ final class NowPlayingMonitor {
     func start() {
         observers.append(DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("com.apple.Music.playerInfo"), object: nil, queue: .main
-        ) { [weak self] _ in self?.refresh() })
+        ) { [weak self] note in
+            guard let self else { return }
+            if MusicNotification.isStopped(note.userInfo) {
+                // Musique peut être en train de se fermer : on n'interroge pas, on construit l'état.
+                self.quietUntil = Date().addingTimeInterval(Self.quietDelay)
+                self.publish(self.current.stopped(accentHex: AccentReader.read(), now: Date()))
+            } else {
+                self.refresh()
+            }
+        })
 
         let ws = NSWorkspace.shared.notificationCenter
         observers.append(ws.addObserver(forName: NSWorkspace.didLaunchApplicationNotification,
@@ -44,6 +56,7 @@ final class NowPlayingMonitor {
     }
 
     func refresh() {
+        guard Date() >= quietUntil else { return }
         if busy { pending = true; return }
         busy = true
         let previous = current

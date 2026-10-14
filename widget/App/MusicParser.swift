@@ -26,9 +26,12 @@ enum MusicParser {
         if text == "stopped" { return .stopped }
         let f = text.components(separatedBy: separator)
         guard f.count == 7, let state = NowPlaying.PlayerState(rawValue: f[0]) else { return nil }
-        return .track(TrackInfo(state: state, trackID: f[1], title: f[2], artist: f[3], album: f[4],
+        return .track(TrackInfo(state: state, trackID: f[1], title: field(f[2]), artist: field(f[3]), album: field(f[4]),
                                 duration: seconds(f[5]), position: seconds(f[6])))
     }
+
+    /// Champ texte absent (radio, URL) : AppleScript renvoie « missing value ».
+    static func field(_ s: String) -> String { s == "missing value" ? "" : s }
 
     /// Secondes AppleScript ("213,5" ou "213.5"). Valeur absente ou invalide → 0.
     static func seconds(_ s: String) -> TimeInterval {
