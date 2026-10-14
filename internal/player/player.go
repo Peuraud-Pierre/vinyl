@@ -60,6 +60,7 @@ type Track struct {
 	Number     int    `json:"number"`
 	Title      string `json:"title"`
 	Artist     string `json:"artist"`
+	Album      string `json:"album"`
 	DurationMs int64  `json:"durationMs"`
 	Loved      bool   `json:"loved"`
 }

@@ -41,6 +41,7 @@ export interface Track {
     "number": number;
     "title": string;
     "artist": string;
+    "album": string;
     "durationMs": number;
     "loved": boolean;
 }

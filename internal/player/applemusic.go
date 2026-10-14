@@ -299,7 +299,7 @@ const musicUpcomingScript = `on run argv
 				set i to 1
 			end if
 			set t to track i of cp
-			set out to out & (persistent ID of t) & us & (name of t) & us & (artist of t) & us & ((duration of t) as string) & rs
+			set out to out & (persistent ID of t) & us & (name of t) & us & (artist of t) & us & ((duration of t) as string) & us & (album of t) & rs
 			set k to k + 1
 			set i to i + 1
 		end repeat
@@ -348,8 +348,8 @@ func (m *AppleMusic) Upcoming(ctx context.Context, limit int, wrap bool) ([]Trac
 	tracks := []Track{}
 	for _, r := range recs[1:] {
 		f := strings.Split(r, Sep)
-		if len(f) == 4 {
-			tracks = append(tracks, Track{ID: f[0], Title: f[1], Artist: f[2], DurationMs: parseSeconds(f[3]), Number: len(tracks) + 1})
+		if len(f) == 5 {
+			tracks = append(tracks, Track{ID: f[0], Title: f[1], Artist: f[2], DurationMs: parseSeconds(f[3]), Album: f[4], Number: len(tracks) + 1})
 		}
 	}
 	return tracks, nil

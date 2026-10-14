@@ -242,10 +242,13 @@ type spFullTrack struct {
 	TrackNumber int        `json:"track_number"`
 	DurationMs  int64      `json:"duration_ms"`
 	Artists     []spArtist `json:"artists"`
+	Album       struct {
+		Name string `json:"name"`
+	} `json:"album"`
 }
 
 func toTrack(t spFullTrack, number int) player.Track {
-	return player.Track{ID: t.URI, Number: number, Title: t.Name, Artist: artistNames(t.Artists), DurationMs: t.DurationMs}
+	return player.Track{ID: t.URI, Number: number, Title: t.Name, Artist: artistNames(t.Artists), Album: t.Album.Name, DurationMs: t.DurationMs}
 }
 
 // Tracks renvoie un album ou une playlist Spotify avec ses titres (cœurs = titres likés).

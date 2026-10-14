@@ -236,9 +236,9 @@ func TestMusicUpcomingAtEndOfPlaylist(t *testing.T) {
 }
 
 func TestMusicUpcomingParsesTracks(t *testing.T) {
-	out := "2" + Sep + "4" + "\x1e" + join("X", "Trois", "A", "200") + "\x1e" + join("Y", "Quatre", "B", "180,5") + "\x1e"
+	out := "2" + Sep + "4" + "\x1e" + join("X", "Trois", "A", "200", "Colors - Single") + "\x1e" + join("Y", "Quatre", "B", "180,5", "Discovery") + "\x1e"
 	ts, _ := NewAppleMusic(&fakeRunner{outputs: []string{out}}, t.TempDir()).Upcoming(context.Background(), 30, true)
-	if len(ts) != 2 || ts[1].Title != "Quatre" || ts[1].DurationMs != 180500 {
+	if len(ts) != 2 || ts[1].Title != "Quatre" || ts[1].DurationMs != 180500 || ts[1].Album != "Discovery" {
 		t.Errorf("got %+v", ts)
 	}
 }

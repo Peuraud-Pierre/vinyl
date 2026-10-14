@@ -42,8 +42,8 @@ export function mountShell(root: HTMLElement, accent: () => string): { refreshTh
     e.stopPropagation();
     closeAll();
     queue.toggle();
-    $("sh-queue").setAttribute("aria-expanded", String(queue.isOpen()));
   };
+  queue.onToggle((open) => $("sh-queue").setAttribute("aria-expanded", String(open)));
   $("sh-more").onclick = (e) => { e.stopPropagation(); queue.toggle(false); toggle("sh-more", "sh-more-pop"); };
   $("sh-artist").onclick = () => { if (snap?.nowPlaying.artist) go("artiste", snap.nowPlaying.artist); };
   root.querySelectorAll<HTMLElement>("[data-go]").forEach((b) => (b.onclick = () => go(b.dataset.go as "personnaliser" | "reglages")));
