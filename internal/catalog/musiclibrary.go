@@ -224,6 +224,7 @@ const albumTracksScript = `on run argv
 	set rs to character id 30
 	tell application id "com.apple.Music"
 		set ts to (every track of library playlist 1 whose album is (item 1 of argv) and album artist is (item 2 of argv))
+		if (count of ts) is 0 then set ts to (every track of library playlist 1 whose album is (item 1 of argv) and artist is (item 2 of argv))
 		if (count of ts) is 0 then set ts to (every track of library playlist 1 whose album is (item 1 of argv))
 		set out to ""
 		repeat with t in ts` + lovedSnippet + `

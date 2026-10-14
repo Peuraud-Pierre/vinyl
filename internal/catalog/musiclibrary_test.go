@@ -190,3 +190,14 @@ func TestApplemusicSubscriptionPlaylistsAreIncluded(t *testing.T) {
 		}
 	}
 }
+
+// Un album sans « album artist » est listé sous l'artiste du titre : la recherche de ses titres
+// doit d'abord essayer cet artiste avant de se rabattre sur le seul nom d'album (sinon les
+// « Greatest Hits » de plusieurs artistes se mélangent).
+func TestAlbumTracksScriptTriesTrackArtistBeforeAlbumOnly(t *testing.T) {
+	i := strings.Index(albumTracksScript, "whose album is (item 1 of argv) and artist is (item 2 of argv)")
+	j := strings.LastIndex(albumTracksScript, "whose album is (item 1 of argv))")
+	if i < 0 || j < 0 || i > j {
+		t.Error("ordre attendu : album + album artist, puis album + artist, puis album seul")
+	}
+}
