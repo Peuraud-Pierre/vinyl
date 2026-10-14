@@ -4,6 +4,7 @@ import { go } from "../router";
 import { icons } from "../ui/icons";
 import { applyPalette, imageTint, paletteFor } from "../ui/theme";
 import { escapeHtml } from "../views/grid";
+import { mountQueuePanel } from "./queue";
 
 const cssUrl = (u: string) => `url("${u.replace(/["\\]/g, "\\$&")}")`;
 
@@ -15,12 +16,8 @@ export function mountShell(root: HTMLElement, accent: () => string): { refreshTh
         <button id="sh-cover" class="h-[34px] w-[34px] cursor-pointer rounded-full bg-cover bg-center" aria-label="Revenir à la platine" style="box-shadow:0 0 0 2px rgba(255,255,255,.6);background-color:var(--accent)"></button>
         <button id="sh-pp" class="icon-btn h-10 w-10" aria-label="Lecture">${icons.play}</button>
       </div>
-      <button id="sh-queue" class="icon-btn h-[46px] w-[46px]" aria-label="Morceau précédent ou suivant" aria-expanded="false">${icons.queue}</button>
+      <button id="sh-queue" class="icon-btn h-[46px] w-[46px]" aria-label="File d'attente" aria-expanded="false">${icons.queue}</button>
     </nav>
-    <div id="sh-queue-pop" class="glass fixed z-30 hidden rounded-[30px] p-2" style="right:124px;top:290px">
-      <button id="sh-prev" class="menu-item">${icons.prev} Morceau précédent</button>
-      <button id="sh-next" class="menu-item">${icons.next} Morceau suivant</button>
-    </div>
     <button id="sh-more" class="glass round-btn fixed z-30" style="right:51px;bottom:32px" aria-label="Plus" aria-expanded="false">${icons.more}</button>
     <div id="sh-more-pop" class="glass fixed z-30 hidden w-64 rounded-[30px] p-2" style="right:51px;bottom:92px">
       <button data-go="personnaliser" class="menu-item">${icons.palette} Personnaliser</button>
@@ -28,6 +25,7 @@ export function mountShell(root: HTMLElement, accent: () => string): { refreshTh
       <button id="sh-artist" class="menu-item">${icons.person} <span>Page de l'artiste</span></button>
     </div>`;
   const $ = (id: string) => root.querySelector<HTMLElement>("#" + id)!;
+  const queue = mountQueuePanel(root);
   let snap: Snapshot | null = null;
 
   const toggle = (btn: string, pop: string, force?: boolean) => {
@@ -35,21 +33,21 @@ export function mountShell(root: HTMLElement, accent: () => string): { refreshTh
     $(pop).classList.toggle("hidden", !open);
     $(btn).setAttribute("aria-expanded", String(open));
   };
-  const closeAll = () => {
-    toggle("sh-queue", "sh-queue-pop", false);
-    toggle("sh-more", "sh-more-pop", false);
-  };
+  const closeAll = () => toggle("sh-more", "sh-more-pop", false);
 
   $("sh-lib").onclick = () => go("bibliotheque", "albums");
   $("sh-cover").onclick = () => go("platine");
   $("sh-pp").onclick = () => api.PlayPause().catch(() => {});
-  $("sh-queue").onclick = (e) => { e.stopPropagation(); toggle("sh-more", "sh-more-pop", false); toggle("sh-queue", "sh-queue-pop"); };
-  $("sh-prev").onclick = () => api.Previous().catch(() => {});
-  $("sh-next").onclick = () => api.Next().catch(() => {});
-  $("sh-more").onclick = (e) => { e.stopPropagation(); toggle("sh-queue", "sh-queue-pop", false); toggle("sh-more", "sh-more-pop"); };
+  $("sh-queue").onclick = (e) => {
+    e.stopPropagation();
+    closeAll();
+    queue.toggle();
+    $("sh-queue").setAttribute("aria-expanded", String(queue.isOpen()));
+  };
+  $("sh-more").onclick = (e) => { e.stopPropagation(); queue.toggle(false); toggle("sh-more", "sh-more-pop"); };
   $("sh-artist").onclick = () => { if (snap?.nowPlaying.artist) go("artiste", snap.nowPlaying.artist); };
   root.querySelectorAll<HTMLElement>("[data-go]").forEach((b) => (b.onclick = () => go(b.dataset.go as "personnaliser" | "reglages")));
-  document.addEventListener("click", (e) => { if (!(e.target as HTMLElement).closest("#sh-queue-pop, #sh-more-pop")) closeAll(); });
+  document.addEventListener("click", (e) => { if (!(e.target instanceof Element && e.target.closest("#sh-more-pop"))) closeAll(); });
 
   // Fond : deux calques en fondu enchaîné.
   const layers = [document.getElementById("bg-a")!, document.getElementById("bg-b")!];

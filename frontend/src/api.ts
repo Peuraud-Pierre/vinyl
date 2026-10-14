@@ -49,3 +49,5 @@ export function onStats(cb: (s: StatsSnapshot) => void): () => void {
 
 export interface Track { id: string; number: number; title: string; artist: string; durationMs: number; loved: boolean; }
 export interface Collection { id: string; kind: string; title: string; artist: string; genre: string; year: string; artworkUrl: string; source: string; tracks: Track[] | null; }
+
+export interface QueueState { shuffle: boolean; repeat: string; upcoming: Track[] | null; note: string; }

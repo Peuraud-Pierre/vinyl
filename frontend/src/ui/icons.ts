@@ -19,5 +19,8 @@ export const icons = {
   next: svg(22, '<path d="M18 5v14"/><path d="M5 5l10 7-10 7z" fill="currentColor"/>'),
   palette: svg(20, '<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.6-1 1.1-1.9-.6-1.1.1-2.1 1.3-2.1H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7.5" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/>'),
   person: svg(20, '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>'),
+  shuffle: svg(22, '<path d="M3 7h3.5c2.6 0 4 1.2 5.5 5s2.9 5 5.5 5H21"/><path d="M3 17h3.5c1.4 0 2.5-.4 3.4-1.3"/><path d="M14.1 8.3C15 7.4 16.1 7 17.5 7H21"/><path d="M18 4l3 3-3 3"/><path d="M18 14l3 3-3 3"/>'),
+  repeat: svg(22, '<path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M17 3l3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="M7 21l-3-3 3-3"/>'),
+  repeatOne: svg(22, '<path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M17 3l3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="M7 21l-3-3 3-3"/><path d="M11.5 10.5l1.5-1v5"/>'),
   mini: svg(20, '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/>'),
 };
