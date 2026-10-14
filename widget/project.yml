@@ -40,6 +40,35 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.peuraud.vinylwidget
         PRODUCT_NAME: Vinyl Widget
+    dependencies:
+      - target: VinylWidgetExtension
+        embed: true
+        codeSign: true
+  VinylWidgetExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Extension
+      - path: Shared
+    info:
+      path: Extension/Info.plist
+      properties:
+        CFBundleDisplayName: Vinyl
+        VinylAppGroup: $(TeamIdentifierPrefix)com.peuraud.vinylwidget
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Extension/VinylWidgetExtension.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.application-groups:
+          - $(TeamIdentifierPrefix)com.peuraud.vinylwidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.peuraud.vinylwidget.extension
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
   VinylWidgetTests:
     type: bundle.unit-test
     platform: macOS
