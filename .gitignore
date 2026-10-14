@@ -11,3 +11,9 @@ build/android/overlay.json
 build/android/gen/
 .superpowers/
 /vinyl/
+# Widget : projet et plists générés par XcodeGen
+widget/*.xcodeproj
+widget/App/Info.plist
+widget/App/*.entitlements
+widget/Extension/Info.plist
+widget/Extension/*.entitlements
