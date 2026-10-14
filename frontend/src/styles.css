@@ -58,21 +58,26 @@ html, body { margin: 0; height: 100%; background: transparent; }
 
 @keyframes vy-spin { to { transform: rotate(360deg); } }
 
-/* Étagère : pochettes debout vues par la tranche. */
+/* Bac à disques : pochettes carrées rangées serrées, qu'on ressort au survol (transformations 2D : images nettes). */
 .shelf-scroll { scrollbar-width: none; }
 .shelf-scroll::-webkit-scrollbar { display: none; }
-.vy-slot { width: 64px; height: 330px; display: flex; justify-content: center; flex: none; cursor: pointer; }
-.vy-box { position: relative; width: 330px; height: 330px; transform-style: preserve-3d; transform: rotateY(80deg); -webkit-box-reflect: below 4px linear-gradient(transparent 60%, rgba(0,0,0,.25)); transition: transform .5s cubic-bezier(.3,.7,.2,1); }
-.vy-slot:hover .vy-box, .vy-slot:focus-visible .vy-box { transform: rotateY(38deg) translateZ(70px); }
-.vy-face { position: absolute; inset: 0; background: #2a2220 center / cover; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
-.vy-spine { position: absolute; left: -19px; top: 0; width: 38px; height: 330px; transform: rotateY(-90deg); display: flex; align-items: flex-end; justify-content: center; box-shadow: inset -6px 0 10px rgba(0,0,0,.25), inset 2px 0 0 rgba(255,255,255,.12); transition: background .6s; }
-.vy-spine span { writing-mode: vertical-rl; transform: rotate(180deg); padding: 16px 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 300px; }
-/* Pile : pochettes à plat. */
-.vy-layer { position: relative; height: 46px; flex: none; cursor: pointer; }
-.vy-flat { position: absolute; left: 0; top: 0; width: 620px; height: 46px; border-radius: 3px; transform: perspective(1400px) rotateX(18deg); transform-origin: 50% 100%; transition: transform .45s cubic-bezier(.3,.7,.2,1), background .6s; display: flex; align-items: center; gap: 14px; padding: 0 22px; box-sizing: border-box; box-shadow: 0 6px 12px rgba(20,8,6,.35), inset 0 2px 0 rgba(255,255,255,.12), inset 0 -3px 6px rgba(0,0,0,.25); white-space: nowrap; overflow: hidden; }
-.vy-sleeve { position: absolute; left: 640px; top: -150px; width: 300px; height: 300px; opacity: 0; transform: translateX(-60px) rotate(-3deg); transition: opacity .35s, transform .45s cubic-bezier(.3,.7,.2,1); box-shadow: 0 20px 40px rgba(20,8,6,.5); pointer-events: none; z-index: 5; background: #2a2220 center / cover; }
-.vy-layer:hover .vy-flat, .vy-layer:focus-visible .vy-flat { transform: perspective(1400px) rotateX(0deg) translateX(24px); }
-.vy-layer:hover .vy-sleeve, .vy-layer:focus-visible .vy-sleeve { opacity: 1; transform: translateX(0) rotate(-3deg); }
+.vy-crate { position: relative; width: 300px; height: 300px; flex: none; margin-left: -236px; cursor: pointer; border: 0; padding: 0; background: none; }
+.vy-crate:first-child { margin-left: 0; }
+.vy-crate .vy-cover { position: absolute; inset: 0; border-radius: 4px; background: #2a2220 center / cover; box-shadow: -14px 0 24px rgba(20,8,6,.45), inset 0 0 0 1px rgba(255,255,255,.08); transition: transform .45s cubic-bezier(.25,.8,.25,1.15), box-shadow .45s; }
+.vy-crate .vy-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 64px; display: flex; align-items: flex-end; justify-content: center; border-radius: 4px 0 0 4px; background: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.25) 80%, transparent); color: #fff; transition: opacity .3s; }
+.vy-crate .vy-edge span { writing-mode: vertical-rl; transform: rotate(180deg); padding: 14px 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: 270px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.vy-crate:hover, .vy-crate:focus-visible { z-index: 50; }
+.vy-crate:hover .vy-cover, .vy-crate:focus-visible .vy-cover { transform: translateY(-140px) scale(1.04); box-shadow: 0 30px 50px rgba(20,8,6,.55); }
+.vy-crate:hover .vy-edge, .vy-crate:focus-visible .vy-edge { opacity: 0; }
+.vy-lip { position: absolute; left: 0; right: 0; bottom: 0; height: 120px; z-index: 40; pointer-events: none; border-radius: 22px 22px 0 0; }
+/* Pile : pochettes carrées empilées de haut en bas, qu'on ressort vers la droite. */
+.vy-pile { position: relative; width: 300px; height: 300px; flex: none; margin-top: -244px; cursor: pointer; border: 0; padding: 0; background: none; }
+.vy-pile:first-child { margin-top: 0; }
+.vy-pile .vy-cover { position: absolute; inset: 0; border-radius: 4px; background: #2a2220 center / cover; box-shadow: 0 -14px 24px rgba(20,8,6,.45), inset 0 0 0 1px rgba(255,255,255,.08); transition: transform .45s cubic-bezier(.25,.8,.25,1.15), box-shadow .45s; }
+.vy-pile .vy-edge { position: absolute; left: 0; right: 0; top: 0; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.2) 85%, transparent); color: #fff; font-size: 14px; white-space: nowrap; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,.6); transition: opacity .3s; }
+.vy-pile:hover, .vy-pile:focus-visible { z-index: 50; }
+.vy-pile:hover .vy-cover, .vy-pile:focus-visible .vy-cover { transform: translateX(330px) rotate(-2deg) scale(1.04); box-shadow: 0 30px 50px rgba(20,8,6,.55); }
+.vy-pile:hover .vy-edge, .vy-pile:focus-visible .vy-edge { opacity: 0; }
 
 /* Animations façon MD Vinyl : fondus flous, arrivées en cascade, ressort. */
 @keyframes vy-in { from { opacity: 0; filter: blur(14px); transform: scale(.985); } }

@@ -58,25 +58,25 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   const itemHtml = (it: Item, i: number, animate: boolean) => {
     const anim = animate ? `${mode === "side" ? "vy-fly" : "vy-rise"}" style="--i:${Math.min(i, MAX_STAGGER)}` : "";
     const c = spine(it);
-    const art = it.artworkUrl ? `background-image:${escapeHtml(cssUrl(it.artworkUrl))}` : "";
+    const art = `background-color:${c.bg};` + (it.artworkUrl ? `background-image:${escapeHtml(cssUrl(it.artworkUrl))}` : "");
     const word = it.artworkUrl ? "" : `<span class="absolute left-6 top-6 text-[44px] font-black" style="color:${c.ink}">${escapeHtml(initials(it.title))}</span>`;
     const label = `${escapeHtml(it.title)}${it.subtitle ? ` — ${escapeHtml(it.subtitle)}` : ""}`;
+    const cover = `<div class="vy-cover" style="${art}">${word}</div>`;
     if (mode === "side") {
-      return `<button class="vy-slot ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">
-        <div class="vy-box"><div class="vy-face" style="${art}">${word}</div>
-        <div class="vy-spine" style="background:${c.bg};color:${c.ink}"><span><b>${escapeHtml(it.title)}</b>  ${escapeHtml(it.subtitle)}</span></div></div></button>`;
+      return `<button class="vy-crate ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">${cover}
+        <div class="vy-edge"><span><b>${escapeHtml(it.title)}</b>  ${escapeHtml(it.subtitle)}</span></div></button>`;
     }
-    return `<button class="vy-layer ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">
-      <div class="vy-flat" style="background:${c.bg};color:${c.ink}"><b class="text-[16px]">${escapeHtml(it.title)}</b><span class="text-[15px] opacity-85">${escapeHtml(it.subtitle)}</span></div>
-      <div class="vy-sleeve" style="${art}">${word}</div></button>`;
+    return `<button class="vy-pile ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">${cover}
+      <div class="vy-edge"><b>${escapeHtml(it.title)}</b><span class="opacity-80">${escapeHtml(it.subtitle)}</span></div></button>`;
   };
 
   const render = (animate = false) => {
     const shown = filterItems(items, query);
     const html = shown.map((it, i) => itemHtml(it, i, animate)).join("");
     area.innerHTML = mode === "side"
-      ? `<div id="sh-scroll" class="shelf-scroll flex h-full items-center overflow-x-auto overflow-y-hidden px-[220px]" style="perspective:1100px;perspective-origin:50% 40%">${html}</div>`
-      : `<div id="sh-scroll" class="shelf-scroll h-full overflow-y-auto"><div class="flex flex-col gap-1.5 py-[160px]" style="padding-left:120px">${html}</div></div>`;
+      ? `<div id="sh-scroll" class="shelf-scroll flex h-full items-end overflow-x-auto overflow-y-hidden px-[120px] pb-[40px] pt-[150px]">${html}</div>
+         <div class="vy-lip glass" style="background:color-mix(in srgb, var(--glass) 70%, transparent)"></div>`
+      : `<div id="sh-scroll" class="shelf-scroll h-full overflow-y-auto"><div class="flex flex-col py-[80px]" style="padding-left:160px;padding-bottom:300px">${html}</div></div>`;
     scroller = $("sh-scroll");
     scroller.addEventListener("scroll", maybeLoad, { passive: true });
     if (mode === "side") {
@@ -89,9 +89,8 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
 
   const recolor = (it: Item) => {
     const c = spine(it);
-    area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-spine, [data-id="${CSS.escape(it.id)}"] .vy-flat`).forEach((n) => {
-      n.style.background = c.bg;
-      n.style.color = c.ink;
+    area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover`).forEach((n) => {
+      n.style.backgroundColor = c.bg;
     });
   };
 
@@ -99,7 +98,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (!it.artworkUrl && source === "applemusic" && it.kind !== "artist") {
       it.artworkUrl = await api.ItemArtwork(source, it.id).catch(() => "");
       if (!alive || !it.artworkUrl) return;
-      area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-face, [data-id="${CSS.escape(it.id)}"] .vy-sleeve`).forEach((n) => {
+      area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover`).forEach((n) => {
         n.style.backgroundImage = cssUrl(it.artworkUrl);
         n.innerHTML = "";
       });
