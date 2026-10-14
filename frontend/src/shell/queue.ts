@@ -28,6 +28,7 @@ export function mountQueuePanel(root: HTMLElement): { toggle(force?: boolean): v
   const $ = (id: string) => panel.querySelector<HTMLElement>("#" + id)!;
   let state: QueueState | null = null;
   let lastTrack = "";
+  let source = "applemusic";
 
   const paintToggle = (btn: HTMLElement, on: boolean) => {
     btn.style.background = on ? "#f6ece6" : "rgba(255,255,255,.12)";
@@ -57,13 +58,14 @@ export function mountQueuePanel(root: HTMLElement): { toggle(force?: boolean): v
 
   const showNow = (s: Snapshot) => {
     const np = s.nowPlaying;
+    if (np.source) source = np.source;
     $("q-cover").style.backgroundImage = np.artworkUrl ? cssUrl(np.artworkUrl) : "";
     $("q-now").innerHTML = s.problem ? "" : `<b class="block truncate">·· ${escapeHtml(np.title)}</b><span class="block truncate text-[13px] opacity-70">${escapeHtml(np.artist)}</span>`;
     if (np.trackId !== lastTrack) { lastTrack = np.trackId; refresh(); }
   };
 
   $("q-shuffle").onclick = async () => { await api.SetShuffle(!(state?.shuffle ?? false)).catch(() => {}); refresh(); };
-  $("q-repeat").onclick = async () => { await api.SetRepeat(nextRepeat(state?.repeat ?? "off")).catch(() => {}); refresh(); };
+  $("q-repeat").onclick = async () => { await api.SetRepeat(nextRepeat(state?.repeat ?? "off", source)).catch(() => {}); refresh(); };
 
   const toggle = (force?: boolean) => {
     const open = force ?? !isOpen();
