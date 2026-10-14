@@ -16,14 +16,19 @@ import (
 	"vinyl/internal/catalog"
 	"vinyl/internal/player"
 	"vinyl/internal/settings"
+	"vinyl/internal/widgetupdate"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// projectDir est la racine du dépôt, inscrite à la compilation (-ldflags "-X 'main.projectDir=…'").
+var projectDir string
+
 func init() {
 	application.RegisterEvent[player.Snapshot]("nowplaying")
 	application.RegisterEvent[settings.Settings]("settings")
+	application.RegisterEvent[widgetupdate.Status]("widgetupdate")
 }
 
 func main() {
@@ -66,6 +71,20 @@ func main() {
 	})
 
 	cfg := store.Get()
+	widgetDir := cfg.WidgetProjectDir
+	if widgetDir == "" {
+		widgetDir = projectDir
+	}
+	widgetMgr := widgetupdate.NewManager(&widgetupdate.Updater{
+		ProjectDir:    widgetDir,
+		AppPath:       "/Applications/Vinyl Widget.app",
+		BuildDir:      filepath.Join(cacheDir, "Vinyl", "widget-build"),
+		RecordPath:    filepath.Join(filepath.Dir(settingsPath), "widget-install.json"),
+		XcodeGenPaths: []string{"/opt/homebrew/bin/xcodegen", "/usr/local/bin/xcodegen"},
+		Run:           widgetupdate.ExecRunner{},
+		Now:           time.Now,
+	}, func(s widgetupdate.Status) { wailsApp.Event.Emit("widgetupdate", s) })
+	service.SetWidgetUpdates(widgetMgr)
 	widgetOpts := application.WebviewWindowOptions{
 		Name:           "widget",
 		Title:          "Vinyl",
@@ -133,6 +152,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go watcher.Run(ctx, 500*time.Millisecond)
+	go widgetMgr.Run(ctx, 6*time.Hour)
 
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)

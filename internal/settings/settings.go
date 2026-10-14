@@ -11,15 +11,16 @@ import (
 )
 
 type Settings struct {
-	Source          string    `json:"source"`
-	Texture         string    `json:"texture"`
-	DiscColors      [2]string `json:"discColors"`
-	Accent          string    `json:"accent"`
-	Crackle         bool      `json:"crackle"`
-	WidgetX         int       `json:"widgetX"`
-	WidgetY         int       `json:"widgetY"`
-	WidgetPlaced    bool      `json:"widgetPlaced"`
-	SpotifyClientID string    `json:"spotifyClientId"`
+	Source           string    `json:"source"`
+	Texture          string    `json:"texture"`
+	DiscColors       [2]string `json:"discColors"`
+	Accent           string    `json:"accent"`
+	Crackle          bool      `json:"crackle"`
+	WidgetX          int       `json:"widgetX"`
+	WidgetY          int       `json:"widgetY"`
+	WidgetPlaced     bool      `json:"widgetPlaced"`
+	SpotifyClientID  string    `json:"spotifyClientId"`
+	WidgetProjectDir string    `json:"widgetProjectDir,omitempty"` // dossier du dépôt (widget/), facultatif
 }
 
 func Defaults() Settings {

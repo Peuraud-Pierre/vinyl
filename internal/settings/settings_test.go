@@ -97,3 +97,22 @@ func TestConcurrentUpdatesLoseNothing(t *testing.T) {
 		t.Errorf("mises à jour simultanées perdues : %+v", g)
 	}
 }
+
+func TestWidgetProjectDirIsKept(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	os.WriteFile(path, []byte(`{"widgetProjectDir":"/Users/pierre/Document on Mac/projet_git/vinyl"}`), 0o644)
+	s := NewStore(path)
+	s.Load()
+	if got := s.Get().WidgetProjectDir; got != "/Users/pierre/Document on Mac/projet_git/vinyl" {
+		t.Fatalf("WidgetProjectDir = %q", got)
+	}
+	accent := "#ff6b6b"
+	if _, err := s.Update(Patch{Accent: &accent}); err != nil {
+		t.Fatal(err)
+	}
+	s2 := NewStore(path)
+	s2.Load()
+	if s2.Get().WidgetProjectDir == "" {
+		t.Fatal("une mise à jour partielle ne doit pas effacer widgetProjectDir")
+	}
+}

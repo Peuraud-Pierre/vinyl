@@ -16,6 +16,7 @@ import (
 	"vinyl/internal/catalog"
 	"vinyl/internal/player"
 	"vinyl/internal/settings"
+	"vinyl/internal/widgetupdate"
 )
 
 const callLimit = 3 * time.Second
@@ -26,6 +27,7 @@ type VinylService struct {
 	catalogs    map[string]catalog.Catalog
 	music       *catalog.MusicLibrary
 	spotifyAuth *auth.SpotifyAuth
+	widget      *widgetupdate.Manager
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
@@ -201,4 +203,23 @@ func (s *VinylService) SaveShareImage(pngBase64, suggestedName string) (string, 
 		return "", err
 	}
 	return path, os.WriteFile(path, data, 0o644)
+}
+
+// SetWidgetUpdates branche le gestionnaire de mise à jour du widget de bureau.
+func (s *VinylService) SetWidgetUpdates(m *widgetupdate.Manager) { s.widget = m }
+
+// WidgetUpdateStatus indique si l'icône ☁️↓ doit s'afficher.
+func (s *VinylService) WidgetUpdateStatus() widgetupdate.Status {
+	if s.widget == nil {
+		return widgetupdate.Status{State: widgetupdate.StateNone}
+	}
+	return s.widget.Status()
+}
+
+// UpdateWidget lance la recompilation et la réinstallation du widget en arrière-plan.
+func (s *VinylService) UpdateWidget() error {
+	if s.widget == nil {
+		return errors.New("mise à jour du widget indisponible")
+	}
+	return s.widget.Start()
 }
