@@ -83,7 +83,7 @@ widget/
   - ⏯ : `playpause` si Musique tourne, sinon lancement de Musique puis `play`.
   - ⏮ / ⏭ : sans effet si Musique est fermée.
 - **Couleur d'accent** : lue dans `~/Library/Application Support/Vinyl/settings.json`, champ `accent` au format `#rrggbb`. À défaut, `#f5c542`, le défaut de Vinyl. Elle est relue à chaque mise à jour de l'état.
-- **Appels AppleScript** : exécutés hors du fil principal, abandonnés au bout de 2 s, jamais empilés. Un seul appel est en cours à la fois.
+- **Appels AppleScript** : exécutés hors du fil principal, abandonnés au bout de 2 s, jamais empilés. Un seul appel est en cours à la fois. Seule exception : ⏯ quand Musique est fermée, qui lance Musique, dispose de 15 s.
 
 ### Cible 2 — l'extension « Vinyl Widget Extension »
 
@@ -138,7 +138,7 @@ Style repris de Vinyl : fond sombre, disque noir avec sillons et reflet, pochett
 | Moyen | Vinyle à gauche. À droite : titre, artiste, barre de progression, ⏮ ⏯ ⏭. |
 | Grand | Grand vinyle en haut. En dessous : titre, artiste, barre de progression, ⏮ ⏯ ⏭. |
 
-- **Clic hors des boutons** : ouvre Musique (`widgetURL` vers `music://`).
+- **Clic hors des boutons** : ouvre Musique. Le `widgetURL` `vinylwidget://music` est reçu par l'assistant (schéma d'URL déclaré dans son Info.plist), qui ouvre Musique avec `NSWorkspace`.
 - **Couleur d'accent** : barre de progression et contrepoids du bras.
 - **Mode teinté de macOS** : la pochette et le disque suivent le rendu imposé par le système. Les boutons et la barre sont marqués `widgetAccentable`.
 
@@ -150,7 +150,7 @@ Style repris de Vinyl : fond sombre, disque noir avec sillons et reflet, pochett
 | En pause | Bras levé. |
 | Musique fermée | Dernier morceau, bras levé, rendu légèrement estompé, mention « Musique fermée ». ⏯ relance. |
 | Jamais rien joué | Disque vide, message « Lance un morceau dans Musique ». |
-| Autorisation refusée | Message « Autorise Vinyl Widget à piloter Musique ». Le clic ouvre `x-apple.systempreferences:com.apple.preference.security?Privacy_Automation`. |
+| Autorisation refusée | Message « Autorise Vinyl Widget à piloter Musique ». Le clic (`vinylwidget://automation`, reçu par l'assistant) ouvre `x-apple.systempreferences:com.apple.preference.security?Privacy_Automation`. |
 | Pas de pochette | Étiquette générique couleur d'accent avec une note de musique (SF Symbol `music.note`). |
 
 ## 4. Gestion des erreurs
@@ -221,7 +221,7 @@ Plusieurs raisons peuvent s'appliquer en même temps. La bulle affiche la premi�
 ### Mise à jour (en arrière-plan, une seule à la fois)
 
 1. `xcodegen generate` dans `<projet>/widget`.
-2. `xcodebuild -project VinylWidget.xcodeproj -scheme "Vinyl Widget" -configuration Release -derivedDataPath ~/Library/Caches/Vinyl/widget-build -allowProvisioningUpdates build`.
+2. `xcodebuild -project VinylWidget.xcodeproj -scheme "Vinyl Widget" -configuration Release -derivedDataPath ~/Library/Caches/Vinyl/widget-build -allowProvisioningUpdates DEVELOPMENT_TEAM=<équipe> build`. L'équipe est le champ OU du premier certificat « Apple Development » non expiré du trousseau (`security find-certificate -a -c "Apple Development" -p`). Sans certificat : message « compte Apple ». Ce certificat est créé par Xcode lors de la première installation manuelle (§6).
 3. Arrêt de l'assistant (`killall "Vinyl Widget"`, sans erreur s'il ne tourne pas).
 4. Copie (`ditto`) de l'app compilée vers `/Applications/.Vinyl Widget.app.new`, puis échange atomique avec `/Applications/Vinyl Widget.app`. En cas d'échec, l'ancienne version reste en place.
 5. Relance (`open -a "/Applications/Vinyl Widget.app"`).
