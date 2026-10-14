@@ -29,3 +29,18 @@ export enum State {
     StatePaused = "paused",
     StateStopped = "stopped",
 };
+
+/**
+ * Track est un titre d'album, de playlist ou de file d'attente.
+ */
+export interface Track {
+    /**
+     * persistent ID (Musique) ou URI spotify:track:…
+     */
+    "id": string;
+    "number": number;
+    "title": string;
+    "artist": string;
+    "durationMs": number;
+    "loved": boolean;
+}

@@ -144,6 +144,13 @@ export function Stats(): $CancellablePromise<stats$0.Snapshot> {
 }
 
 /**
+ * Tracks renvoie l'album ou la playlist avec ses titres.
+ */
+export function Tracks(source: string, id: string): $CancellablePromise<catalog$0.Collection> {
+    return $Call.ByID(1187265880, source, id);
+}
+
+/**
  * UpdateSettings applique une mise à jour partielle (seuls les champs fournis changent) et la diffuse.
  */
 export function UpdateSettings(p: settings$0.Patch): $CancellablePromise<settings$0.Settings> {

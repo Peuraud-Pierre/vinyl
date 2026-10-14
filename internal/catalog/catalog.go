@@ -4,6 +4,8 @@ package catalog
 import (
 	"context"
 	"errors"
+
+	"vinyl/internal/player"
 )
 
 const PageSize = 50
@@ -33,9 +35,23 @@ type ArtistPage struct {
 	Albums    []Item `json:"albums"`
 }
 
+// Collection est un album ou une playlist avec ses titres.
+type Collection struct {
+	ID         string         `json:"id"`
+	Kind       string         `json:"kind"` // album | playlist
+	Title      string         `json:"title"`
+	Artist     string         `json:"artist"`
+	Genre      string         `json:"genre"`
+	Year       string         `json:"year"`
+	ArtworkURL string         `json:"artworkUrl"`
+	Source     string         `json:"source"`
+	Tracks     []player.Track `json:"tracks"`
+}
+
 type Catalog interface {
 	Library(ctx context.Context, kind string, offset int) (Page, error)
 	Artist(ctx context.Context, name, trackID string) (ArtistPage, error)
+	Tracks(ctx context.Context, id string) (Collection, error)
 }
 
 func paginate(items []Item, offset int) Page {

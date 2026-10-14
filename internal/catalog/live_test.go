@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"vinyl/internal/player"
@@ -36,5 +37,20 @@ func TestLiveMusicScriptsCompile(t *testing.T) {
 			t.Errorf("%s : %v", kind, err)
 		}
 		t.Logf("%s : %d éléments (err=%v)", kind, len(p.Items), err)
+	}
+}
+
+// Les scripts de titres compilent ; une playlist introuvable (-1728/-1719) est acceptée.
+func TestLiveMusicTracksScriptsCompile(t *testing.T) {
+	if os.Getenv("VINYL_LIVE") == "" {
+		t.Skip("définir VINYL_LIVE=1")
+	}
+	m := NewMusicLibrary(player.OSAScript{}, NewITunes(), t.TempDir())
+	for _, id := range []string{"album:-e" + player.Sep + `"x"`, "playlist:0000000000000000"} {
+		_, err := m.Tracks(context.Background(), id)
+		if err != nil && !errors.Is(err, player.ErrNotAuthorized) && !errors.Is(err, player.ErrNotRunning) &&
+			!strings.Contains(err.Error(), "(-1728)") && !strings.Contains(err.Error(), "(-1719)") {
+			t.Errorf("%s : %v", id, err)
+		}
 	}
 }

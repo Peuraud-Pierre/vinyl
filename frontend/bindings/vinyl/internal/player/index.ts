@@ -7,5 +7,6 @@ export {
 
 export type {
     NowPlaying,
-    Snapshot
+    Snapshot,
+    Track
 } from "./models.js";

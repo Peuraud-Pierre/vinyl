@@ -235,3 +235,14 @@ func (s *VinylService) Stats() stats.Snapshot {
 	}
 	return s.stats.Get()
 }
+
+// Tracks renvoie l'album ou la playlist avec ses titres.
+func (s *VinylService) Tracks(source, id string) (catalog.Collection, error) {
+	c, err := s.catalog(source)
+	if err != nil {
+		return catalog.Collection{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return c.Tracks(ctx, id)
+}

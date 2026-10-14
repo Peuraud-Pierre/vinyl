@@ -4,6 +4,7 @@
 export type {
     ArtistPage,
     Catalog,
+    Collection,
     Item,
     Page
 } from "./models.js";

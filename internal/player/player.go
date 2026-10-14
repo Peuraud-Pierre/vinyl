@@ -52,3 +52,16 @@ func parseState(s string) State {
 		return StateStopped
 	}
 }
+
+// Track est un titre d'album, de playlist ou de file d'attente.
+type Track struct {
+	ID         string `json:"id"` // persistent ID (Musique) ou URI spotify:track:…
+	Number     int    `json:"number"`
+	Title      string `json:"title"`
+	Artist     string `json:"artist"`
+	DurationMs int64  `json:"durationMs"`
+	Loved      bool   `json:"loved"`
+}
+
+// ParseSeconds est exporté pour les autres paquets (catalog) : secondes AppleScript → ms.
+func ParseSeconds(s string) int64 { return parseSeconds(s) }

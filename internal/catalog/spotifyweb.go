@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"vinyl/internal/player"
 )
 
 // SpotifyWeb lit la bibliothèque et les pages artiste via la Spotify Web API.
@@ -232,4 +234,110 @@ func (c *SpotifyWeb) Artist(ctx context.Context, name, trackID string) (ArtistPa
 		page.Albums = append(page.Albums, Item{ID: al.URI, Kind: "album", Title: al.Name, Subtitle: year(al.ReleaseDate), ArtworkURL: firstImage(al.Images)})
 	}
 	return page, nil
+}
+
+type spFullTrack struct {
+	URI         string     `json:"uri"`
+	Name        string     `json:"name"`
+	TrackNumber int        `json:"track_number"`
+	DurationMs  int64      `json:"duration_ms"`
+	Artists     []spArtist `json:"artists"`
+}
+
+func toTrack(t spFullTrack, number int) player.Track {
+	return player.Track{ID: t.URI, Number: number, Title: t.Name, Artist: artistNames(t.Artists), DurationMs: t.DurationMs}
+}
+
+// Tracks renvoie un album ou une playlist Spotify avec ses titres (cœurs = titres likés).
+func (c *SpotifyWeb) Tracks(ctx context.Context, id string) (Collection, error) {
+	switch {
+	case strings.HasPrefix(id, "spotify:album:"):
+		return c.albumTracks(ctx, id)
+	case strings.HasPrefix(id, "spotify:playlist:"):
+		return c.playlistTracks(ctx, id)
+	}
+	return Collection{}, fmt.Errorf("spotify : ID de collection invalide %q", id)
+}
+
+func (c *SpotifyWeb) albumTracks(ctx context.Context, id string) (Collection, error) {
+	var a struct {
+		Name        string     `json:"name"`
+		ReleaseDate string     `json:"release_date"`
+		Genres      []string   `json:"genres"`
+		Artists     []spArtist `json:"artists"`
+		Images      []spImage  `json:"images"`
+		Tracks      struct {
+			Items []spFullTrack `json:"items"`
+		} `json:"tracks"`
+	}
+	if err := c.get(ctx, "/albums/"+strings.TrimPrefix(id, "spotify:album:"), nil, &a); err != nil {
+		return Collection{}, err
+	}
+	col := Collection{ID: id, Kind: "album", Title: a.Name, Artist: artistNames(a.Artists), Year: year(a.ReleaseDate), ArtworkURL: firstImage(a.Images), Source: "spotify"}
+	if len(a.Genres) > 0 {
+		col.Genre = a.Genres[0]
+	}
+	col.Tracks = make([]player.Track, 0, len(a.Tracks.Items))
+	for _, t := range a.Tracks.Items {
+		col.Tracks = append(col.Tracks, toTrack(t, t.TrackNumber))
+	}
+	c.markLoved(ctx, col.Tracks)
+	return col, nil
+}
+
+func (c *SpotifyWeb) playlistTracks(ctx context.Context, id string) (Collection, error) {
+	pid := strings.TrimPrefix(id, "spotify:playlist:")
+	var p struct {
+		Name   string    `json:"name"`
+		Images []spImage `json:"images"`
+		Owner  struct {
+			DisplayName string `json:"display_name"`
+		} `json:"owner"`
+	}
+	if err := c.get(ctx, "/playlists/"+pid, url.Values{"fields": {"name,images,owner(display_name)"}}, &p); err != nil {
+		return Collection{}, err
+	}
+	col := Collection{ID: id, Kind: "playlist", Title: p.Name, Artist: p.Owner.DisplayName, ArtworkURL: firstImage(p.Images), Source: "spotify", Tracks: []player.Track{}}
+	for offset := 0; offset < 500; offset += 100 {
+		var page struct {
+			Items []struct {
+				Track *spFullTrack `json:"track"`
+			} `json:"items"`
+			Next *string `json:"next"`
+		}
+		q := url.Values{"limit": {"100"}, "offset": {strconv.Itoa(offset)}}
+		if err := c.get(ctx, "/playlists/"+pid+"/tracks", q, &page); err != nil {
+			return Collection{}, err
+		}
+		for _, it := range page.Items {
+			if it.Track != nil && it.Track.URI != "" {
+				col.Tracks = append(col.Tracks, toTrack(*it.Track, len(col.Tracks)+1))
+			}
+		}
+		if page.Next == nil || *page.Next == "" {
+			break
+		}
+	}
+	c.markLoved(ctx, col.Tracks)
+	return col, nil
+}
+
+// markLoved coche les titres likés, par lots de 50. Une erreur laisse simplement les cœurs vides.
+func (c *SpotifyWeb) markLoved(ctx context.Context, ts []player.Track) {
+	for start := 0; start < len(ts); start += 50 {
+		end := min(start+50, len(ts))
+		ids := make([]string, 0, end-start)
+		for _, t := range ts[start:end] {
+			ids = append(ids, strings.TrimPrefix(t.ID, "spotify:track:"))
+		}
+		var loved []bool
+		if c.get(ctx, "/me/tracks/contains", url.Values{"ids": {strings.Join(ids, ",")}}, &loved) != nil {
+			return
+		}
+		for i := range loved {
+			if start+i < len(ts) {
+				ts[start+i].Loved = loved[i]
+			}
+		}
+	}
 }

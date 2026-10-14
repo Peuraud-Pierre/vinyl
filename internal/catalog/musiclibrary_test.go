@@ -125,3 +125,55 @@ func TestArtworkRemembersMissingCover(t *testing.T) {
 		t.Errorf("une absence de pochette doit être mémorisée : %d appels", r.calls)
 	}
 }
+
+func rec(fields ...string) string { return strings.Join(fields, player.Sep) + rs }
+
+func TestMusicAlbumTracksSortedByDiscThenNumber(t *testing.T) {
+	// id, disque, piste, titre, artiste, durée, aimé, genre, année
+	out := rec("C", "2", "1", "Disque 2 piste 1", "Nirvana", "120,5", "0", "Alternative", "1993") +
+		rec("B", "1", "2", `Heart-Shaped "Box"`, "Nirvana", "281", "1", "Alternative", "1993") +
+		rec("Z", "1", "0", "Sans numéro", "Nirvana", "60", "0", "Alternative", "1993") +
+		rec("A", "1", "1", "Serve the Servants", "Nirvana", "217", "0", "Alternative", "1993")
+	r := &fakeRunner{out: []string{out}}
+	c, err := NewMusicLibrary(r, nil, t.TempDir()).Tracks(context.Background(), "album:In Utero"+player.Sep+"Nirvana")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, tr := range c.Tracks {
+		ids = append(ids, tr.ID)
+	}
+	if strings.Join(ids, ",") != "A,B,Z,C" {
+		t.Errorf("ordre = %v (disque, puis piste, sans numéro en fin de disque)", ids)
+	}
+	if c.Title != "In Utero" || c.Artist != "Nirvana" || c.Genre != "Alternative" || c.Year != "1993" || c.Kind != "album" {
+		t.Errorf("en-tête = %+v", c)
+	}
+	if !c.Tracks[1].Loved || c.Tracks[1].DurationMs != 281000 || c.Tracks[3].DurationMs != 120500 {
+		t.Errorf("titres = %+v", c.Tracks)
+	}
+	if got := r.calls[0][1:]; strings.Join(got, "|") != "In Utero|Nirvana" {
+		t.Errorf("argv = %q", got)
+	}
+}
+
+func TestMusicPlaylistTracksKeepOrderAndName(t *testing.T) {
+	out := rec("Ma playlist") + rec("Y", "0", "7", "Deux", "B", "200", "0", "", "0") + rec("X", "0", "3", "Un", "A", "100", "0", "", "0")
+	c, err := NewMusicLibrary(&fakeRunner{out: []string{out}}, nil, t.TempDir()).Tracks(context.Background(), "playlist:P1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Title != "Ma playlist" || c.Kind != "playlist" || len(c.Tracks) != 2 || c.Tracks[0].ID != "Y" || c.Tracks[0].Number != 1 || c.Year != "" {
+		t.Errorf("got %+v", c)
+	}
+}
+
+func TestMusicTracksNotRunningAndBadID(t *testing.T) {
+	m := NewMusicLibrary(&fakeRunner{out: []string{"NOTRUNNING"}}, nil, t.TempDir())
+	if _, err := m.Tracks(context.Background(), "album:X"+player.Sep+"Y"); err != player.ErrNotRunning {
+		t.Errorf("got %v", err)
+	}
+	if _, err := m.Tracks(context.Background(), "inconnu"); err == nil {
+		t.Error("ID invalide → erreur")
+	}
+}
