@@ -41,3 +41,8 @@ export async function activeSource(): Promise<"applemusic" | "spotify"> {
   const s = await api.GetSettings();
   return s.source === "spotify" ? "spotify" : "applemusic";
 }
+
+export interface StatsSnapshot { count: number; since: string; }
+export function onStats(cb: (s: StatsSnapshot) => void): () => void {
+  return Events.On("stats", (ev) => cb(ev.data as StatsSnapshot));
+}

@@ -1,14 +1,16 @@
-import { api, onSettings, onSnapshot, type Snapshot } from "../api";
+import { api, onSettings, onSnapshot, onStats, type Snapshot, type StatsSnapshot } from "../api";
 import { go } from "../router";
 import { openShareCard } from "../share/sharecard";
 import { STAGE_H, STAGE_W, Turntable } from "../turntable/turntable";
 import { icons } from "../ui/icons";
+import { mountOdometer } from "../ui/odometer";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
 const CONTROLS_W = 140;
 
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
+    <div id="pl-scroll" class="shelf-scroll h-screen overflow-y-auto">
     <section class="relative h-screen">
       <h1 id="pl-title" class="sr-only"></h1>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
@@ -17,10 +19,31 @@ export function mount(el: HTMLElement): () => void {
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
       <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
       <div id="pl-problem" class="glass absolute bottom-10 left-1/2 hidden -translate-x-1/2 rounded-[28px] px-7 py-4 text-center text-[15px]" style="margin-left:-${CONTROLS_W / 2}px"></div>
-    </section>`;
+    </section>
+    <footer class="relative flex flex-col items-center gap-7 pb-20 pt-16" style="background:#1b1b1b">
+      <div id="pl-odo"></div>
+      <button id="pl-stats-share" class="flex items-center gap-3 text-[22px] text-white/90 hover:text-white">
+        <span id="pl-since">Morceaux lus</span> ${icons.share}
+      </button>
+    </footer>
+    </div>`;
   const $ = (id: string) => el.querySelector<HTMLElement>("#" + id)!;
   const tt = new Turntable($("tt"), { variant: "stage" });
   let snap: Snapshot | null = null;
+
+  // Bande « Morceaux lus depuis » sous la platine.
+  const setCount = mountOdometer($("pl-odo"));
+  let statsNow: StatsSnapshot = { count: 0, since: "" };
+  const showStats = (st: StatsSnapshot) => {
+    statsNow = st;
+    setCount(st.count);
+    $("pl-since").textContent = st.since ? `Morceaux lus depuis ${st.since}` : "Morceaux lus";
+  };
+  const offStats = onStats(showStats);
+  api.Stats().then(showStats).catch(() => {});
+  $("pl-stats-share").onclick = () => openShareCard({
+    title: `${statsNow.count} morceaux lus`, subtitle: statsNow.since ? `depuis ${statsNow.since}` : "", artworkUrl: snap?.nowPlaying.artworkUrl ?? "",
+  });
 
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const fit = () => {
@@ -61,6 +84,7 @@ export function mount(el: HTMLElement): () => void {
   api.GetSettings().then((s) => tt.setAppearance(s));
 
   return () => {
+    offStats();
     offSnap();
     offSet();
     ro.disconnect();
