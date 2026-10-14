@@ -19,6 +19,8 @@ targets:
     sources:
       - path: Tests
       - path: Shared
+      - path: App/MusicParser.swift
+      - path: App/AccentReader.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.peuraud.vinylwidget.tests
