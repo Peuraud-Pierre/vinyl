@@ -27,7 +27,7 @@ export function mount(el: HTMLElement, name: string): () => void {
     const albums = page.albums ?? [];
     const all = new Map<string, Item>([...tracks, ...albums].map((i) => [i.id, i]));
     el.innerHTML = `
-      <button id="back" class="glass round-btn fixed z-30" style="left:96px;top:30px" aria-label="Retour">${icons.back}</button>
+      <button id="back" class="glass round-btn vy-drop fixed z-30" style="left:92px;top:28px" aria-label="Retour">${icons.back}</button>
       <header class="flex items-end gap-8 px-[96px] pb-6 pt-28" style="padding-right:190px">
         <img src="${escapeHtml(page.imageUrl)}" class="h-48 w-48 rounded-full object-cover" style="box-shadow:0 20px 40px rgba(20,8,6,.35)" alt="">
         <div>

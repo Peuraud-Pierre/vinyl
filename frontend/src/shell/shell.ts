@@ -9,20 +9,20 @@ const cssUrl = (u: string) => `url("${u.replace(/["\\]/g, "\\$&")}")`;
 
 export function mountShell(root: HTMLElement, accent: () => string): { refreshTheme: () => void } {
   root.innerHTML = `
-    <nav aria-label="Commandes" class="glass fixed z-30 flex flex-col items-center justify-between rounded-[46px] py-[18px]" style="right:46px;top:128px;width:92px;height:340px">
-      <button id="sh-lib" class="icon-btn h-[60px] w-[60px]" aria-label="Bibliothèque">${icons.library}</button>
-      <div class="flex h-[150px] w-[70px] flex-col items-center justify-around rounded-[35px]" style="background:rgba(255,255,255,.28)">
-        <button id="sh-cover" class="h-11 w-11 cursor-pointer rounded-full bg-cover bg-center" aria-label="Revenir à la platine" style="box-shadow:0 0 0 2px rgba(255,255,255,.6);background-color:var(--accent)"></button>
-        <button id="sh-pp" class="icon-btn h-[52px] w-[52px]" aria-label="Lecture">${icons.play}</button>
+    <nav aria-label="Commandes" class="glass fixed z-30 flex flex-col items-center justify-between rounded-[35px] py-[12px]" style="right:40px;top:108px;width:70px;height:262px">
+      <button id="sh-lib" class="icon-btn h-[46px] w-[46px]" aria-label="Bibliothèque">${icons.library}</button>
+      <div class="flex h-[116px] w-[54px] flex-col items-center justify-around rounded-[27px]" style="background:rgba(255,255,255,.28)">
+        <button id="sh-cover" class="h-[34px] w-[34px] cursor-pointer rounded-full bg-cover bg-center" aria-label="Revenir à la platine" style="box-shadow:0 0 0 2px rgba(255,255,255,.6);background-color:var(--accent)"></button>
+        <button id="sh-pp" class="icon-btn h-10 w-10" aria-label="Lecture">${icons.play}</button>
       </div>
-      <button id="sh-queue" class="icon-btn h-[60px] w-[60px]" aria-label="Morceau précédent ou suivant" aria-expanded="false">${icons.queue}</button>
+      <button id="sh-queue" class="icon-btn h-[46px] w-[46px]" aria-label="Morceau précédent ou suivant" aria-expanded="false">${icons.queue}</button>
     </nav>
-    <div id="sh-queue-pop" class="glass fixed z-30 hidden rounded-[30px] p-2" style="right:150px;top:370px">
+    <div id="sh-queue-pop" class="glass fixed z-30 hidden rounded-[30px] p-2" style="right:124px;top:290px">
       <button id="sh-prev" class="menu-item">${icons.prev} Morceau précédent</button>
       <button id="sh-next" class="menu-item">${icons.next} Morceau suivant</button>
     </div>
-    <button id="sh-more" class="glass round-btn fixed z-30" style="right:60px;bottom:40px" aria-label="Plus" aria-expanded="false">${icons.more}</button>
-    <div id="sh-more-pop" class="glass fixed z-30 hidden w-64 rounded-[30px] p-2" style="right:60px;bottom:116px">
+    <button id="sh-more" class="glass round-btn fixed z-30" style="right:51px;bottom:32px" aria-label="Plus" aria-expanded="false">${icons.more}</button>
+    <div id="sh-more-pop" class="glass fixed z-30 hidden w-64 rounded-[30px] p-2" style="right:51px;bottom:92px">
       <button data-go="personnaliser" class="menu-item">${icons.palette} Personnaliser</button>
       <button data-go="reglages" class="menu-item">${icons.settings.replace('width="28" height="28"', 'width="20" height="20"')} Réglages</button>
       <button id="sh-artist" class="menu-item">${icons.person} <span>Page de l'artiste</span></button>

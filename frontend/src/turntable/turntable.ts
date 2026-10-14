@@ -91,6 +91,17 @@ export class Turntable {
     this.arm = root.querySelector(".tt-arm");
     this.label.addEventListener("click", () => api.PlayPause());
     if (this.arm) this.bindArm(this.arm);
+    // Pochette de la platine : un clic la fait glisser puis revenir, avec un ressort.
+    const sleeve = root.querySelector<HTMLElement>(".tt-sleeve");
+    if (sleeve) {
+      sleeve.style.cursor = "pointer";
+      sleeve.addEventListener("click", () => {
+        sleeve.classList.remove("vy-bounce");
+        void sleeve.offsetWidth; // relance l'animation si on clique à nouveau
+        sleeve.classList.add("vy-bounce");
+      });
+      sleeve.addEventListener("animationend", () => sleeve.classList.remove("vy-bounce"));
+    }
     this.paint();
     this.raf = requestAnimationFrame(this.frame);
   }

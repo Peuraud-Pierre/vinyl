@@ -5,7 +5,7 @@ import { STAGE_H, STAGE_W, Turntable } from "../turntable/turntable";
 import { icons } from "../ui/icons";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
-const CONTROLS_W = 170;
+const CONTROLS_W = 140;
 
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
@@ -14,8 +14,8 @@ export function mount(el: HTMLElement): () => void {
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div></div>
       </div>
-      <button id="pl-share" class="glass round-btn fixed z-30" style="right:142px;top:30px" aria-label="Partager">${icons.share}</button>
-      <button id="pl-settings" class="glass round-btn fixed z-30" style="right:60px;top:30px" aria-label="Réglages">${icons.settings}</button>
+      <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
+      <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
       <div id="pl-problem" class="glass absolute bottom-10 left-1/2 hidden -translate-x-1/2 rounded-[28px] px-7 py-4 text-center text-[15px]" style="margin-left:-${CONTROLS_W / 2}px"></div>
     </section>`;
   const $ = (id: string) => el.querySelector<HTMLElement>("#" + id)!;

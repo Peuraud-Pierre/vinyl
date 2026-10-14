@@ -17,21 +17,21 @@ const saveMode = (m: Mode) => { try { localStorage.setItem("vinyl.shelf", m); } 
 const cssUrl = (u: string) => `url("${u.replace(/["\\]/g, "\\$&")}")`;
 
 export function mount(el: HTMLElement, tabParam: string): () => void {
-  const tab = (TABS as readonly string[]).includes(tabParam) ? (tabParam as Tab) : "albums";
+  let tab = (TABS as readonly string[]).includes(tabParam) ? (tabParam as Tab) : "albums";
   let alive = true;
   let mode = readMode();
   let query = "";
   el.innerHTML = `
     <section class="relative h-screen">
-      <div id="sh-area" class="absolute" style="left:0;right:150px;top:110px;bottom:56px"></div>
-      <p id="sh-status" class="absolute left-0 text-center text-[15px]" style="right:150px;bottom:20px;color:var(--ink-soft)"></p>
-      <button id="sh-back" class="glass round-btn fixed z-30" style="left:96px;top:30px" aria-label="Revenir à la platine">${icons.shelf}</button>
-      <button id="sh-mode" class="glass round-btn fixed z-30" style="left:176px;top:30px"></button>
-      <div class="glass fixed z-30 flex gap-1 rounded-[40px] p-[5px]" style="left:50%;top:32px;transform:translateX(-50%)" role="tablist" aria-label="Type de collection">
-        ${TABS.map((t) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}" class="pill h-[50px] cursor-pointer text-[19px] font-medium ${t === tab ? "pill-on" : ""}">${TAB_LABELS[t]}</button>`).join("")}
+      <div id="sh-area" class="absolute" style="left:0;right:130px;top:96px;bottom:50px"></div>
+      <p id="sh-status" class="absolute left-0 text-center text-[15px]" style="right:130px;bottom:18px;color:var(--ink-soft)"></p>
+      <button id="sh-back" class="glass round-btn vy-drop fixed z-30" style="left:92px;top:28px" aria-label="Revenir à la platine">${icons.shelf}</button>
+      <button id="sh-mode" class="glass round-btn vy-drop fixed z-30" style="left:152px;top:28px"></button>
+      <div class="glass vy-slide fixed z-30 flex gap-1 rounded-[30px] p-1" style="left:calc(50% - 65px);top:30px;translate:-50% 0" role="tablist" aria-label="Type de collection">
+        ${TABS.map((t) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}" class="pill h-10 cursor-pointer px-4 text-[16px] font-medium ${t === tab ? "pill-on" : ""}">${TAB_LABELS[t]}</button>`).join("")}
       </div>
-      <div class="fixed z-30 flex items-center gap-3" style="right:60px;top:30px">
-        <input id="sh-q" class="field glass hidden w-64" placeholder="Rechercher" aria-label="Rechercher dans la bibliothèque">
+      <div class="vy-drop fixed z-30 flex items-center gap-3" style="right:51px;top:28px">
+        <input id="sh-q" class="field glass hidden h-10 w-60" placeholder="Rechercher" aria-label="Rechercher dans la bibliothèque">
         <button id="sh-search" class="glass round-btn" aria-label="Rechercher">${icons.search}</button>
       </div>
     </section>`;
@@ -54,26 +54,29 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
 
   const spine = (it: Item) => spineColors(it.title, tints.get(it.id));
 
-  const itemHtml = (it: Item) => {
+  const MAX_STAGGER = 18;
+  const itemHtml = (it: Item, i: number, animate: boolean) => {
+    const anim = animate ? `${mode === "side" ? "vy-fly" : "vy-rise"}" style="--i:${Math.min(i, MAX_STAGGER)}` : "";
     const c = spine(it);
     const art = it.artworkUrl ? `background-image:${escapeHtml(cssUrl(it.artworkUrl))}` : "";
     const word = it.artworkUrl ? "" : `<span class="absolute left-6 top-6 text-[44px] font-black" style="color:${c.ink}">${escapeHtml(initials(it.title))}</span>`;
     const label = `${escapeHtml(it.title)}${it.subtitle ? ` — ${escapeHtml(it.subtitle)}` : ""}`;
     if (mode === "side") {
-      return `<button class="vy-slot" data-id="${escapeHtml(it.id)}" aria-label="${label}">
+      return `<button class="vy-slot ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">
         <div class="vy-box"><div class="vy-face" style="${art}">${word}</div>
         <div class="vy-spine" style="background:${c.bg};color:${c.ink}"><span><b>${escapeHtml(it.title)}</b>  ${escapeHtml(it.subtitle)}</span></div></div></button>`;
     }
-    return `<button class="vy-layer" data-id="${escapeHtml(it.id)}" aria-label="${label}">
+    return `<button class="vy-layer ${anim}" data-id="${escapeHtml(it.id)}" aria-label="${label}">
       <div class="vy-flat" style="background:${c.bg};color:${c.ink}"><b class="text-[16px]">${escapeHtml(it.title)}</b><span class="text-[15px] opacity-85">${escapeHtml(it.subtitle)}</span></div>
       <div class="vy-sleeve" style="${art}">${word}</div></button>`;
   };
 
-  const render = () => {
+  const render = (animate = false) => {
     const shown = filterItems(items, query);
+    const html = shown.map((it, i) => itemHtml(it, i, animate)).join("");
     area.innerHTML = mode === "side"
-      ? `<div id="sh-scroll" class="shelf-scroll flex h-full items-center overflow-x-auto overflow-y-hidden px-[220px]" style="perspective:1100px;perspective-origin:50% 40%">${shown.map(itemHtml).join("")}</div>`
-      : `<div id="sh-scroll" class="shelf-scroll h-full overflow-y-auto"><div class="flex flex-col gap-1.5 py-[160px]" style="padding-left:120px">${shown.map(itemHtml).join("")}</div></div>`;
+      ? `<div id="sh-scroll" class="shelf-scroll flex h-full items-center overflow-x-auto overflow-y-hidden px-[220px]" style="perspective:1100px;perspective-origin:50% 40%">${html}</div>`
+      : `<div id="sh-scroll" class="shelf-scroll h-full overflow-y-auto"><div class="flex flex-col gap-1.5 py-[160px]" style="padding-left:120px">${html}</div></div>`;
     scroller = $("sh-scroll");
     scroller.addEventListener("scroll", maybeLoad, { passive: true });
     if (mode === "side") {
@@ -136,7 +139,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       items.push(...fresh);
       next = page.next;
       const keep = scroller ? [scroller.scrollLeft, scroller.scrollTop] : [0, 0];
-      render();
+      render(items.length === fresh.length);
       scroller!.scrollLeft = keep[0]!;
       scroller!.scrollTop = keep[1]!;
       fresh.forEach(decorate);
@@ -169,13 +172,38 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     }
   });
 
-  el.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) => (b.onclick = () => go("bibliotheque", b.dataset.tab!)));
+  // Changement d'onglet sur place : les pochettes s'effacent en flou, les nouvelles arrivent en cascade.
+  const switchTab = async (target: Tab) => {
+    if (target === tab || loading) return;
+    tab = target;
+    history.replaceState(null, "", `#/bibliotheque/${tab}`);
+    el.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle("pill-on", on);
+      b.setAttribute("aria-selected", String(on));
+    });
+    area.firstElementChild?.classList.add("vy-leave");
+    await new Promise((r) => setTimeout(r, 220));
+    if (!alive || tab !== target) return;
+    items.length = 0;
+    tints.clear();
+    next = 0;
+    area.innerHTML = "";
+    scroller = null;
+    status.textContent = "";
+    if (tab === "likes" && source !== "spotify") {
+      status.textContent = "Les titres likés sont disponibles avec Spotify.";
+      return;
+    }
+    load();
+  };
+  el.querySelectorAll<HTMLElement>("[data-tab]").forEach((b) => (b.onclick = () => switchTab(b.dataset.tab as Tab)));
   $("sh-back").onclick = () => go("platine");
   $("sh-mode").onclick = () => {
     mode = mode === "side" ? "flat" : "side";
     saveMode(mode);
     paintModeButton();
-    render();
+    render(true);
   };
   $("sh-search").onclick = () => {
     const q = $<HTMLInputElement>("sh-q");

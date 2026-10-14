@@ -34,7 +34,7 @@ html, body { margin: 0; height: 100%; background: transparent; }
     transition: background .8s ease;
   }
   .round-btn {
-    @apply flex h-16 w-16 cursor-pointer items-center justify-center rounded-full;
+    @apply flex h-12 w-12 cursor-pointer items-center justify-center rounded-full;
   }
   .round-btn:hover { filter: brightness(1.06); }
   .round-btn:active { transform: scale(.96); }
@@ -73,3 +73,27 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-sleeve { position: absolute; left: 640px; top: -150px; width: 300px; height: 300px; opacity: 0; transform: translateX(-60px) rotate(-3deg); transition: opacity .35s, transform .45s cubic-bezier(.3,.7,.2,1); box-shadow: 0 20px 40px rgba(20,8,6,.5); pointer-events: none; z-index: 5; background: #2a2220 center / cover; }
 .vy-layer:hover .vy-flat, .vy-layer:focus-visible .vy-flat { transform: perspective(1400px) rotateX(0deg) translateX(24px); }
 .vy-layer:hover .vy-sleeve, .vy-layer:focus-visible .vy-sleeve { opacity: 1; transform: translateX(0) rotate(-3deg); }
+
+/* Animations façon MD Vinyl : fondus flous, arrivées en cascade, ressort. */
+@keyframes vy-in { from { opacity: 0; filter: blur(14px); transform: scale(.985); } }
+@keyframes vy-out { to { opacity: 0; filter: blur(14px); transform: scale(.985); } }
+@keyframes vy-fly { from { opacity: 0; transform: translateX(240px); filter: blur(12px); } }
+@keyframes vy-rise { from { opacity: 0; transform: translateY(180px); filter: blur(12px); } }
+@keyframes vy-drop { from { opacity: 0; transform: translateY(-14px); filter: blur(8px); } }
+@keyframes vy-slide { from { opacity: 0; transform: translateX(60px); filter: blur(10px); } }
+@keyframes vy-bounce {
+  0% { transform: translateX(0) rotate(-2.2deg); }
+  35% { transform: translateX(-52px) rotate(-4deg); }
+  68% { transform: translateX(8px) rotate(-1.8deg); }
+  100% { transform: translateX(0) rotate(-2.2deg); }
+}
+.vy-enter { animation: vy-in .45s cubic-bezier(.2,.7,.2,1) both; }
+.vy-leave { animation: vy-out .22s ease-in both; pointer-events: none; }
+.vy-fly { animation: vy-fly .6s cubic-bezier(.2,.75,.2,1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.vy-rise { animation: vy-rise .6s cubic-bezier(.2,.75,.2,1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.vy-drop { animation: vy-drop .45s cubic-bezier(.2,.7,.2,1) both; animation-delay: .08s; }
+.vy-slide { animation: vy-slide .5s cubic-bezier(.2,.7,.2,1) both; animation-delay: .1s; }
+.vy-bounce { animation: vy-bounce .75s cubic-bezier(.3,.7,.3,1); }
+@media (prefers-reduced-motion: reduce) {
+  .vy-enter, .vy-leave, .vy-fly, .vy-rise, .vy-drop, .vy-slide, .vy-bounce { animation-duration: 1ms !important; animation-delay: 0s !important; }
+}

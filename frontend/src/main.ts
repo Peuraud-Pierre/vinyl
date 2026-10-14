@@ -18,12 +18,23 @@ let accent = "#f5c542";
 
 const shell = mountShell(document.getElementById("shell")!, () => accent);
 
-function route() {
+// Changement d'écran : l'ancien s'efface en flou, le nouveau apparaît (comme MD Vinyl).
+const LEAVE_MS = 200;
+let routing = 0;
+async function route() {
+  const token = ++routing;
   const { route, param } = parseRoute(location.hash);
+  const old = viewEl.firstElementChild;
+  if (old) {
+    old.classList.add("vy-leave");
+    await new Promise((r) => setTimeout(r, LEAVE_MS));
+    if (token !== routing) return; // un autre changement est arrivé entre-temps
+  }
   cleanup();
   viewEl.innerHTML = "";
   viewEl.scrollTop = 0;
   cleanup = views[route].mount(viewEl, param);
+  viewEl.firstElementChild?.classList.add("vy-enter");
 }
 window.addEventListener("hashchange", route);
 route();

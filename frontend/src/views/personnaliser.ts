@@ -11,7 +11,7 @@ const PRESETS = ["#f5c542", "#ff6b6b", "#4ecdc4", "#a78bfa"];
 export function mount(el: HTMLElement): () => void {
   const K = 0.42; // aperçu de la scène réduit
   el.innerHTML = `
-    <div class="flex min-h-screen items-center justify-center py-16" style="padding-right:150px">
+    <div class="flex min-h-screen items-center justify-center py-16" style="padding-right:130px">
       <div class="panel flex w-[900px] flex-col gap-4" role="dialog" aria-label="Personnaliser">
         <div class="flex items-center justify-between">
           <h1 class="text-[30px] font-extrabold">Personnaliser</h1>

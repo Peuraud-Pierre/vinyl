@@ -6,7 +6,7 @@ const escapeAttr = (s: string) => s.replace(/[&"<>]/g, (c) => ({ "&": "&amp;", '
 
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
-    <div class="flex min-h-screen items-center justify-center py-16" style="padding-right:150px">
+    <div class="flex min-h-screen items-center justify-center py-16" style="padding-right:130px">
       <div class="panel flex w-[620px] flex-col" role="dialog" aria-label="Réglages">
         <div class="flex items-center justify-between pb-4">
           <h1 class="text-[30px] font-extrabold">Réglages</h1>
