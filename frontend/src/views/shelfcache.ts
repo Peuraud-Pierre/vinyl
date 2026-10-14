@@ -2,15 +2,15 @@
 // les éléments déjà chargés et la sélection, sans relire toute la bibliothèque.
 import type { Item } from "../api";
 
-export interface ShelfState { items: Item[]; next: number; focus: number; }
+export interface ShelfState { items: Item[]; next: number; position: number; } // position = décalage de défilement (px)
 
 const memory = new Map<string, ShelfState>();
 
 export function remember(key: string, s: ShelfState): void {
-  memory.set(key, { items: [...s.items], next: s.next, focus: s.focus });
+  memory.set(key, { items: [...s.items], next: s.next, position: s.position });
 }
 
 export function recall(key: string): ShelfState | undefined {
   const s = memory.get(key);
-  return s && { items: [...s.items], next: s.next, focus: s.focus };
+  return s && { items: [...s.items], next: s.next, position: s.position };
 }

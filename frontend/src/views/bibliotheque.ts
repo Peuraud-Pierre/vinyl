@@ -4,7 +4,8 @@ import { activeSource, api, type Item } from "../api";
 import { albumParam, go, TABS, type Tab } from "../router";
 import { icons } from "../ui/icons";
 import { imageTint } from "../ui/theme";
-import { slotTransform, visibleRange, WheelStepper } from "./coverflow";
+import { clampOffset, SHELF_GAP, shelfTransform, visibleIndices } from "./coverflow";
+import { albumCoverRect, flightFrames } from "../ui/flight";
 import { escapeHtml, initials } from "./grid";
 import { filterItems, spineColors } from "./shelf";
 import { recall, remember } from "./shelfcache";
@@ -50,11 +51,12 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   const status = $("sh-status");
   const items: Item[] = [];
   const tints = new Map<string, string>();
-  const stepper = new WheelStepper();
   let source: "applemusic" | "spotify" = "applemusic";
   let next = 0;
   let loading = false;
-  let focus = 0;
+  let offset = 0; // défilement de l'étagère (px, avant mise à l'échelle)
+  let scale = 1;
+  let entering = true; // première apparition : les boîtiers arrivent en cascade
   let scroller: HTMLElement | null = null;
 
   const paintHeader = () => {
@@ -95,13 +97,15 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       <div class="vy-edge"><b>${escapeHtml(it.title)}</b><span class="opacity-80">${escapeHtml(it.subtitle)}</span></div></button>`;
   };
 
-  // Coverflow : seuls les boîtiers à ±12 de la sélection sont dans le DOM.
+  // Étagère : tous les boîtiers vus par la tranche ; seuls ceux à l'écran sont dans le DOM.
+  const halfWidth = () => area.clientWidth / 2 / scale;
   const layout = () => {
     const row = area.querySelector<HTMLElement>("#cf-row");
     if (!row) return;
     const list = shown();
-    focus = Math.min(Math.max(0, focus), Math.max(0, list.length - 1));
-    const [a, b] = visibleRange(focus, list.length);
+    const half = halfWidth();
+    offset = clampOffset(offset, list.length, half);
+    const [a, b] = visibleIndices(offset, list.length, half);
     const keep = new Set<string>();
     for (let i = a; i <= b; i++) {
       const it = list[i]!;
@@ -110,45 +114,51 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       if (!slot) {
         row.insertAdjacentHTML("beforeend", boxHtml(it));
         slot = row.lastElementChild as HTMLElement;
+        if (entering) {
+          slot.classList.add("vy-shelf-in");
+          slot.style.setProperty("--i", String(Math.max(0, i - a)));
+        }
       }
-      const t = slotTransform(i, focus);
-      slot.style.transform = `translate(-50%,-50%) translateX(${t.x}px) translateZ(${t.z}px) rotateY(${t.rotateY}deg)`;
+      const t = shelfTransform(i, offset, half);
+      slot.style.transform = `translate(-50%,-50%) translateX(${t.x}px) rotateY(${t.rotateY}deg)`;
       slot.style.zIndex = String(t.zIndex);
-      slot.dataset.index = String(i);
-      slot.classList.toggle("cf-right", i > focus);
-      slot.classList.toggle("cf-on", i === focus);
+      slot.classList.toggle("cf-right", t.spineRight);
     }
     row.querySelectorAll<HTMLElement>("[data-id]").forEach((n) => { if (!keep.has(n.dataset.id!)) n.remove(); });
+    if (list.length > 0) entering = false;
     if (!query && b >= list.length - 6) load();
   };
 
-  const memo = () => remember(`${source}:${tab}`, { items, next, focus });
+  const memo = () => remember(`${source}:${tab}`, { items, next, position: offset });
 
-  const move = (delta: number) => {
-    const list = shown();
-    const target = Math.min(Math.max(0, focus + delta), Math.max(0, list.length - 1));
-    if (target !== focus) { focus = target; layout(); memo(); }
+  const scrollBy = (dx: number) => {
+    const target = clampOffset(offset + dx, shown().length, halfWidth());
+    if (target !== offset) { offset = target; layout(); memo(); }
   };
+
+  // Mise à l'échelle : boîtiers d'environ 62 % de la hauteur, comme sur MD Vinyl.
+  const fit = () => {
+    const row = area.querySelector<HTMLElement>("#cf-row");
+    if (!row) return;
+    scale = Math.min(1.7, Math.max(0.8, (area.clientHeight * 0.62) / 300));
+    row.style.scale = String(scale);
+    layout();
+  };
+  const ro = new ResizeObserver(fit);
+  ro.observe(area);
 
   const render = (animate = false) => {
     if (mode === "side") {
       area.innerHTML = `<div id="cf" class="relative h-full w-full overflow-hidden" style="perspective:1300px;perspective-origin:50% 40%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)">
         <div id="cf-row" class="absolute left-1/2 top-[44%]" style="transform-style:preserve-3d"></div></div>`;
       scroller = null;
-      // Boîtiers à l'échelle de la fenêtre : environ 62 % de la hauteur, comme sur MD Vinyl.
-      const fit = () => {
-        const row = area.querySelector<HTMLElement>("#cf-row");
-        if (row) row.style.scale = String(Math.min(1.7, Math.max(0.8, (area.clientHeight * 0.62) / 300)));
-      };
-      fit();
-      new ResizeObserver(fit).observe(area);
+      // Défilement continu à la molette ou au trackpad (horizontal ou vertical).
       area.querySelector("#cf")!.addEventListener("wheel", (e) => {
         const w = e as WheelEvent;
-        const n = stepper.push(Math.abs(w.deltaX) > Math.abs(w.deltaY) ? w.deltaX : w.deltaY);
-        if (n) move(n);
+        scrollBy((Math.abs(w.deltaX) > Math.abs(w.deltaY) ? w.deltaX : w.deltaY) / scale);
         w.preventDefault();
       }, { passive: false });
-      layout();
+      fit();
       return;
     }
     const html = shown().map((it, i) => pileHtml(it, i, animate)).join("");
@@ -207,7 +217,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   async function load() {
     if (loading || next < 0 || !alive) return;
     loading = true;
-    status.textContent = "Chargement…";
+    if (items.length === 0) status.innerHTML = `<span class="vy-spin" role="status" aria-label="Chargement"></span>`;
     try {
       const page = await api.Library(source, KIND[tab], next);
       if (!alive) return;
@@ -244,20 +254,35 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       }
       return;
     }
+    flyToAlbum(it);
     go("album", albumParam(source, it.id));
   };
 
-  area.addEventListener("animationend", (e) => (e.target as HTMLElement).classList.remove("vy-fly", "vy-rise"));
+  // La pochette cliquée s'envole jusqu'à sa place sur la page album (vidéo MD Vinyl, 20–21 s).
+  const flyToAlbum = (it: Item) => {
+    const face = area.querySelector<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-face`);
+    if (!face || !it.artworkUrl || mode !== "side") return;
+    const r = face.getBoundingClientRect();
+    const slot = face.closest<HTMLElement>("[data-id]")!;
+    const angle = slot.classList.contains("cf-right") ? -72 : 72; // même angle que le boîtier
+    const ghost = document.createElement("div");
+    ghost.className = "pointer-events-none fixed z-[60] bg-cover bg-center";
+    ghost.style.backgroundImage = cssUrl(it.artworkUrl);
+    ghost.style.boxShadow = "0 24px 50px rgba(0,0,0,.45)";
+    document.body.appendChild(ghost);
+    const to = albumCoverRect(window.innerWidth);
+    const flight = ghost.animate(flightFrames({ left: r.left, top: r.top, width: r.width, height: r.height }, to, angle), {
+      duration: 520, easing: "cubic-bezier(.2,.75,.2,1)", fill: "forwards",
+    });
+    flight.finished.then(() => ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, delay: 220, fill: "forwards" }).finished)
+      .finally(() => ghost.remove());
+  };
+
+  area.addEventListener("animationend", (e) => (e.target as HTMLElement).classList.remove("vy-fly", "vy-rise", "vy-shelf-in"));
   area.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-id]");
     const it = btn && items.find((i) => i.id === btn.dataset.id);
     if (!it || !btn) return;
-    if (mode === "side" && btn.dataset.index !== undefined && Number(btn.dataset.index) !== focus) {
-      focus = Number(btn.dataset.index);
-      layout();
-      memo();
-      return;
-    }
     memo();
     open(it);
   });
@@ -265,9 +290,8 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   const onKey = (e: KeyboardEvent) => {
     const t = e.target;
     if ((t instanceof Element && t.closest("input, select, textarea")) || mode !== "side") return;
-    if (e.key === "ArrowLeft") { move(-1); e.stopPropagation(); e.preventDefault(); }
-    if (e.key === "ArrowRight") { move(1); e.stopPropagation(); e.preventDefault(); }
-    if (e.key === "Enter") { const it = shown()[focus]; if (it) open(it); }
+    if (e.key === "ArrowLeft") { scrollBy(-SHELF_GAP); e.stopPropagation(); e.preventDefault(); }
+    if (e.key === "ArrowRight") { scrollBy(SHELF_GAP); e.stopPropagation(); e.preventDefault(); }
   };
   window.addEventListener("keydown", onKey, true); // avant les raccourcis précédent/suivant de main.ts
 
@@ -283,7 +307,8 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     items.length = 0;
     tints.clear();
     next = 0;
-    focus = 0;
+    offset = 0;
+    entering = true;
     area.innerHTML = "";
     scroller = null;
     status.textContent = "";
@@ -320,11 +345,11 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     const q = $<HTMLInputElement>("sh-q");
     q.classList.toggle("hidden");
     if (!q.classList.contains("hidden")) q.focus();
-    else if (query) { query = ""; q.value = ""; focus = 0; render(); }
+    else if (query) { query = ""; q.value = ""; offset = 0; render(); }
   };
   $<HTMLInputElement>("sh-q").addEventListener("input", (e) => {
     query = (e.target as HTMLInputElement).value;
-    focus = 0;
+    offset = 0;
     render();
     status.textContent = query && shown().length === 0 ? "Aucun résultat dans ce qui est chargé." : "";
   });
@@ -340,7 +365,8 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (saved && saved.items.length > 0) {
       items.push(...saved.items);
       next = saved.next;
-      focus = saved.focus;
+      offset = saved.position;
+      entering = false;
       render();
       items.forEach(decorate);
       return;
@@ -348,6 +374,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     load();
   });
   return () => {
+    ro.disconnect();
     if (items.length > 0) memo();
     alive = false;
     window.removeEventListener("keydown", onKey, true);

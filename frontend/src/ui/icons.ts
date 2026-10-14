@@ -14,6 +14,7 @@ export const icons = {
   stack: svg(20, '<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>'),
   search: svg(20, '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/>'),
   back: svg(20, '<path d="M15 4l-8 8 8 8"/>'),
+  up: svg(20, '<path d="M4 15l8-8 8 8"/>'),
   close: svg(20, '<path d="M6 6l12 12M18 6L6 18"/>'),
   prev: svg(22, '<path d="M6 5v14"/><path d="M19 5L9 12l10 7z" fill="currentColor"/>'),
   next: svg(22, '<path d="M18 5v14"/><path d="M5 5l10 7-10 7z" fill="currentColor"/>'),

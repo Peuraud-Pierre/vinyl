@@ -15,7 +15,7 @@ export function mount(el: HTMLElement, param: string): () => void {
   let alive = true;
   el.innerHTML = `
     <section id="al-root" class="relative h-screen overflow-hidden" style="color:var(--ink)">
-      <button id="al-back" class="glass round-btn vy-drop fixed z-30" style="left:92px;top:28px" aria-label="Retour">${icons.back}</button>
+      <button id="al-back" class="glass round-btn vy-drop fixed z-30" style="left:92px;top:28px" aria-label="Fermer">${icons.up}</button>
       <button id="al-share" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Partager">${icons.share}</button>
       <h1 id="al-bar" class="pointer-events-none absolute left-0 z-20 truncate px-40 text-center text-[24px] font-semibold opacity-0 transition-opacity duration-300" style="right:130px;top:34px"></h1>
       <div id="al-body" class="absolute inset-0 text-[15px]" style="right:130px;padding-top:110px;color:var(--ink-soft)"><p class="px-[92px]">Chargement…</p></div>
