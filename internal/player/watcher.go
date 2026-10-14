@@ -30,6 +30,7 @@ type Watcher struct {
 	// Utilisés uniquement depuis Tick (une seule goroutine).
 	prevState    map[string]State
 	playingSince map[string]time.Time
+	onPlaying    func(NowPlaying)
 
 	mu          sync.Mutex
 	active      string
@@ -180,10 +181,16 @@ func (w *Watcher) Tick(ctx context.Context) {
 	}
 	w.mu.Unlock()
 
+	if w.onPlaying != nil && snap.Problem == "" && snap.NowPlaying.State == StatePlaying {
+		w.onPlaying(snap.NowPlaying)
+	}
 	if send {
 		w.emit(snap)
 	}
 }
+
+// SetOnPlaying enregistre un rappel appelé à chaque sondage où la source active joue (à brancher avant Run).
+func (w *Watcher) SetOnPlaying(f func(NowPlaying)) { w.onPlaying = f }
 
 func differs(a, b Snapshot) bool {
 	return a.Problem != b.Problem || a.ProblemApp != b.ProblemApp ||

@@ -16,6 +16,7 @@ import (
 	"vinyl/internal/catalog"
 	"vinyl/internal/player"
 	"vinyl/internal/settings"
+	"vinyl/internal/stats"
 	"vinyl/internal/widgetupdate"
 )
 
@@ -29,6 +30,7 @@ func init() {
 	application.RegisterEvent[player.Snapshot]("nowplaying")
 	application.RegisterEvent[settings.Settings]("settings")
 	application.RegisterEvent[widgetupdate.Status]("widgetupdate")
+	application.RegisterEvent[stats.Snapshot]("stats")
 }
 
 func main() {
@@ -58,6 +60,22 @@ func main() {
 	spAuth := auth.NewSpotifyAuth(func() string { return store.Get().SpotifyClientID }, auth.KeychainStore{})
 	service.SetSpotifyAuth(spAuth)
 	service.SetCatalog("spotify", catalog.NewSpotifyWeb(spAuth.AccessToken))
+
+	statsPath, err := stats.DefaultPath()
+	if err != nil {
+		log.Fatal(err)
+	}
+	statStore := stats.NewStore(statsPath, time.Now)
+	statStore.Load()
+	service.SetStats(statStore)
+	watcher.SetOnPlaying(func(np player.NowPlaying) {
+		if np.TrackID == "" {
+			return // radio ou flux sans identifiant : pas compté
+		}
+		if snap, changed := statStore.Played(np.Source + ":" + np.TrackID); changed {
+			wailsApp.Event.Emit("stats", snap)
+		}
+	})
 
 	wailsApp = application.New(application.Options{
 		Name:        "Vinyl",

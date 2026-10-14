@@ -16,6 +16,7 @@ import (
 	"vinyl/internal/catalog"
 	"vinyl/internal/player"
 	"vinyl/internal/settings"
+	"vinyl/internal/stats"
 	"vinyl/internal/widgetupdate"
 )
 
@@ -28,6 +29,7 @@ type VinylService struct {
 	music       *catalog.MusicLibrary
 	spotifyAuth *auth.SpotifyAuth
 	widget      *widgetupdate.Manager
+	stats       *stats.Store
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
@@ -222,4 +224,14 @@ func (s *VinylService) UpdateWidget() error {
 		return errors.New("mise à jour du widget indisponible")
 	}
 	return s.widget.Start()
+}
+
+func (s *VinylService) SetStats(st *stats.Store) { s.stats = st }
+
+// Stats renvoie le compteur « Morceaux lus depuis ».
+func (s *VinylService) Stats() stats.Snapshot {
+	if s.stats == nil {
+		return stats.Snapshot{}
+	}
+	return s.stats.Get()
 }

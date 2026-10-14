@@ -172,3 +172,18 @@ func TestWakeForcesEmissionAfterSeek(t *testing.T) {
 		t.Fatalf("le forçage ne vaut qu'une fois, obtenu %d émissions", len(h.emitted))
 	}
 }
+
+func TestOnPlayingCalledOnlyWhilePlaying(t *testing.T) {
+	h := newHarness()
+	var seen []string
+	h.w.SetOnPlaying(func(np NowPlaying) { seen = append(seen, np.TrackID) })
+	h.am.err, h.am.np = nil, NowPlaying{TrackID: "a", State: StatePaused}
+	h.tick(0)
+	h.am.np.State = StatePlaying
+	h.tick(500 * time.Millisecond)
+	h.am.np.TrackID = "b"
+	h.tick(500 * time.Millisecond)
+	if len(seen) != 2 || seen[0] != "a" || seen[1] != "b" {
+		t.Errorf("appels = %v", seen)
+	}
+}

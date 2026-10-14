@@ -13,6 +13,9 @@ import type * as player$0 from "../../../../../vinyl/internal/player/models.js";
 import type * as settings$0 from "../../../../../vinyl/internal/settings/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as stats$0 from "../../../../../vinyl/internal/stats/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as widgetupdate$0 from "../../../../../vinyl/internal/widgetupdate/models.js";
 
 declare module "@wailsio/runtime" {
@@ -20,6 +23,7 @@ declare module "@wailsio/runtime" {
         interface CustomEvents {
             "nowplaying": player$0.Snapshot;
             "settings": settings$0.Settings;
+            "stats": stats$0.Snapshot;
             "widgetupdate": widgetupdate$0.Status;
         }
     }

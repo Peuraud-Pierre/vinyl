@@ -19,6 +19,9 @@ import * as player$0 from "../player/models.js";
 import * as settings$0 from "../settings/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as stats$0 from "../stats/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as widgetupdate$0 from "../widgetupdate/models.js";
 
 export function Artist(source: string, name: string, trackID: string): $CancellablePromise<catalog$0.ArtistPage> {
@@ -110,6 +113,10 @@ export function SetSpotifyAuth(a: auth$0.SpotifyAuth | null): $CancellablePromis
     return $Call.ByID(1187128612, a);
 }
 
+export function SetStats(st: stats$0.Store | null): $CancellablePromise<void> {
+    return $Call.ByID(4148061351, st);
+}
+
 /**
  * SetWidgetUpdates branche le gestionnaire de mise à jour du widget de bureau.
  */
@@ -127,6 +134,13 @@ export function SpotifyLogout(): $CancellablePromise<void> {
 
 export function SpotifyStatus(): $CancellablePromise<boolean> {
     return $Call.ByID(94803144);
+}
+
+/**
+ * Stats renvoie le compteur « Morceaux lus depuis ».
+ */
+export function Stats(): $CancellablePromise<stats$0.Snapshot> {
+    return $Call.ByID(2236823759);
 }
 
 /**
