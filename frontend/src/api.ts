@@ -46,3 +46,6 @@ export interface StatsSnapshot { count: number; since: string; }
 export function onStats(cb: (s: StatsSnapshot) => void): () => void {
   return Events.On("stats", (ev) => cb(ev.data as StatsSnapshot));
 }
+
+export interface Track { id: string; number: number; title: string; artist: string; durationMs: number; loved: boolean; }
+export interface Collection { id: string; kind: string; title: string; artist: string; genre: string; year: string; artworkUrl: string; source: string; tracks: Track[] | null; }

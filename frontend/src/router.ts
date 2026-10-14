@@ -1,5 +1,5 @@
-export type Route = "platine" | "bibliotheque" | "artiste" | "personnaliser" | "reglages";
-const ROUTES: Route[] = ["platine", "bibliotheque", "artiste", "personnaliser", "reglages"];
+export type Route = "platine" | "bibliotheque" | "artiste" | "album" | "personnaliser" | "reglages";
+const ROUTES: Route[] = ["platine", "bibliotheque", "artiste", "album", "personnaliser", "reglages"];
 export const TABS = ["albums", "playlists", "artistes", "likes"] as const;
 export type Tab = (typeof TABS)[number];
 
@@ -15,4 +15,11 @@ export function parseRoute(hash: string): { route: Route; param: string } {
 
 export function go(route: Route, param = ""): void {
   location.hash = `#/${route}${param ? "/" + encodeURIComponent(param) : ""}`;
+}
+
+// Paramètre de la page album : « source/id » (l'ID peut contenir / ou des séparateurs).
+export const albumParam = (source: string, id: string) => `${source}/${id}`;
+export function parseAlbumParam(param: string): { source: string; id: string } {
+  const i = param.indexOf("/");
+  return i < 0 ? { source: "applemusic", id: param } : { source: param.slice(0, i), id: param.slice(i + 1) };
 }

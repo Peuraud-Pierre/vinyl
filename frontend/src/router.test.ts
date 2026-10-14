@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { parseRoute } from "./router";
+import { albumParam, parseAlbumParam, parseRoute } from "./router";
 
 test("route par défaut", () => { expect(parseRoute("")).toEqual({ route: "platine", param: "" }); });
 test("route avec paramètre encodé", () => {
@@ -16,4 +16,12 @@ test("étagère : onglet par défaut et onglet inconnu → albums", () => {
   expect(parseRoute("#/bibliotheque")).toEqual({ route: "bibliotheque", param: "albums" });
   expect(parseRoute("#/bibliotheque/n-importe")).toEqual({ route: "bibliotheque", param: "albums" });
   expect(parseRoute("#/bibliotheque/playlists")).toEqual({ route: "bibliotheque", param: "playlists" });
+});
+
+test("route album avec source et ID contenant / et séparateur", () => {
+  const id = "album:AC/DC\x1fBack in Black";
+  const hash = "#/album/" + encodeURIComponent(albumParam("applemusic", id));
+  const r = parseRoute(hash);
+  expect(r.route).toBe("album");
+  expect(parseAlbumParam(r.param)).toEqual({ source: "applemusic", id });
 });

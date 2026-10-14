@@ -7,10 +7,11 @@ import * as personnaliser from "./views/personnaliser";
 import * as reglages from "./views/reglages";
 import * as bibliotheque from "./views/bibliotheque";
 import * as artiste from "./views/artiste";
+import * as album from "./views/album";
 import { render as renderWidgetUpdate, type WidgetStatus } from "./widgetupdate";
 
 type View = { mount: (el: HTMLElement, param: string) => () => void };
-const views: Record<Route, View> = { platine, bibliotheque, artiste, personnaliser, reglages };
+const views: Record<Route, View> = { platine, bibliotheque, artiste, album, personnaliser, reglages };
 
 const viewEl = document.getElementById("view")!;
 let cleanup: () => void = () => {};
