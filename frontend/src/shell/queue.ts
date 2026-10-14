@@ -20,7 +20,10 @@ export function mountQueuePanel(root: HTMLElement): { toggle(force?: boolean): v
     <div id="q-now" class="border-b border-white/15 pb-3 text-[15px]"></div>
     <ol id="q-list" class="shelf-scroll min-h-0 flex-1 overflow-y-auto"></ol>
     <p id="q-note" class="text-center text-[13px] opacity-70"></p>
-    <div class="flex justify-end gap-4">
+    <div class="flex items-center gap-4">
+      <button id="q-prev" class="round-btn" style="background:rgba(255,255,255,.12)" aria-label="Morceau précédent">${icons.prev}</button>
+      <button id="q-next" class="round-btn" style="background:rgba(255,255,255,.12)" aria-label="Morceau suivant">${icons.next}</button>
+      <span class="flex-1"></span>
       <button id="q-shuffle" class="round-btn" aria-label="Lecture aléatoire" aria-pressed="false">${icons.shuffle}</button>
       <button id="q-repeat" class="round-btn" aria-label="Répéter" aria-pressed="false">${icons.repeat}</button>
     </div>`;
@@ -64,6 +67,8 @@ export function mountQueuePanel(root: HTMLElement): { toggle(force?: boolean): v
     if (np.trackId !== lastTrack) { lastTrack = np.trackId; refresh(); }
   };
 
+  $("q-prev").onclick = () => api.Previous().catch(() => {});
+  $("q-next").onclick = () => api.Next().catch(() => {});
   $("q-shuffle").onclick = async () => { await api.SetShuffle(!(state?.shuffle ?? false)).catch(() => {}); refresh(); };
   $("q-repeat").onclick = async () => { await api.SetRepeat(nextRepeat(state?.repeat ?? "off", source)).catch(() => {}); refresh(); };
 

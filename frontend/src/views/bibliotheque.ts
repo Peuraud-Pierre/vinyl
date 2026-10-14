@@ -7,6 +7,7 @@ import { imageTint } from "../ui/theme";
 import { slotTransform, visibleRange, WheelStepper } from "./coverflow";
 import { escapeHtml, initials } from "./grid";
 import { filterItems, spineColors } from "./shelf";
+import { recall, remember } from "./shelfcache";
 
 const SEGMENTS: Tab[] = ["albums", "playlists"];
 const TAB_LABELS: Record<Tab, string> = { albums: "Albums", playlists: "Playlists", artistes: "Artistes", likes: "Titres likés" };
@@ -121,10 +122,12 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (!query && b >= list.length - 6) load();
   };
 
+  const memo = () => remember(`${source}:${tab}`, { items, next, focus });
+
   const move = (delta: number) => {
     const list = shown();
     const target = Math.min(Math.max(0, focus + delta), Math.max(0, list.length - 1));
-    if (target !== focus) { focus = target; layout(); }
+    if (target !== focus) { focus = target; layout(); memo(); }
   };
 
   const render = (animate = false) => {
@@ -221,6 +224,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
         scroller!.scrollTop = keep;
       }
       fresh.forEach(decorate);
+      memo();
       status.textContent = items.length === 0 ? "Rien ici pour l'instant." : "";
     } catch (e) {
       showError(e);
@@ -251,8 +255,10 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (mode === "side" && btn.dataset.index !== undefined && Number(btn.dataset.index) !== focus) {
       focus = Number(btn.dataset.index);
       layout();
+      memo();
       return;
     }
+    memo();
     open(it);
   });
 
@@ -330,9 +336,19 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       status.textContent = "Les titres likés sont disponibles avec Spotify.";
       return;
     }
+    const saved = recall(`${source}:${tab}`);
+    if (saved && saved.items.length > 0) {
+      items.push(...saved.items);
+      next = saved.next;
+      focus = saved.focus;
+      render();
+      items.forEach(decorate);
+      return;
+    }
     load();
   });
   return () => {
+    if (items.length > 0) memo();
     alive = false;
     window.removeEventListener("keydown", onKey, true);
     document.removeEventListener("click", closeMenu);
