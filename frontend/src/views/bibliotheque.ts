@@ -4,7 +4,7 @@ import { activeSource, api, type Item } from "../api";
 import { albumParam, go, TABS, type Tab } from "../router";
 import { icons } from "../ui/icons";
 import { imageTint } from "../ui/theme";
-import { clampOffset, flipTransition, SHELF_ANGLE, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, visibleIndices } from "./coverflow";
+import { clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, smoothStep, visibleIndices } from "./coverflow";
 import { albumCoverRect, flightFrames } from "../ui/flight";
 import { escapeHtml, initials } from "./grid";
 import { filterItems, spineColors } from "./shelf";
@@ -54,7 +54,10 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   let source: "applemusic" | "spotify" = "applemusic";
   let next = 0;
   let loading = false;
-  let offset = 0; // défilement de l'étagère (px, avant mise à l'échelle)
+  let offset = 0; // défilement affiché de l'étagère (px, avant mise à l'échelle)
+  let scrollGoal = 0; // défilement visé : la position affichée le rattrape image par image
+  let raf = 0;
+  let lastFrame = 0;
   let scale = 1;
   let entering = true; // première apparition : les boîtiers arrivent en cascade
   let scroller: HTMLElement | null = null;
@@ -120,10 +123,6 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
         }
       }
       const t = shelfTransform(i, offset, half);
-      // Passage du centre : bascule immédiate, sans pivoter pendant le défilement.
-      const prevSide = slot.dataset.side === undefined ? undefined : slot.dataset.side === "r";
-      slot.style.transition = flipTransition(prevSide, t.spineRight);
-      slot.dataset.side = t.spineRight ? "r" : "l";
       slot.style.transform = `translate(-50%,-50%) translateX(${t.x}px) rotateY(${t.rotateY}deg)`;
       slot.style.zIndex = String(t.zIndex);
       slot.classList.toggle("cf-right", t.spineRight);
@@ -135,9 +134,18 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
 
   const memo = () => remember(`${source}:${tab}`, { items, next, position: offset });
 
+  // Défilement fluide : une seule mise en page par image (requestAnimationFrame), aucune transition CSS.
+  const frame = (now: number) => {
+    const dt = lastFrame ? now - lastFrame : 16;
+    lastFrame = now;
+    offset = smoothStep(offset, scrollGoal, dt);
+    layout();
+    if (offset !== scrollGoal) raf = requestAnimationFrame(frame);
+    else { raf = 0; lastFrame = 0; }
+  };
   const scrollBy = (dx: number) => {
-    const target = clampOffset(offset + dx, shown().length, halfWidth());
-    if (target !== offset) { offset = target; layout(); memo(); }
+    scrollGoal = clampOffset(scrollGoal + dx, shown().length, halfWidth());
+    if (!raf && scrollGoal !== offset) raf = requestAnimationFrame(frame);
   };
 
   // Mise à l'échelle : boîtiers d'environ 80 % de la hauteur, comme dans la vidéo.
@@ -155,8 +163,10 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
 
   const render = (animate = false) => {
     if (mode === "side") {
-      area.innerHTML = `<div id="cf" class="relative h-full w-full overflow-hidden" style="perspective-origin:50% 50%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)">
-        <div id="cf-row" class="absolute left-1/2 top-1/2" style="transform-style:preserve-3d"></div></div>`;
+      area.innerHTML = `<div id="cf" class="relative h-full w-full overflow-hidden" style="perspective-origin:50% 50%;contain:layout paint">
+        <div id="cf-row" class="absolute left-1/2 top-1/2" style="transform-style:preserve-3d"></div>
+        <div class="pointer-events-none absolute inset-y-0 left-0 w-[7%]" style="background:linear-gradient(90deg,color-mix(in srgb, var(--tint) 35%, #0a0605),transparent)"></div>
+        <div class="pointer-events-none absolute inset-y-0 right-0 w-[7%]" style="background:linear-gradient(270deg,color-mix(in srgb, var(--tint) 35%, #0a0605),transparent)"></div></div>`;
       scroller = null;
       // Défilement continu à la molette ou au trackpad (horizontal ou vertical).
       area.querySelector("#cf")!.addEventListener("wheel", (e) => {
@@ -313,7 +323,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     items.length = 0;
     tints.clear();
     next = 0;
-    offset = 0;
+    offset = scrollGoal = 0;
     entering = true;
     area.innerHTML = "";
     scroller = null;
@@ -351,11 +361,11 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     const q = $<HTMLInputElement>("sh-q");
     q.classList.toggle("hidden");
     if (!q.classList.contains("hidden")) q.focus();
-    else if (query) { query = ""; q.value = ""; offset = 0; render(); }
+    else if (query) { query = ""; q.value = ""; offset = scrollGoal = 0; render(); }
   };
   $<HTMLInputElement>("sh-q").addEventListener("input", (e) => {
     query = (e.target as HTMLInputElement).value;
-    offset = 0;
+    offset = scrollGoal = 0;
     render();
     status.textContent = query && shown().length === 0 ? "Aucun résultat dans ce qui est chargé." : "";
   });
@@ -371,7 +381,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (saved && saved.items.length > 0) {
       items.push(...saved.items);
       next = saved.next;
-      offset = saved.position;
+      offset = scrollGoal = saved.position;
       entering = false;
       render();
       items.forEach(decorate);
@@ -380,6 +390,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     load();
   });
   return () => {
+    cancelAnimationFrame(raf);
     ro.disconnect();
     if (items.length > 0) memo();
     alive = false;

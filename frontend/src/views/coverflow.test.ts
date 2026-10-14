@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { CENTER_GAP, clampOffset, flipTransition, SHELF_ANGLE, SHELF_GAP, SHELF_MARGIN, shelfTransform, visibleIndices } from "./coverflow";
+import { CENTER_GAP, clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_MARGIN, shelfTransform, smoothStep, visibleIndices } from "./coverflow";
 
 const HALF = 600; // demi-largeur de la scène
 
@@ -58,9 +58,16 @@ test("pochettes presque perpendiculaires : près du centre, à peine 10–15 % d
   expect(visibleRatio).toBeLessThan(0.18);
 });
 
-test("en défilant, un boîtier qui passe le centre change de côté sans pivoter (pas de transition)", () => {
-  expect(flipTransition(false, true)).toBe("none");
-  expect(flipTransition(true, false)).toBe("none");
-  expect(flipTransition(true, true)).toBe("");
-  expect(flipTransition(undefined, true)).toBe(""); // boîtier qui vient d'apparaître
+test("défilement lissé : la position rattrape la cible en douceur, sans dépasser", () => {
+  let x = 0;
+  const seen: number[] = [];
+  for (let i = 0; i < 30; i++) { x = smoothStep(x, 300, 16); seen.push(x); }
+  expect(seen[0]).toBeGreaterThan(0);
+  expect(seen[0]).toBeLessThan(120); // pas de saut brutal à la première image
+  expect(seen.every((v, i) => i === 0 || v >= seen[i - 1]!)).toBe(true); // monotone
+  expect(Math.max(...seen)).toBeLessThanOrEqual(300); // jamais au-delà de la cible
+  expect(x).toBe(300); // arrivé (accroché à la fin)
+});
+test("une longue pause d'image ne fait pas sauter au-delà de la cible", () => {
+  expect(smoothStep(0, 100, 5000)).toBe(100);
 });

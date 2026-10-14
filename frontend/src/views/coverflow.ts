@@ -31,9 +31,11 @@ export function visibleIndices(offset: number, count: number, halfWidth: number)
 }
 
 /**
- * Transition à appliquer quand un boîtier est repositionné. S'il change de côté (il passe le centre),
- * on coupe la transition : il bascule d'un coup au lieu de pivoter sous les yeux pendant le défilement.
+ * Défilement lissé, calculé image par image : la position rattrape la cible de façon exponentielle
+ * (constante de temps tau), sans jamais la dépasser, et s'y accroche à moins d'un demi-pixel.
  */
-export function flipTransition(prevSpineRight: boolean | undefined, spineRight: boolean): string {
-  return prevSpineRight !== undefined && prevSpineRight !== spineRight ? "none" : "";
+export function smoothStep(current: number, target: number, dtMs: number, tau = 70): number {
+  const k = 1 - Math.exp(-Math.max(0, dtMs) / tau);
+  const next = current + (target - current) * k;
+  return Math.abs(target - next) < 0.5 ? target : next;
 }
