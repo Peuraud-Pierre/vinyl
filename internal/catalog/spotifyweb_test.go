@@ -164,4 +164,8 @@ func TestSpotifyForbiddenShowsReason(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "User not registered in the Developer Dashboard") {
 		t.Errorf("got %v", err)
 	}
+	// Et la marche à suivre : sa propre app Spotify (Réglages).
+	if !strings.Contains(err.Error(), "ta propre app Spotify") {
+		t.Errorf("sans marche à suivre : %v", err)
+	}
 }

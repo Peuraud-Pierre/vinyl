@@ -1,6 +1,8 @@
 import { api, type Settings } from "../api";
 import { go } from "../router";
 import { icons } from "../ui/icons";
+import { mountSpotifyAppWizard } from "../ui/spotifyapp";
+import { Clipboard } from "@wailsio/runtime";
 
 const escapeAttr = (s: string) => s.replace(/[&"<>]/g, (c) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" })[c]!);
 
@@ -85,7 +87,7 @@ export function mount(el: HTMLElement): () => void {
 
   const renderSpotify = async () => {
     if (!cur) return;
-    const connected = await api.SpotifyStatus();
+    let connected = await api.SpotifyStatus();
     section.innerHTML = `
       <h2>Spotify</h2>
       <p class="text-[14px] leading-relaxed" style="color:rgba(42,29,27,.8)">La platine pilote Spotify sans connexion.
@@ -95,25 +97,39 @@ export function mount(el: HTMLElement): () => void {
         <p id="sp-msg" class="text-[14px]" style="color:rgba(42,29,27,.8)">${connected ? "Connecté." : ""}</p>
       </div>
       <details class="text-[14px]" style="color:rgba(42,29,27,.8)" ${cur.spotifyClientId ? "open" : ""}>
-        <summary class="cursor-pointer">Avancé : utiliser ma propre app Spotify</summary>
-        <p class="mt-2 leading-relaxed">Facultatif. Crée une app sur developer.spotify.com/dashboard avec l'URI de redirection
-          <code class="rounded-md px-1.5" style="background:rgba(255,255,255,.55)">http://127.0.0.1:43821/callback</code>, puis colle son Client ID. Vide : l'app Vinyl est utilisée.</p>
-        <label for="cid" class="sr-only">Client ID Spotify personnel</label>
-        <input id="cid" class="field mt-2 w-full" placeholder="Client ID (facultatif)" value="${escapeAttr(cur.spotifyClientId)}">
+        <summary class="cursor-pointer">Utiliser ma propre app Spotify (si Spotify refuse l'accès à ta bibliothèque)</summary>
+        <p class="mt-2 leading-relaxed">L'app Vinyl n'ouvre la bibliothèque qu'aux comptes inscrits par son auteur. Avec ta propre
+          app Spotify (gratuite, 3 minutes), tu y as accès sans inscription.</p>
+        <div id="sp-wizard"></div>
       </details>`;
-    const cid = section.querySelector<HTMLInputElement>("#cid")!;
     const msg = section.querySelector<HTMLElement>("#sp-msg")!;
-    const saveClientID = async () => {
-      cur = await api.UpdateSettings({ spotifyClientId: cid.value.trim() });
-    };
-    cid.onchange = saveClientID;
     const btn = section.querySelector<HTMLButtonElement>("#sp-btn")!;
+    mountSpotifyAppWizard(section.querySelector<HTMLElement>("#sp-wizard")!, {
+      clientId: cur.spotifyClientId,
+      openURL: (u) => void api.OpenURL(u),
+      copy: (t) => Clipboard.SetText(t),
+      save: async (id) => {
+        if (id === cur?.spotifyClientId) return;
+        if (connected) await api.SpotifyLogout(); // le jeton appartient à l'autre app
+        connected = false;
+        cur = await api.UpdateSettings({ spotifyClientId: id });
+        btn.textContent = "Se connecter à Spotify";
+        msg.textContent = "";
+      },
+      connect: async () => {
+        if (connected) await api.SpotifyLogout();
+        await api.SpotifyLogin();
+        connected = true;
+        btn.textContent = "Se déconnecter";
+        msg.textContent = "Connecté.";
+      },
+      verify: () => api.Library("spotify", "playlists", 0),
+    });
     btn.onclick = async () => {
       btn.disabled = true;
       try {
         if (connected) await api.SpotifyLogout();
         else {
-          await saveClientID(); // le Client ID tapé juste avant doit être enregistré avant la connexion
           msg.textContent = "Termine la connexion dans ton navigateur…";
           await api.SpotifyLogin();
         }

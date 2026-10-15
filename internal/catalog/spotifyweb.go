@@ -118,10 +118,14 @@ func spotifyError(resp *http.Response) error {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
+	err := fmt.Errorf("spotify: HTTP %d", resp.StatusCode)
 	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil && body.Error.Message != "" {
-		return fmt.Errorf("spotify: HTTP %d : %s", resp.StatusCode, body.Error.Message)
+		err = fmt.Errorf("spotify: HTTP %d : %s", resp.StatusCode, body.Error.Message)
 	}
-	return fmt.Errorf("spotify: HTTP %d", resp.StatusCode)
+	if resp.StatusCode == 403 { // le plus souvent : compte non inscrit dans l'app Spotify de Vinyl
+		err = fmt.Errorf("%w — Spotify refuse l'accès : dans Réglages › Spotify, utilise ta propre app Spotify", err)
+	}
+	return err
 }
 
 func nextOffset(next *string, offset int) int {
