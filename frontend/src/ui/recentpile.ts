@@ -30,7 +30,11 @@ export interface RecentPile { update(list: HistoryEntry[]): void; setScale(k: nu
 const VIEW: PileView = { width: PILE_W, height: 460, depth: PILE_W, slab: SLAB, eye: { x: PILE_W * 0.4, y: -70 }, perspective: 1800 };
 
 export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry): void }): RecentPile {
-  let top = "";
+  let seen = new Set<string>(); // disques de l'affichage précédent
+  let busyUntil = 0; // fin de l'envol en cours : la pile mise à jour attend jusque-là
+  let pending: HistoryEntry[] | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let first = true;
   let scale = 1;
   let zoom: HTMLElement | null = null;
   // Faces projetées par le calcul (pile3d) : aucune 3D du navigateur, seulement une mise à l'échelle.
@@ -45,11 +49,20 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
   return {
     setScale(k) { scale = k; applyScale(); },
     update(list) {
+      // Pendant un envol, la nouvelle pile attend la fin de l'animation (sinon, disparition en plein vol).
+      const wait = busyUntil - Date.now();
+      if (wait > 0) {
+        pending = list;
+        if (!timer) timer = setTimeout(() => { timer = null; const l = pending!; pending = null; this.update(l); }, wait);
+        return;
+      }
       const shown = list.slice(0, RECENT_MAX);
       const n = shown.length;
-      const newTop = shown[0] ? key(shown[0]) : "";
-      const dropped = top !== "" && newTop !== "" && newTop !== top; // un disque vient d'être posé
-      top = newTop;
+      // Un disque vient d'être posé : celui du dessus n'était pas sur la pile juste avant. (Après une
+      // reprise, le nouveau dessus était déjà là, en dessous : il ne bouge pas.)
+      const dropped = !first && shown[0] !== undefined && !seen.has(key(shown[0]));
+      seen = new Set(shown.map(key));
+      first = false;
       root.innerHTML = "";
       const pile = document.createElement("div");
       pile.className = "vy-recent-3d";
@@ -95,7 +108,23 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         // Ordre de dessin : pochette, côté, puis tranche (devant).
         d.append(lid, side, b);
         // Tout le disque est cliquable (tranche, côté, pochette) ; au clavier, la tranche suffit.
-        d.onclick = () => deps.play(it);
+        d.onclick = () => {
+          // Ceux posés au-dessus s'envolent vers le haut, celui-ci part vers la platine (à gauche) ;
+          // ceux du dessous ne bougent pas. La pile mise à jour arrive ensuite du lecteur.
+          busyUntil = Date.now() + 480 + (n - 1 - level) * 45;
+          pile.querySelectorAll<HTMLElement>(".vy-recent-disc").forEach((o) => {
+            const l = Number(o.dataset.level);
+            if (l < level) return;
+            o.dataset.leaving = l === level ? "play" : "up";
+            o.style.pointerEvents = "none";
+            o.querySelectorAll<HTMLElement>("button,div").forEach((f) => (f.style.pointerEvents = "none"));
+            const to = l === level ? { opacity: 0, translate: "-260px -60px" } : { opacity: 0, translate: "0 -320px" };
+            o.animate?.([{ opacity: 1, translate: "0 0" }, to], {
+              duration: 480, delay: (n - 1 - l) * 45, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards",
+            });
+          });
+          deps.play(it);
+        };
         pile.appendChild(d);
         topDisc = d;
         if (!tints.has(key(it)) && it.artworkUrl) {
@@ -104,7 +133,8 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         }
       }
       if (n === 0) return;
-      if (dropped) {
+      if (dropped && topDisc) {
+        topDisc.dataset.dropped = "1";
         // Posé depuis le disque : il arrive d'en haut à gauche et se dépose sur la pile.
         const from = { opacity: 0, translate: "-140px -70px" };
         const to = { opacity: 1, translate: "0 0" };

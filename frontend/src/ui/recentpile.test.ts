@@ -105,3 +105,38 @@ test("toute la pochette est cliquable : tranche, côté et pochette posée dessu
     expect(play).toHaveBeenCalledWith(e("1"));
   }
 });
+
+test("reprendre un ancien disque : ceux du dessus s'envolent vers le haut, ceux du dessous ne bougent pas", () => {
+  vi.useFakeTimers();
+  const root = document.createElement("div");
+  const play = vi.fn();
+  const pile = mountRecentPile(root, { play });
+  pile.update(["4", "3", "2", "1"].map(e));
+  const at = (id: string) => disc(root.querySelector<HTMLElement>(`[data-track="${id}"]`)!);
+  at("2").querySelector<HTMLElement>(".vy-recent")!.click();
+  expect(play).toHaveBeenCalledWith(e("2"));
+  expect(at("4").dataset.leaving).toBe("up");
+  expect(at("3").dataset.leaving).toBe("up");
+  expect(at("2").dataset.leaving).toBe("play"); // part vers la platine
+  expect(at("1").dataset.leaving).toBeUndefined();
+  // La pile mise à jour arrive pendant l'envol : elle attend la fin de l'animation.
+  const levelBefore = at("1").dataset.level;
+  pile.update(["1"].map(e));
+  expect(root.querySelector('[data-track="4"]')).not.toBeNull(); // encore en vol
+  vi.advanceTimersByTime(1000);
+  // Puis le disque du dessous garde sa place, sans animation d'arrivée.
+  expect(root.querySelector('[data-track="4"]')).toBeNull();
+  expect(at("1").dataset.level).toBe(levelBefore);
+  expect(at("1").dataset.dropped).toBeUndefined();
+  vi.useRealTimers();
+});
+
+test("un nouveau disque posé sur la pile est animé (et lui seul)", () => {
+  const root = document.createElement("div");
+  const pile = mountRecentPile(root, { play: vi.fn() });
+  pile.update(["1"].map(e));
+  pile.update(["2", "1"].map(e));
+  const at = (id: string) => disc(root.querySelector<HTMLElement>(`[data-track="${id}"]`)!);
+  expect(at("2").dataset.dropped).toBe("1");
+  expect(at("1").dataset.dropped).toBeUndefined();
+});
