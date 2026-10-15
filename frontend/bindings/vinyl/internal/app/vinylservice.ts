@@ -7,6 +7,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as time$0 from "../../../time/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as auth$0 from "../auth/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -133,6 +136,14 @@ export function PlayItem(source: string, id: string): $CancellablePromise<void> 
 
 export function PlayPause(): $CancellablePromise<void> {
     return $Call.ByID(2047009224);
+}
+
+/**
+ * PollInterval : fréquence de sondage du lecteur, pour consommer le moins possible. La position est
+ * interpolée par la page entre deux sondages ; les actions de l'utilisateur réveillent le sondage.
+ */
+export function PollInterval(): $CancellablePromise<time$0.Duration> {
+    return $Call.ByID(2229823652);
 }
 
 export function Previous(): $CancellablePromise<void> {
