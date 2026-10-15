@@ -8,14 +8,14 @@ import { imageTint } from "./theme";
 
 export const RECENT_MAX = 7;
 export const PILE_W = 290; // largeur d'une pochette (px de scène)
-export const SLAB = 14; // épaisseur d'une tranche
+export const SLAB = 24; // épaisseur d'une tranche
 
 // Décalage et légère inclinaison propres à chaque morceau (toujours les mêmes) : une pile naturelle
 // qui ne bouge pas quand un nouveau disque est posé dessus.
 function jitter(id: string): { dx: number; rot: number } {
   let h = 2166136261;
   for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619) >>> 0;
-  return { dx: (h % 33) - 16, rot: (((h >>> 6) % 81) - 40) / 10 }; // ±16 px, ±4°
+  return { dx: (h % 15) - 7, rot: (((h >>> 6) % 25) - 12) / 10 }; // ±7 px, ±1,2°
 }
 
 const key = (e: HistoryEntry) => `${e.source}:${e.trackId}`;
