@@ -9,6 +9,7 @@ import { imageTint } from "./theme";
 export const RECENT_MAX = 7;
 export const PILE_W = 590; // largeur d'une pochette (px de scène)
 export const SLAB = 22; // épaisseur d'une tranche
+export const PILE_TURN = 20; // la pile a pivoté sur la table : côté droit plus loin (demande utilisateur)
 
 // Décalage et légère inclinaison propres à chaque morceau (toujours les mêmes) : une pile naturelle
 // qui ne bouge pas quand un nouveau disque est posé dessus.
@@ -39,6 +40,13 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
       const dropped = top !== "" && newTop !== "" && newTop !== top; // un disque vient d'être posé
       top = newTop;
       root.innerHTML = "";
+      root.classList.add("vy-recent-scene");
+      // Volume en 3D : la pile pivote sur la table autour de son centre.
+      const pile = document.createElement("div");
+      pile.className = "vy-recent-3d";
+      pile.style.transform = `rotateY(${PILE_TURN}deg)`;
+      root.appendChild(pile);
+      let topSlab: HTMLElement | null = null;
       // Du plus ancien (en bas) au plus récent (en haut).
       for (let level = 0; level < n; level++) {
         const it = shown[n - 1 - level]!;
@@ -53,14 +61,23 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         b.innerHTML = `<b>${escapeHtml(it.title)}</b><span>${escapeHtml(it.artist)}</span>`;
         b.onclick = () => deps.play(it);
         paint(b, it);
-        root.appendChild(b);
+        pile.appendChild(b);
+        // Côté gauche du disque (visible puisque la pile a pivoté) : même couleur, plus sombre.
+        const side = document.createElement("div");
+        side.className = "vy-recent-side";
+        side.style.bottom = b.style.bottom;
+        side.style.left = `${dx}px`;
+        pile.appendChild(side);
+        const paintSide = () => { side.style.background = b.style.background; };
+        paintSide();
+        topSlab = b;
         if (!tints.has(key(it)) && it.artworkUrl) {
           tints.set(key(it), null);
-          imageTint(it.artworkUrl).then((t) => { tints.set(key(it), t); if (b.isConnected) paint(b, it); });
+          imageTint(it.artworkUrl).then((t) => { tints.set(key(it), t); if (b.isConnected) { paint(b, it); paintSide(); } });
         }
       }
       if (n === 0) return;
-      // Pochette du dessus, posée à plat : vue en perspective au-dessus de la pile.
+      // Pochette du dessus, posée à plat sur la pile.
       const last = shown[0]!;
       const lid = document.createElement("button");
       lid.className = "vy-recent-lid";
@@ -69,16 +86,15 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
       lid.style.bottom = `${n * SLAB}px`;
       const j = jitter(newTop);
       lid.style.left = `${j.dx}px`;
-      lid.style.transform = `rotate(${j.rot}deg) perspective(900px) rotateX(74deg)`; // même inclinaison que sa tranche
+      lid.style.transform = `rotate(${j.rot}deg) rotateX(90deg)`; // à plat, même inclinaison que sa tranche
       if (last.artworkUrl) lid.style.backgroundImage = cssUrl(last.artworkUrl);
       lid.onclick = () => deps.play(last);
-      root.appendChild(lid);
+      pile.appendChild(lid);
       if (dropped) {
         // Posé depuis le disque : il arrive d'en haut à gauche et se dépose sur la pile.
         const from = { opacity: 0, translate: "-140px -70px" };
         const to = { opacity: 1, translate: "0 0" };
-        [root.lastElementChild!.previousElementSibling, lid].forEach((el) =>
-          (el as HTMLElement | null)?.animate?.([from, to], { duration: 650, easing: "cubic-bezier(.2,.75,.2,1)" }));
+        [topSlab, lid].forEach((el) => el?.animate?.([from, to], { duration: 650, easing: "cubic-bezier(.2,.75,.2,1)" }));
       }
     },
   };
