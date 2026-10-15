@@ -1,7 +1,7 @@
 #!/bin/bash
 # Publie une release de Vinyl : demande le numéro de version, pose le tag et le pousse sur GitHub.
-# GitHub Actions (.github/workflows/release.yml) fabrique ensuite Vinyl-mac.zip et Vinyl-Setup.exe
-# et les joint à la release. Un tag avec un tiret (v1.2.0-beta.1) est publié en pré-version.
+# GitHub Actions (.github/workflows/release.yml) fabrique ensuite Vinyl-darwin-arm64.zip, Vinyl-Setup.exe,
+# Vinyl-windows-amd64.zip et SHA256SUMS et les joint à la release. Un tag avec un tiret (v1.2.0-beta.1) est publié en pré-version.
 #
 # Utilisation : ./release.sh          (DRY_RUN=1 ./release.sh pour tout vérifier sans rien publier)
 set -euo pipefail

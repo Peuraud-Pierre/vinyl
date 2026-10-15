@@ -14,10 +14,15 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "24" }
       - run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
+      - name: Version (depuis le tag)
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "VINYL_VERSION=$V" >> "$GITHUB_ENV"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $V" -c "Set :CFBundleVersion $V" build/darwin/Info.plist
       - run: CGO_ENABLED=1 wails3 package
-      - run: ditto -c -k --keepParent bin/vinyl.app Vinyl-mac.zip
+      - run: ditto -c -k --keepParent bin/vinyl.app Vinyl-darwin-arm64.zip
       - uses: actions/upload-artifact@v4
-        with: { name: mac, path: Vinyl-mac.zip }
+        with: { name: mac, path: Vinyl-darwin-arm64.zip }
   windows:
     runs-on: windows-latest
     steps:
@@ -32,24 +37,49 @@ jobs:
           choco install nsis -y
           Add-Content $env:GITHUB_PATH "C:\Program Files (x86)\NSIS"
       - run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
-      - run: wails3 package
-        env: { CGO_ENABLED: "0" }
-      - name: Renommer l'installateur
+      - name: Version (depuis le tag)
         shell: pwsh
-        run: Get-ChildItem bin -Filter *installer*.exe | Select-Object -First 1 | Copy-Item -Destination Vinyl-Setup.exe
+        run: |
+          $v = "$env:GITHUB_REF_NAME".TrimStart("v")
+          Add-Content $env:GITHUB_ENV "VINYL_VERSION=$v"
+          $j = Get-Content build/windows/info.json -Raw | ConvertFrom-Json
+          $j.fixed.file_version = $v
+          $j.info."0000".ProductVersion = $v
+          $j | ConvertTo-Json -Depth 5 | Set-Content build/windows/info.json
+      # Installation par utilisateur (%LOCALAPPDATA%\Programs) : la mise à jour dans l'app peut remplacer
+      # vinyl.exe sans droits d'administrateur.
+      - run: wails3 package
+        env: { CGO_ENABLED: "0", INSTALL_SCOPE: "user" }
+      - name: Fichiers Windows
+        shell: pwsh
+        run: |
+          Get-ChildItem bin -Filter *installer*.exe | Select-Object -First 1 | Copy-Item -Destination Vinyl-Setup.exe
+          Compress-Archive -Path bin/vinyl.exe -DestinationPath Vinyl-windows-amd64.zip
       - uses: actions/upload-artifact@v4
-        with: { name: windows, path: Vinyl-Setup.exe }
+        with:
+          name: windows
+          path: |
+            Vinyl-Setup.exe
+            Vinyl-windows-amd64.zip
   release:
     needs: [mac, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
+      - name: Empreintes (vérifiées par la mise à jour dans l'app)
+        run: |
+          cp mac/* windows/* .
+          sha256sum Vinyl-darwin-arm64.zip Vinyl-windows-amd64.zip Vinyl-Setup.exe > SHA256SUMS
+          cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           prerelease: ${{ contains(github.ref_name, '-') }} # v1.0.0-beta.1 : pré-version
           files: |
-            mac/Vinyl-mac.zip
-            windows/Vinyl-Setup.exe
+            Vinyl-darwin-arm64.zip
+            Vinyl-windows-amd64.zip
+            Vinyl-Setup.exe
+            SHA256SUMS
           body: |
-            **Mac (Apple Silicon)** : `Vinyl-mac.zip` — app non signée : clic droit → Ouvrir au premier lancement.
+            **Mac (Apple Silicon)** : `Vinyl-darwin-arm64.zip` — app non signée : clic droit → Ouvrir au premier lancement.
             **Windows 10/11** : `Vinyl-Setup.exe` — non signé : « Informations complémentaires » → « Exécuter quand même ».
+            Ensuite, Vinyl propose lui-même les nouvelles versions (`Vinyl-windows-amd64.zip` et `SHA256SUMS` servent à ces mises à jour).
