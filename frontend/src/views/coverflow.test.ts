@@ -52,12 +52,11 @@ test("au passage du centre, un écart supplémentaire évite que les deux tranch
   expect(b.x - a.x).toBe(SHELF_GAP + CENTER_GAP);
 });
 
-test("pochettes presque perpendiculaires : près du centre, à peine 10–15 % de leur hauteur en largeur", () => {
+test("plus de relief (demande utilisateur) : on voit 25 à 40 % de la largeur des pochettes", () => {
   const visibleRatio = Math.cos((SHELF_ANGLE * Math.PI) / 180);
-  expect(visibleRatio).toBeGreaterThan(0.08);
-  expect(visibleRatio).toBeLessThan(0.18);
+  expect(visibleRatio).toBeGreaterThan(0.25);
+  expect(visibleRatio).toBeLessThan(0.4);
 });
-
 test("défilement lissé : la position rattrape la cible en douceur, sans dépasser", () => {
   let x = 0;
   const seen: number[] = [];
@@ -73,19 +72,26 @@ test("une longue pause d'image ne fait pas sauter au-delà de la cible", () => {
 });
 
 test("passage du centre sans saut : l'angle tend vers 90° des deux côtés (seule la tranche, de face)", () => {
-  const near = (dx: number) => shelfTransform(0, -HALF + SHELF_MARGIN - dx, HALF); // boîtier placé à x = dx
-  expect(near(-0.01).rotateY).toBeCloseTo(90, 1);
-  expect(near(0.01).rotateY).toBeCloseTo(-90, 1);
-  // Loin du centre, l'inclinaison normale de l'étagère.
-  expect(near(-SHELF_GAP * 2).rotateY).toBe(SHELF_ANGLE);
-  expect(near(SHELF_GAP * 2).rotateY).toBe(-SHELF_ANGLE);
+  const at = (dx: number) => shelfTransform(0, -HALF + SHELF_MARGIN - dx, HALF); // boîtier placé à x = dx
+  expect(at(-0.01).rotateY).toBeCloseTo(90, 1);
+  expect(at(0.01).rotateY).toBeCloseTo(-90, 1);
+  // Loin du centre (au-delà de la zone de redressement), l'inclinaison normale.
+  expect(at(-SHELF_GAP * 3).rotateY).toBe(SHELF_ANGLE);
+  expect(at(SHELF_GAP * 3).rotateY).toBe(-SHELF_ANGLE);
 });
-test("l'angle varie en continu avec la position (pas de saut d'une image à l'autre)", () => {
-  let prev = shelfTransform(0, -HALF + SHELF_MARGIN + 200, HALF).rotateY; // x = -200
-  for (let x = -199; x < 0; x++) {
-    const a = shelfTransform(0, -HALF + SHELF_MARGIN - x, HALF).rotateY;
-    expect(Math.abs(a - prev)).toBeLessThan(0.5);
-    prev = a;
+test("redressement progressif : courbe douce sur deux boîtiers, sans à-coup de vitesse", () => {
+  const angle = (x: number) => Math.abs(shelfTransform(0, -HALF + SHELF_MARGIN - x, HALF).rotateY);
+  // Commence à se redresser dès deux boîtiers du centre.
+  expect(angle(-SHELF_GAP * 1.5)).toBeGreaterThan(SHELF_ANGLE);
+  // Vitesse de rotation (degrés par px) : jamais plus de 2,5 × la moyenne, pas de cassure aux bords de la zone.
+  const mean = (90 - SHELF_ANGLE) / (2 * SHELF_GAP);
+  let prevRate = 0;
+  for (let x = -2 * SHELF_GAP - 5; x < -1; x++) {
+    const rate = angle(x + 1) - angle(x);
+    expect(rate).toBeGreaterThanOrEqual(0);
+    expect(rate).toBeLessThan(2.5 * mean);
+    expect(Math.abs(rate - prevRate)).toBeLessThan(0.05);
+    prevRate = rate;
   }
 });
 test("les pochettes sont préparées bien avant d'entrer à l'écran (3 boîtiers de marge)", () => {

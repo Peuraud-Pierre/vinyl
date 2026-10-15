@@ -1,9 +1,9 @@
 // Étagère façon MD Vinyl (vidéo screen/ScreenRecording…, 15–30 s) : tous les boîtiers sont vus
 // par la tranche, comme des livres, la pochette en biais tournée vers le centre. Défilement continu.
-export const SHELF_GAP = 60; // vidéo : une tranche tous les ~10 % de la largeur // distance entre deux tranches (px, avant mise à l'échelle)
+export const SHELF_GAP = 74; // un peu plus d’air entre les tranches, pour plus de profondeur
 export const SHELF_MARGIN = 55; // marge du premier boîtier par rapport au bord gauche
-export const SHELF_ANGLE = 85; // vidéo : près du centre, la pochette ne montre que ~10 % de sa largeur
-export const SHELF_PERSPECTIVE = 1650; // px par unité d’échelle : la perspective suit l’agrandissement de la rangée
+export const SHELF_ANGLE = 75; // plus de relief : on voit ~30 % de chaque pochette
+export const SHELF_PERSPECTIVE = 1450; // px par unité d’échelle : perspective plus marquée (effet 3D)
 export const CENTER_GAP = 0; // vidéo : aucun vide au centre (les pochettes partent des tranches vers le centre)
 
 /** Position du boîtier i pour un décalage de défilement donné (x relatif au centre de la scène). */
@@ -13,10 +13,13 @@ export function shelfTransform(i: number, offset: number, halfWidth: number): { 
   const base = i * SHELF_GAP - offset - halfWidth + SHELF_MARGIN;
   const onRight = base > 0;
   const x = onRight ? base + CENTER_GAP : base;
-  // Près du centre, l'angle monte en continu jusqu'à 90° : à gauche comme à droite, on ne voit plus
-  // que la tranche, de face, au même endroit. Le changement de côté est donc invisible (aucun saut).
-  const ramp = Math.min(1, Math.abs(base) / SHELF_GAP);
-  const angle = 90 - (90 - SHELF_ANGLE) * ramp;
+  // Au centre, l'angle atteint 90° : à gauche comme à droite, on ne voit plus que la tranche, de face,
+  // au même endroit. Le changement de côté est donc invisible (aucun saut).
+  // Redressement progressif sur deux boîtiers de part et d'autre du centre, avec une courbe douce
+  // (smoothstep) : la rotation démarre et s'arrête sans à-coup, et suit exactement le défilement.
+  const t = Math.max(0, 1 - Math.abs(base) / (2 * SHELF_GAP));
+  const eased = t * t * (3 - 2 * t);
+  const angle = SHELF_ANGLE + (90 - SHELF_ANGLE) * eased;
   return { x, rotateY: onRight ? -angle : angle, zIndex: 1000 - Math.round(Math.abs(x)), spineRight: onRight };
 }
 
