@@ -239,3 +239,14 @@ func TestReplaceTarget(t *testing.T) {
 		}
 	}
 }
+
+// Pendant une installation, une recherche (retour sur la fenêtre, Réglages) ne touche pas au téléchargement.
+func TestCheckDuringInstallDoesNothing(t *testing.T) {
+	s := newBare()
+	s.SetVersion("1.0.2")
+	u := &fakeUpdater{rel: &updater.Release{Version: "1.0.3"}, state: updater.StateDownloading}
+	s.SetUpdater(u)
+	if _, err := s.CheckForUpdate(); err != nil || u.checks != 0 {
+		t.Errorf("err=%v checks=%d", err, u.checks)
+	}
+}

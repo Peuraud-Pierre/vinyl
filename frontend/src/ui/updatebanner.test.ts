@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { mountUpdateBanner } from "./updatebanner";
+import { mountUpdateBanner, throttledCheck } from "./updatebanner";
 
 const deps = () => ({ install: vi.fn(() => Promise.resolve(true)), openRelease: vi.fn() });
 const info = (version: string) => ({ available: true, version, notes: "", dev: false });
@@ -95,4 +95,22 @@ test("échec technique : pas de jargon, seulement le lien", async () => {
   await new Promise((r) => setTimeout(r, 0));
   expect(el.textContent).not.toContain("EOF");
   expect(el.textContent).toContain("Voir la release");
+});
+
+// Retour sur la fenêtre : nouvelle vérification, au plus une fois par intervalle.
+test("vérification au retour sur la fenêtre, espacée", async () => {
+  let t = 0;
+  const check = vi.fn(() => Promise.resolve(info("1.0.5")));
+  const show = vi.fn();
+  const recheck = throttledCheck(check, show, 15 * 60_000, () => t);
+  recheck(); // premier appel (démarrage)
+  await Promise.resolve();
+  expect(check).toHaveBeenCalledTimes(1);
+  expect(show).toHaveBeenCalledWith(info("1.0.5"));
+  t = 5 * 60_000;
+  recheck(); // trop tôt
+  expect(check).toHaveBeenCalledTimes(1);
+  t = 16 * 60_000;
+  recheck();
+  expect(check).toHaveBeenCalledTimes(2);
 });

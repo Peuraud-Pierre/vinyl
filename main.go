@@ -207,7 +207,7 @@ func main() {
 		go widgetMgr.Run(ctx, 6*time.Hour)
 	}
 	setupUpdates(wailsApp, service)
-	defer service.WatchUpdates(6*time.Hour, func(i app.UpdateInfo) { wailsApp.Event.Emit("appupdate", i) })()
+	defer service.WatchUpdates(time.Hour, func(i app.UpdateInfo) { wailsApp.Event.Emit("appupdate", i) })()
 
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)

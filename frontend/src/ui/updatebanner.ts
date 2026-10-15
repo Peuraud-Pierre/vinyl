@@ -42,3 +42,16 @@ export function mountUpdateBanner(el: HTMLElement, deps: BannerDeps) {
     installFailed() { if (installing) fail(); },
   };
 }
+
+// Vérification à la demande (démarrage, retour sur la fenêtre), au plus une fois par intervalle pour ne pas
+// interroger GitHub à chaque clic. Les erreurs sont silencieuses (pas de réseau : rien à montrer).
+export function throttledCheck(
+  check: () => Promise<UpdateInfo>, show: (i: UpdateInfo) => void, minGapMs: number, now: () => number = Date.now,
+): () => void {
+  let last = -Infinity;
+  return () => {
+    if (now() - last < minGapMs) return;
+    last = now();
+    check().then(show).catch(() => {});
+  };
+}

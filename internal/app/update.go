@@ -38,6 +38,9 @@ func (s *VinylService) CheckForUpdate() (UpdateInfo, error) {
 	if s.version == "dev" || s.upd == nil {
 		return UpdateInfo{Dev: s.version == "dev"}, nil
 	}
+	if s.installing() {
+		return UpdateInfo{}, nil // ne pas déranger le téléchargement en cours
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	rel, err := s.upd.Check(ctx)
@@ -109,6 +112,16 @@ func (s *VinylService) checkReplaceable() error {
 	return nil
 }
 
+// installing : une installation est en cours ou prête (Wails ne doit pas revérifier entre-temps).
+func (s *VinylService) installing() bool {
+	switch s.upd.State() {
+	case updater.StateChecking, updater.StateDownloading, updater.StateVerifying,
+		updater.StateInstalling, updater.StateReady:
+		return true
+	}
+	return false
+}
+
 // ReleaseURL : page GitHub d'une version (repli si l'installation échoue).
 func (s *VinylService) ReleaseURL(version string) string {
 	return "https://github.com/Peuraud-Pierre/vinyl/releases/tag/v" + strings.TrimPrefix(version, "v")
@@ -160,9 +173,7 @@ func (s *VinylService) WatchUpdates(every time.Duration, announce func(UpdateInf
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				switch s.upd.State() {
-				case updater.StateChecking, updater.StateDownloading, updater.StateVerifying,
-					updater.StateInstalling, updater.StateReady:
+				if s.installing() {
 					continue
 				}
 				if info, _ := s.CheckForUpdate(); info.Available {
