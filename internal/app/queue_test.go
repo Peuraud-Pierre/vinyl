@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"testing"
+	"time"
 
 	"vinyl/internal/catalog"
 	"vinyl/internal/player"
@@ -229,5 +230,22 @@ func TestReplayBackCancelledWhenTheUserPicksSomethingElse(t *testing.T) {
 	s.ObservePlayback(playing("88", 199000, 200000))
 	if len(p.jumps) != 0 {
 		t.Errorf("aucun retour attendu : %v", p.jumps)
+	}
+}
+
+// Fréquence de sondage : 1 s en lecture, 3 s à l'arrêt, 250 ms dans les dernières secondes d'un
+// morceau réécouté depuis la pile (pour revenir au bon moment).
+func TestPollInterval(t *testing.T) {
+	if d := pollIntervalFor(player.NowPlaying{State: player.StatePlaying, PositionMs: 1000, DurationMs: 200000}, false); d != time.Second {
+		t.Errorf("lecture : %v", d)
+	}
+	if d := pollIntervalFor(player.NowPlaying{State: player.StatePaused}, false); d != 3*time.Second {
+		t.Errorf("pause : %v", d)
+	}
+	if d := pollIntervalFor(player.NowPlaying{State: player.StatePlaying, PositionMs: 198000, DurationMs: 200000}, true); d != 250*time.Millisecond {
+		t.Errorf("fin d'un morceau suivi : %v", d)
+	}
+	if d := pollIntervalFor(player.NowPlaying{State: player.StatePlaying, PositionMs: 198000, DurationMs: 200000}, false); d != time.Second {
+		t.Errorf("fin d'un morceau ordinaire : %v", d)
 	}
 }

@@ -83,6 +83,9 @@ func ArtworkFileName(trackID string) string {
 }
 
 func (m *AppleMusic) NowPlaying(ctx context.Context) (NowPlaying, error) {
+	if !IsRunning("com.apple.Music") {
+		return NowPlaying{}, ErrNotRunning
+	}
 	out, err := m.run.Run(ctx, musicNowPlayingScript)
 	if err != nil {
 		return NowPlaying{}, err

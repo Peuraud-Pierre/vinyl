@@ -114,3 +114,7 @@ type BackReplayer interface {
 	ReplayBack(ctx context.Context, trackID string, steps, posSec int) (taken int, err error)
 	JumpForward(ctx context.Context, steps int, trackID string, posSec int) error
 }
+
+// IsRunning dit si une application est lancée (branché sur macOS par main) ; une app non lancée n'est
+// pas interrogée, ce qui évite de lancer un osascript à chaque sondage. Par défaut : supposée lancée.
+var IsRunning = func(bundleID string) bool { return true }

@@ -3,6 +3,7 @@ package player
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 )
@@ -185,5 +186,49 @@ func TestOnPlayingCalledOnlyWhilePlaying(t *testing.T) {
 	h.tick(500 * time.Millisecond)
 	if len(seen) != 2 || seen[0] != "a" || seen[1] != "b" {
 		t.Errorf("appels = %v", seen)
+	}
+}
+
+// countingPlayer compte les sondages (accès concurrents : Run tourne dans sa goroutine).
+type countingPlayer struct {
+	stubPlayer
+	mu sync.Mutex
+	n  int
+}
+
+func (c *countingPlayer) NowPlaying(ctx context.Context) (NowPlaying, error) {
+	c.mu.Lock()
+	c.n++
+	c.mu.Unlock()
+	return c.stubPlayer.NowPlaying(ctx)
+}
+func (c *countingPlayer) count() int { c.mu.Lock(); defer c.mu.Unlock(); return c.n }
+
+// Économie d'énergie : l'intervalle de sondage est redemandé à chaque tour (court près de la fin d'un
+// morceau suivi, long à l'arrêt) ; un réveil (action de l'utilisateur) sonde aussitôt.
+func TestRunAdaptiveInterval(t *testing.T) {
+	p := &countingPlayer{stubPlayer: stubPlayer{name: "applemusic", err: ErrNotRunning}}
+	w := NewWatcher([]Player{p}, func() string { return "auto" }, func(Snapshot) {}, time.Now)
+	ctx, cancel := context.WithCancel(context.Background())
+	var mu sync.Mutex
+	interval := time.Hour
+	go w.RunAdaptive(ctx, func() time.Duration { mu.Lock(); defer mu.Unlock(); return interval })
+	time.Sleep(60 * time.Millisecond)
+	if n := p.count(); n != 1 {
+		t.Fatalf("intervalle long : un seul sondage attendu, %d", n)
+	}
+	w.Wake()
+	time.Sleep(60 * time.Millisecond)
+	if n := p.count(); n != 2 {
+		t.Fatalf("réveil : sondage immédiat attendu, %d", n)
+	}
+	mu.Lock()
+	interval = 10 * time.Millisecond
+	mu.Unlock()
+	w.Wake()
+	time.Sleep(120 * time.Millisecond)
+	cancel()
+	if n := p.count(); n < 6 {
+		t.Errorf("intervalle court : sondages rapprochés attendus, %d", n)
 	}
 }

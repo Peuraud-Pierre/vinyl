@@ -82,15 +82,22 @@ func (w *Watcher) Wake() {
 }
 
 func (w *Watcher) Run(ctx context.Context, interval time.Duration) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
+	w.RunAdaptive(ctx, func() time.Duration { return interval })
+}
+
+// RunAdaptive sonde en redemandant l'intervalle à chaque tour (économie d'énergie : court seulement
+// quand c'est utile). Un réveil (Wake) sonde aussitôt.
+func (w *Watcher) RunAdaptive(ctx context.Context, interval func() time.Duration) {
 	for {
 		w.Tick(ctx)
+		t := time.NewTimer(interval())
 		select {
 		case <-ctx.Done():
+			t.Stop()
 			return
 		case <-t.C:
 		case <-w.wake:
+			t.Stop()
 		}
 	}
 }

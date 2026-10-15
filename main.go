@@ -12,6 +12,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"vinyl/internal/app"
+	"vinyl/internal/apps"
 	"vinyl/internal/auth"
 	"vinyl/internal/catalog"
 	"vinyl/internal/fluid"
@@ -50,6 +51,7 @@ func main() {
 	}
 	artworkDir := filepath.Join(cacheDir, "Vinyl", "artwork")
 
+	player.IsRunning = apps.Running // une app non lancée n'est pas interrogée (pas d'osascript)
 	runner := player.OSAScript{}
 	players := []player.Player{player.NewAppleMusic(runner, artworkDir), player.NewSpotify(runner)}
 
@@ -207,7 +209,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go watcher.Run(ctx, 500*time.Millisecond)
+	go watcher.RunAdaptive(ctx, service.PollInterval)
 	go widgetMgr.Run(ctx, 6*time.Hour)
 
 	if err := wailsApp.Run(); err != nil {

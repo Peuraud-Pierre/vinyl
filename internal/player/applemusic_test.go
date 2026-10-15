@@ -356,3 +356,17 @@ func TestJumpForwardBackToTheInterruptedTrack(t *testing.T) {
 		t.Errorf("argv %v", c.args)
 	}
 }
+
+// Économie d'énergie : une app qui n'est pas lancée n'est pas interrogée (aucun osascript lancé).
+func TestNotRunningAppIsNotQueried(t *testing.T) {
+	old := IsRunning
+	defer func() { IsRunning = old }()
+	IsRunning = func(string) bool { return false }
+	r := &fakeRunner{}
+	if _, err := NewAppleMusic(r, t.TempDir()).NowPlaying(context.Background()); err != ErrNotRunning || len(r.calls) != 0 {
+		t.Errorf("Musique : err=%v, appels=%d", err, len(r.calls))
+	}
+	if _, err := NewSpotify(r).NowPlaying(context.Background()); err != ErrNotRunning || len(r.calls) != 0 {
+		t.Errorf("Spotify : err=%v, appels=%d", err, len(r.calls))
+	}
+}

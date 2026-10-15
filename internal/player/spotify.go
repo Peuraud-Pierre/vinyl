@@ -31,6 +31,9 @@ func NewSpotify(r Runner) *Spotify { return &Spotify{run: r} }
 func (s *Spotify) Name() string { return "spotify" }
 
 func (s *Spotify) NowPlaying(ctx context.Context) (NowPlaying, error) {
+	if !IsRunning("com.spotify.client") {
+		return NowPlaying{}, ErrNotRunning
+	}
 	out, err := s.run.Run(ctx, spotifyNowPlayingScript)
 	if err != nil {
 		return NowPlaying{}, err

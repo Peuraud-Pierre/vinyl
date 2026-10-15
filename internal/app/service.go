@@ -721,3 +721,24 @@ func (s *VinylService) ToggleMiniPlatine() {
 		w.Show()
 	}
 }
+
+// PollInterval : fréquence de sondage du lecteur, pour consommer le moins possible. La position est
+// interpolée par la page entre deux sondages ; les actions de l'utilisateur réveillent le sondage.
+func (s *VinylService) PollInterval() time.Duration {
+	s.queueMu.Lock()
+	tracked := s.back != nil || s.queue != nil
+	s.queueMu.Unlock()
+	return pollIntervalFor(s.watcher.Current().NowPlaying, tracked)
+}
+
+// pollIntervalFor : 250 ms dans les dernières secondes d'un morceau que Vinyl doit enchaîner (réécoute
+// depuis la pile, album), 1 s en lecture, 3 s sinon.
+func pollIntervalFor(np player.NowPlaying, tracked bool) time.Duration {
+	if np.State != player.StatePlaying {
+		return 3 * time.Second
+	}
+	if tracked && np.DurationMs > 0 && np.DurationMs-np.PositionMs < 3500 {
+		return 250 * time.Millisecond
+	}
+	return time.Second
+}
