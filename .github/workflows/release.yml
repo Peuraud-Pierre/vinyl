@@ -42,6 +42,7 @@ jobs:
       - uses: actions/download-artifact@v4
       - uses: softprops/action-gh-release@v2
         with:
+          prerelease: ${{ contains(github.ref_name, '-') }} # v1.0.0-beta.1 : pré-version
           files: |
             mac/Vinyl-mac.zip
             windows/Vinyl-Setup.exe
