@@ -7,8 +7,8 @@ import { spineColors } from "../views/shelf";
 import { imageTint } from "./theme";
 
 export const RECENT_MAX = 7;
-export const PILE_W = 590; // largeur d'une pochette (px de scène)
-export const SLAB = 22; // épaisseur d'une tranche
+export const PILE_W = 500; // largeur d'une pochette (px de scène)
+export const SLAB = 20; // épaisseur d'une tranche
 export const PILE_TURN = -20; // la pile a pivoté sur la table : côté gauche plus loin (demande utilisateur)
 
 // Décalage et rotation sur la table propres à chaque morceau (« au hasard », mais toujours les mêmes) :
@@ -48,7 +48,8 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
       root.appendChild(pile);
       let topDisc: HTMLElement | null = null;
       // Du plus ancien (en bas) au plus récent (en haut). Chaque disque est un petit volume :
-      // tranche de face, côté droit (visible puisque la pile a pivoté), pochette à plat pour le dessus.
+      // tranche de face, côté droit (visible puisque la pile a pivoté) et pochette posée à plat dessus
+      // (visible là où le disque dépasse de ceux qui le recouvrent).
       for (let level = 0; level < n; level++) {
         const it = shown[n - 1 - level]!;
         const { dx, yaw } = jitter(key(it));
@@ -67,7 +68,14 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         side.className = "vy-recent-side";
         const paintAll = () => { paint(b, it); side.style.background = b.style.background; };
         paintAll();
-        d.append(b, side);
+        const lid = document.createElement("button");
+        lid.className = "vy-recent-lid";
+        lid.tabIndex = -1; // la tranche suffit au clavier
+        lid.setAttribute("aria-label", `${it.title} — ${it.artist}`);
+        lid.title = `${it.title} — ${it.artist}`;
+        if (it.artworkUrl) lid.style.backgroundImage = cssUrl(it.artworkUrl);
+        lid.onclick = () => deps.play(it);
+        d.append(b, side, lid);
         pile.appendChild(d);
         topDisc = d;
         if (!tints.has(key(it)) && it.artworkUrl) {
@@ -76,15 +84,6 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         }
       }
       if (n === 0) return;
-      // Pochette du dessus, posée à plat sur son disque.
-      const last = shown[0]!;
-      const lid = document.createElement("button");
-      lid.className = "vy-recent-lid";
-      lid.setAttribute("aria-label", `${last.title} — ${last.artist}`);
-      lid.title = `${last.title} — ${last.artist}`;
-      if (last.artworkUrl) lid.style.backgroundImage = cssUrl(last.artworkUrl);
-      lid.onclick = () => deps.play(last);
-      topDisc!.appendChild(lid);
       if (dropped) {
         // Posé depuis le disque : il arrive d'en haut à gauche et se dépose sur la pile.
         const from = { opacity: 0, translate: "-140px -70px" };

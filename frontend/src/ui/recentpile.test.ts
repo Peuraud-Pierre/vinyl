@@ -19,11 +19,13 @@ test("pile sur la tranche : du bas vers le haut, le plus récent tout en haut", 
   expect(at("3").textContent).toContain("Titre 3"); // titre sur la tranche
 });
 
-test("la pochette du dessus est posée à plat sur la pile", () => {
+test("chaque disque a sa pochette posée à plat (on la voit là où il dépasse de la pile)", () => {
   const root = document.createElement("div");
-  mountRecentPile(root, { play: vi.fn() }).update(["3", "2"].map(e));
-  const lid = root.querySelector<HTMLElement>(".vy-recent-lid")!;
-  expect(lid.style.backgroundImage).toContain("/artwork/3");
+  mountRecentPile(root, { play: vi.fn() }).update(["3", "2", "1"].map(e));
+  for (const id of ["1", "2", "3"]) {
+    const lid = disc(root.querySelector<HTMLElement>(`[data-track="${id}"]`)!).querySelector<HTMLElement>(".vy-recent-lid")!;
+    expect(lid.style.backgroundImage).toContain(`/artwork/${id}`);
+  }
 });
 
 test("au plus 7 pochettes", () => {
