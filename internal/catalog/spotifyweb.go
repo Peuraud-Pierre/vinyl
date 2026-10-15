@@ -25,7 +25,24 @@ func NewSpotifyWeb(token func(context.Context) (string, error)) *SpotifyWeb {
 }
 
 type spImage struct {
-	URL string `json:"url"`
+	URL   string `json:"url"`
+	Width int    `json:"width"`
+}
+
+// shelfImage choisit pour l'étagère la plus légère des images d'au moins 300 px (Spotify fournit
+// en général 640, 300 et 64 px) ; sans tailles connues, la première.
+func shelfImage(imgs []spImage) string {
+	best := ""
+	bestW := 0
+	for _, im := range imgs {
+		if im.Width >= 300 && (bestW == 0 || im.Width < bestW) {
+			best, bestW = im.URL, im.Width
+		}
+	}
+	if best != "" {
+		return best
+	}
+	return firstImage(imgs)
 }
 
 type spArtist struct {
@@ -120,7 +137,7 @@ func (c *SpotifyWeb) Library(ctx context.Context, kind string, offset int) (Page
 			return Page{}, err
 		}
 		for _, p := range body.Items {
-			page.Items = append(page.Items, Item{ID: p.URI, Kind: "playlist", Title: p.Name, Subtitle: p.Owner.DisplayName, ArtworkURL: firstImage(p.Images)})
+			page.Items = append(page.Items, Item{ID: p.URI, Kind: "playlist", Title: p.Name, Subtitle: p.Owner.DisplayName, ArtworkURL: shelfImage(p.Images)})
 		}
 		page.Next = nextOffset(body.Next, offset)
 	case "albums":
@@ -134,7 +151,7 @@ func (c *SpotifyWeb) Library(ctx context.Context, kind string, offset int) (Page
 			return Page{}, err
 		}
 		for _, a := range body.Items {
-			page.Items = append(page.Items, Item{ID: a.Album.URI, Kind: "album", Title: a.Album.Name, Subtitle: artistNames(a.Album.Artists), ArtworkURL: firstImage(a.Album.Images)})
+			page.Items = append(page.Items, Item{ID: a.Album.URI, Kind: "album", Title: a.Album.Name, Subtitle: artistNames(a.Album.Artists), ArtworkURL: shelfImage(a.Album.Images)})
 		}
 		page.Next = nextOffset(body.Next, offset)
 	case "likes":
@@ -148,7 +165,7 @@ func (c *SpotifyWeb) Library(ctx context.Context, kind string, offset int) (Page
 			return Page{}, err
 		}
 		for _, t := range body.Items {
-			page.Items = append(page.Items, Item{ID: t.Track.URI, Kind: "track", Title: t.Track.Name, Subtitle: artistNames(t.Track.Artists), ArtworkURL: firstImage(t.Track.Album.Images)})
+			page.Items = append(page.Items, Item{ID: t.Track.URI, Kind: "track", Title: t.Track.Name, Subtitle: artistNames(t.Track.Artists), ArtworkURL: shelfImage(t.Track.Album.Images)})
 		}
 		page.Next = nextOffset(body.Next, offset)
 	case "artists":

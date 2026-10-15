@@ -78,6 +78,28 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   const spine = (it: Item) => spineColors(it.title, tints.get(it.id));
   const shown = () => filterItems(items, query);
 
+  // Pochettes décodées en arrière-plan (img.decode) avant d'être posées : aucun décodage pendant
+  // le défilement. Une pochette déjà décodée s'affiche tout de suite.
+  const decoded = new Set<string>();
+  const applyCover = (face: HTMLElement, url: string) => {
+    if (!url) return;
+    const show = () => {
+      face.style.backgroundImage = cssUrl(url);
+      face.querySelector("span")?.remove();
+    };
+    if (decoded.has(url)) return show();
+    face.style.opacity = "0";
+    const img = new Image();
+    img.src = url;
+    img.decode().catch(() => {}).then(() => {
+      decoded.add(url);
+      if (!alive) return;
+      show();
+      face.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: "ease-out" });
+      face.style.opacity = "";
+    });
+  };
+
   const artStyle = (it: Item) => {
     const c = spine(it);
     return `background-color:${c.bg};` + (it.artworkUrl ? `background-image:${escapeHtml(cssUrl(it.artworkUrl))}` : "");
@@ -90,7 +112,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   const boxHtml = (it: Item) => {
     const c = spine(it);
     return `<button class="vy-cf" data-id="${escapeHtml(it.id)}" aria-label="${label(it)}">
-      <div class="vy-face" style="${artStyle(it)}">${word(it)}</div>
+      <div class="vy-face" style="background-color:${spine(it).bg}">${word(it)}</div>
       <div class="vy-spine" style="background:${c.bg};color:${c.ink}"><span><b>${escapeHtml(it.title)}</b>  ${escapeHtml(it.subtitle)}</span></div></button>`;
   };
   const MAX_STAGGER = 18;
@@ -119,6 +141,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       if (!slot) {
         row.insertAdjacentHTML("beforeend", boxHtml(it));
         slot = row.lastElementChild as HTMLElement;
+        applyCover(slot.querySelector<HTMLElement>(".vy-face")!, it.artworkUrl);
         if (entering) {
           slot.classList.add("vy-shelf-in");
           slot.style.setProperty("--i", String(Math.max(0, i - a)));
@@ -203,10 +226,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (!it.artworkUrl && source === "applemusic" && it.kind !== "artist") {
       it.artworkUrl = await api.ItemArtwork(source, it.id).catch(() => "");
       if (!alive || !it.artworkUrl) return;
-      area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover, [data-id="${CSS.escape(it.id)}"] .vy-face`).forEach((n) => {
-        n.style.backgroundImage = cssUrl(it.artworkUrl);
-        n.innerHTML = "";
-      });
+      area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover, [data-id="${CSS.escape(it.id)}"] .vy-face`).forEach((n) => applyCover(n, it.artworkUrl));
     }
     const tint = await imageTint(it.artworkUrl);
     if (!alive || !tint) return;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -86,10 +87,25 @@ type MusicLibrary struct {
 	artworkDir string
 	exports    chan struct{}
 	noArtwork  sync.Map // id → struct{} : éléments sans pochette, pour ne pas relancer l'export
+	resize     func(src, dst string, size int) error
+}
+
+// ThumbSize est la taille des miniatures de l'étagère (px) : assez pour un boîtier à l'écran,
+// beaucoup plus léger à décoder que les pochettes d'origine (600 à 1 200 px).
+const ThumbSize = 360
+
+// sipsResize réduit une image avec l'outil sips de macOS et l'écrit en JPEG.
+func sipsResize(src, dst string, size int) error {
+	tmp := dst + ".tmp.jpg"
+	defer os.Remove(tmp)
+	if err := exec.Command("/usr/bin/sips", "-Z", strconv.Itoa(size), "-s", "format", "jpeg", src, "--out", tmp).Run(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, dst)
 }
 
 func NewMusicLibrary(r player.Runner, it *ITunes, artworkDir string) *MusicLibrary {
-	return &MusicLibrary{run: r, itunes: it, artworkDir: artworkDir, exports: make(chan struct{}, maxArtworkExports)}
+	return &MusicLibrary{run: r, itunes: it, artworkDir: artworkDir, exports: make(chan struct{}, maxArtworkExports), resize: sipsResize}
 }
 
 func (m *MusicLibrary) records(ctx context.Context, script string) ([][]string, error) {
@@ -374,4 +390,23 @@ func (m *MusicLibrary) Tracks(ctx context.Context, id string) (Collection, error
 		c.ArtworkURL = url
 	}
 	return c, nil
+}
+
+// Thumbnail renvoie une miniature légère de la pochette (créée une fois, gardée sur disque).
+// Si la réduction échoue, on rend la pochette complète.
+func (m *MusicLibrary) Thumbnail(ctx context.Context, id string) (string, error) {
+	full, err := m.Artwork(ctx, id)
+	if err != nil || full == "" {
+		return full, err
+	}
+	name := strings.TrimPrefix(full, "/artwork/")
+	thumb := name + ".thumb.jpg"
+	dst := filepath.Join(m.artworkDir, thumb)
+	if fi, err := os.Stat(dst); err == nil && fi.Size() > 0 {
+		return "/artwork/" + thumb, nil
+	}
+	if err := m.resize(filepath.Join(m.artworkDir, name), dst, ThumbSize); err != nil {
+		return full, nil
+	}
+	return "/artwork/" + thumb, nil
 }

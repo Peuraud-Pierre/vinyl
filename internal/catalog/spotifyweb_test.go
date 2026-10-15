@@ -139,3 +139,16 @@ func TestSpotifyQueue(t *testing.T) {
 		t.Errorf("got %+v %v", q, err)
 	}
 }
+
+func TestShelfImagePicksTheLightestLargeEnough(t *testing.T) {
+	imgs := []spImage{{URL: "big", Width: 640}, {URL: "mid", Width: 300}, {URL: "tiny", Width: 64}}
+	if got := shelfImage(imgs); got != "mid" {
+		t.Errorf("got %q", got)
+	}
+	if got := shelfImage([]spImage{{URL: "seule"}}); got != "seule" {
+		t.Errorf("sans tailles : première image, got %q", got)
+	}
+	if shelfImage(nil) != "" {
+		t.Error("aucune image → vide")
+	}
+}

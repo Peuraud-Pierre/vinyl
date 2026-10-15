@@ -2,6 +2,8 @@ package catalog
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -227,5 +229,42 @@ func TestTracksScriptsReadColumnsInBulk(t *testing.T) {
 		if strings.Contains(script, "repeat with t in") {
 			t.Errorf("%s : lecture titre par titre (lent sur les grosses playlists)", name)
 		}
+	}
+}
+
+func TestThumbnailIsMadeOnceFromTheArtwork(t *testing.T) {
+	dir := t.TempDir()
+	r := &slowRunner{out: "OK"}
+	m := NewMusicLibrary(r, nil, dir)
+	var calls [][3]string
+	m.resize = func(src, dst string, size int) error {
+		calls = append(calls, [3]string{src, dst, strconv.Itoa(size)})
+		return os.WriteFile(dst, []byte("thumb"), 0o644)
+	}
+	// L'export AppleScript est simulé : on crée le fichier attendu à la main.
+	id := "album:A" + player.Sep + "X"
+	full := filepath.Join(dir, player.ArtworkFileName("item:"+id))
+	os.WriteFile(full, []byte("big"), 0o644)
+	u, err := m.Thumbnail(context.Background(), id)
+	if err != nil || !strings.HasSuffix(u, ".thumb.jpg") || !strings.HasPrefix(u, "/artwork/") {
+		t.Fatalf("url=%q err=%v", u, err)
+	}
+	if len(calls) != 1 || calls[0][0] != full || calls[0][2] != strconv.Itoa(ThumbSize) {
+		t.Fatalf("redimensionnement = %v", calls)
+	}
+	if u2, _ := m.Thumbnail(context.Background(), id); u2 != u || len(calls) != 1 {
+		t.Errorf("la miniature doit être réutilisée (appels %d)", len(calls))
+	}
+}
+
+func TestThumbnailFallsBackToFullArtworkIfResizeFails(t *testing.T) {
+	dir := t.TempDir()
+	m := NewMusicLibrary(&slowRunner{out: "OK"}, nil, dir)
+	m.resize = func(string, string, int) error { return os.ErrPermission }
+	id := "playlist:P"
+	os.WriteFile(filepath.Join(dir, player.ArtworkFileName("item:"+id)), []byte("big"), 0o644)
+	u, err := m.Thumbnail(context.Background(), id)
+	if err != nil || strings.HasSuffix(u, ".thumb.jpg") || u == "" {
+		t.Errorf("repli sur la pochette complète attendu : %q %v", u, err)
 	}
 }

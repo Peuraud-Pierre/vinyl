@@ -146,9 +146,10 @@ func (s *VinylService) ItemArtwork(source, id string) (string, error) {
 		return "", nil
 	}
 	// Délai large : la demande peut attendre son tour (2 exports à la fois).
+	// Miniature légère pour l'étagère : bien plus rapide à décoder pendant le défilement.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return s.music.Artwork(ctx, id)
+	return s.music.Thumbnail(ctx, id)
 }
 
 // PlayCatalogTrack joue un titre de page artiste : bibliothèque si possible, sinon ouverture dans l'app.
