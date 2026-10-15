@@ -75,3 +75,21 @@ func TestSpotifyModes(t *testing.T) {
 		t.Errorf("« un seul » n'existe pas sur Spotify : traité comme « tout », args = %q", r.calls[1].args)
 	}
 }
+
+// Spotify aussi : « précédent » autant de fois que de disques, puis vérification ; sinon le titre est
+// lancé seul (Spotify ne dit pas quelle playlist joue).
+func TestSpotifyReplayGoesBack(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"BACK"}}
+	if err := NewSpotify(r).ReplayInContext(context.Background(), "spotify:track:1", 2); err != nil {
+		t.Fatal(err)
+	}
+	c := r.calls[0]
+	if len(c.args) != 2 || c.args[0] != "spotify:track:1" || c.args[1] != "2" {
+		t.Errorf("argv : %v", c.args)
+	}
+	for _, want := range []string{"previous track", "id of current track", "play track", "is not running"} {
+		if !strings.Contains(c.script, want) {
+			t.Errorf("script sans %q", want)
+		}
+	}
+}

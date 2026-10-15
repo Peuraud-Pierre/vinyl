@@ -243,12 +243,12 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 	if s.history == nil {
 		return errors.New("historique indisponible")
 	}
-	undo := s.history.TakeFrom(source, trackID)
+	undo, steps := s.history.TakeFrom(source, trackID)
 	var err error
-	if r, ok := s.watcher.Player(source).(player.ContextReplayer); ok {
-		// On revient en arrière dans la playlist en cours : la suite continue après ce titre.
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err = r.ReplayInContext(ctx, trackID)
+	if r, ok := s.watcher.Player(source).(player.ContextReplayer); ok && steps > 0 {
+		// Comme « précédent » : on revient de steps morceaux en arrière, la playlist continue ensuite.
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		err = r.ReplayInContext(ctx, trackID, steps)
 		cancel()
 		s.watcher.Wake()
 	} else {

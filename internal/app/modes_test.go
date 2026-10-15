@@ -122,10 +122,12 @@ func TestPlayFromHistoryFailureKeepsThePile(t *testing.T) {
 type fakeReplayer struct {
 	fakeModesPlayer
 	replayed []string
+	steps    []int
 }
 
-func (f *fakeReplayer) ReplayInContext(_ context.Context, id string) error {
+func (f *fakeReplayer) ReplayInContext(_ context.Context, id string, steps int) error {
 	f.replayed = append(f.replayed, id)
+	f.steps = append(f.steps, steps)
 	return nil
 }
 
@@ -142,5 +144,8 @@ func TestPlayFromHistoryReplaysInCurrentPlaylist(t *testing.T) {
 	}
 	if len(p.replayed) != 1 || p.replayed[0] != "1" || len(p.played) != 0 {
 		t.Errorf("rejoué %v, lancé seul %v", p.replayed, p.played)
+	}
+	if p.steps[0] != 2 { // pile 21 : 1 est deux morceaux en arrière
+		t.Errorf("pas en arrière : %v", p.steps)
 	}
 }

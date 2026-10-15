@@ -359,26 +359,39 @@ func (m *AppleMusic) Upcoming(ctx context.Context, limit int, wrap bool) ([]Trac
 	return tracks, nil
 }
 
-// argv : persistent ID. Rejoue le titre dans la playlist en cours (on « revient en arrière », la suite
-// de la playlist continue après lui) ; s'il n'y est pas, le lance depuis la bibliothèque.
+// argv : persistent ID, nombre de morceaux en arrière. Comme le bouton « précédent » d'Apple Music :
+// on remonte ce qui a vraiment été joué, puis la playlist continue normalement. Si le morceau obtenu
+// n'est pas le bon (playlist changée entre-temps), on le rejoue dans la playlist en cours, sinon depuis
+// la bibliothèque.
 const musicReplayScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	set target to item 1 of argv
 	tell application id "com.apple.Music"
+		repeat ((item 2 of argv) as integer) times
+			previous track
+			delay 0.15
+		end repeat
 		try
-			set ts to (every track of current playlist whose persistent ID is (item 1 of argv))
+			if (persistent ID of current track) is target then
+				if player state is not playing then play
+				return "BACK"
+			end if
+		end try
+		try
+			set ts to (every track of current playlist whose persistent ID is target)
 			if (count of ts) > 0 then
 				play (item 1 of ts)
 				return "PLAYLIST"
 			end if
 		end try
-		play (first track of library playlist 1 whose persistent ID is (item 1 of argv))
+		play (first track of library playlist 1 whose persistent ID is target)
 		return "LIBRARY"
 	end tell
 end run`
 
-// ReplayInContext relance un titre déjà écouté dans la playlist en cours (pile des derniers écoutés).
-func (m *AppleMusic) ReplayInContext(ctx context.Context, trackID string) error {
-	out, err := m.run.Run(ctx, musicReplayScript, trackID)
+// ReplayInContext revient steps morceaux en arrière pour réécouter trackID (pile des derniers écoutés).
+func (m *AppleMusic) ReplayInContext(ctx context.Context, trackID string, steps int) error {
+	out, err := m.run.Run(ctx, musicReplayScript, trackID, strconv.Itoa(steps))
 	if err == nil && out == "NOTRUNNING" {
 		return ErrNotRunning
 	}

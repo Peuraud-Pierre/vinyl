@@ -84,7 +84,10 @@ export function mount(el: HTMLElement): () => void {
   let deckTrack = "";
 
   // Pile des derniers morceaux écoutés : un clic relance le morceau et retire ceux posés au-dessus.
-  recent = mountRecentPile($("pl-recent"), { play: (e) => { api.PlayFromHistory(e.source, e.trackId).catch(() => {}); } });
+  recent = mountRecentPile($("pl-recent"), {
+    // Puis la pile est relue : elle reste juste même si un événement s'est perdu.
+    play: (e) => { api.PlayFromHistory(e.source, e.trackId).catch(() => {}).finally(() => api.History().then((l) => recent?.update(l ?? [])).catch(() => {})); },
+  });
   const offHistory = onHistory((l) => recent?.update(l));
   api.History().then((l) => recent?.update(l ?? [])).catch(() => {});
   fit();

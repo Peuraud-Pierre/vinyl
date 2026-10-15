@@ -96,7 +96,9 @@ func TestTakeFromRemovesTheOnesAbove(t *testing.T) {
 	for _, id := range []string{"1", "2", "3", "4", "5"} {
 		s.Playing(e(id))
 	} // pile 4321, en cours 5
-	s.TakeFrom("applemusic", "2")
+	if _, steps := s.TakeFrom("applemusic", "2"); steps != 3 {
+		t.Errorf("2 est 3 morceaux en arrière (4, 3, puis 2) : %d", steps)
+	}
 	if got := ids(s.List()); got != "1" {
 		t.Fatalf("pile = %q, attendu les disques sous 2", got)
 	}
@@ -115,7 +117,7 @@ func TestTakeFromUndo(t *testing.T) {
 	for _, id := range []string{"1", "2", "3"} {
 		s.Playing(e(id))
 	}
-	undo := s.TakeFrom("applemusic", "1")
+	undo, _ := s.TakeFrom("applemusic", "1")
 	undo() // lecture impossible : pile remise comme avant
 	if got := ids(s.List()); got != "21" {
 		t.Errorf("pile = %q", got)
@@ -123,7 +125,11 @@ func TestTakeFromUndo(t *testing.T) {
 	if _, changed := s.Playing(e("3")); changed {
 		t.Error("le morceau en cours est aussi rétabli")
 	}
-	s.TakeFrom("applemusic", "absent")() // inconnu : rien ne change
+	undoAbsent, steps := s.TakeFrom("applemusic", "absent") // inconnu : rien ne change
+	undoAbsent()
+	if steps != 0 {
+		t.Errorf("absent : %d pas", steps)
+	}
 	if got := ids(s.List()); got != "21" {
 		t.Errorf("pile = %q", got)
 	}

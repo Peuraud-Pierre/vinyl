@@ -258,30 +258,35 @@ func TestPlaylistScriptsFindSubscriptionPlaylists(t *testing.T) {
 	}
 }
 
-// Pile des derniers écoutés : on revient en arrière dans la playlist en cours (la suite continue
-// après), et on ne lance le titre seul depuis la bibliothèque que s'il n'y est pas.
-func TestReplayInCurrentPlaylist(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"PLAYLIST"}}
-	if err := NewAppleMusic(r, t.TempDir()).ReplayInContext(context.Background(), "ABC123"); err != nil {
+// Pile des derniers écoutés : comme le bouton « précédent » d'Apple Music, on revient en arrière du
+// bon nombre de morceaux (la playlist continue ensuite) ; on vérifie le morceau obtenu, sinon on le
+// rejoue dans la playlist en cours, et en dernier recours depuis la bibliothèque.
+func TestReplayGoesBackLikePrevious(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"BACK"}}
+	if err := NewAppleMusic(r, t.TempDir()).ReplayInContext(context.Background(), "ABC123", 3); err != nil {
 		t.Fatal(err)
 	}
 	c := r.calls[0]
-	if len(c.args) != 1 || c.args[0] != "ABC123" {
-		t.Errorf("identifiant transmis par argv : %v", c.args)
+	if len(c.args) != 2 || c.args[0] != "ABC123" || c.args[1] != "3" {
+		t.Errorf("argv : %v", c.args)
 	}
-	for _, want := range []string{"current playlist", "library playlist 1", `is not running`} {
-		if !strings.Contains(c.script, want) {
-			t.Errorf("script sans %q", want)
+	order := []string{"previous track", "persistent ID of current track", "current playlist", "library playlist 1"}
+	last := -1
+	for _, want := range order {
+		i := strings.Index(c.script, want)
+		if i < 0 || i < last {
+			t.Errorf("script : %q absent ou mal placé", want)
 		}
+		last = i
 	}
-	if strings.Index(c.script, "current playlist") > strings.Index(c.script, "library playlist 1") {
-		t.Error("la playlist en cours doit être essayée avant la bibliothèque")
+	if !strings.Contains(c.script, "is not running") {
+		t.Error("garde « non lancé » attendue")
 	}
 }
 
 func TestReplayInContextNotRunning(t *testing.T) {
 	r := &fakeRunner{outputs: []string{"NOTRUNNING"}}
-	if err := NewAppleMusic(r, t.TempDir()).ReplayInContext(context.Background(), "X"); err != ErrNotRunning {
+	if err := NewAppleMusic(r, t.TempDir()).ReplayInContext(context.Background(), "X", 1); err != ErrNotRunning {
 		t.Errorf("err = %v", err)
 	}
 }
