@@ -76,6 +76,12 @@ const (
 	RepeatOne RepeatMode = "one"
 )
 
+// ContextReplayer est implémentée par les lecteurs qui savent rejouer un titre déjà écouté dans la
+// playlist en cours (plutôt que seul, hors de son contexte).
+type ContextReplayer interface {
+	ReplayInContext(ctx context.Context, trackID string) error
+}
+
 // Modes est implémentée par les lecteurs qui savent lire et régler l'aléatoire et la répétition.
 type Modes interface {
 	PlaybackModes(ctx context.Context) (shuffle bool, repeat RepeatMode, err error)

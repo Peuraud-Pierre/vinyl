@@ -244,11 +244,20 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 		return errors.New("historique indisponible")
 	}
 	undo := s.history.TakeFrom(source, trackID)
-	id := trackID
-	if source == "applemusic" {
-		id = "track:" + trackID // Musique attend un identifiant typé
+	var err error
+	if r, ok := s.watcher.Player(source).(player.ContextReplayer); ok {
+		// On revient en arrière dans la playlist en cours : la suite continue après ce titre.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err = r.ReplayInContext(ctx, trackID)
+		cancel()
+		s.watcher.Wake()
+	} else {
+		id := trackID
+		if source == "applemusic" {
+			id = "track:" + trackID // Musique attend un identifiant typé
+		}
+		err = s.PlayItem(source, id)
 	}
-	err := s.PlayItem(source, id)
 	if err != nil {
 		undo()
 	}

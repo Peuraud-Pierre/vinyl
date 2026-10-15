@@ -358,3 +358,29 @@ func (m *AppleMusic) Upcoming(ctx context.Context, limit int, wrap bool) ([]Trac
 	}
 	return tracks, nil
 }
+
+// argv : persistent ID. Rejoue le titre dans la playlist en cours (on « revient en arrière », la suite
+// de la playlist continue après lui) ; s'il n'y est pas, le lance depuis la bibliothèque.
+const musicReplayScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	tell application id "com.apple.Music"
+		try
+			set ts to (every track of current playlist whose persistent ID is (item 1 of argv))
+			if (count of ts) > 0 then
+				play (item 1 of ts)
+				return "PLAYLIST"
+			end if
+		end try
+		play (first track of library playlist 1 whose persistent ID is (item 1 of argv))
+		return "LIBRARY"
+	end tell
+end run`
+
+// ReplayInContext relance un titre déjà écouté dans la playlist en cours (pile des derniers écoutés).
+func (m *AppleMusic) ReplayInContext(ctx context.Context, trackID string) error {
+	out, err := m.run.Run(ctx, musicReplayScript, trackID)
+	if err == nil && out == "NOTRUNNING" {
+		return ErrNotRunning
+	}
+	return err
+}

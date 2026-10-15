@@ -257,3 +257,31 @@ func TestPlaylistScriptsFindSubscriptionPlaylists(t *testing.T) {
 		}
 	}
 }
+
+// Pile des derniers écoutés : on revient en arrière dans la playlist en cours (la suite continue
+// après), et on ne lance le titre seul depuis la bibliothèque que s'il n'y est pas.
+func TestReplayInCurrentPlaylist(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"PLAYLIST"}}
+	if err := NewAppleMusic(r, t.TempDir()).ReplayInContext(context.Background(), "ABC123"); err != nil {
+		t.Fatal(err)
+	}
+	c := r.calls[0]
+	if len(c.args) != 1 || c.args[0] != "ABC123" {
+		t.Errorf("identifiant transmis par argv : %v", c.args)
+	}
+	for _, want := range []string{"current playlist", "library playlist 1", `is not running`} {
+		if !strings.Contains(c.script, want) {
+			t.Errorf("script sans %q", want)
+		}
+	}
+	if strings.Index(c.script, "current playlist") > strings.Index(c.script, "library playlist 1") {
+		t.Error("la playlist en cours doit être essayée avant la bibliothèque")
+	}
+}
+
+func TestReplayInContextNotRunning(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"NOTRUNNING"}}
+	if err := NewAppleMusic(r, t.TempDir()).ReplayInContext(context.Background(), "X"); err != ErrNotRunning {
+		t.Errorf("err = %v", err)
+	}
+}

@@ -117,3 +117,30 @@ func TestPlayFromHistoryFailureKeepsThePile(t *testing.T) {
 		t.Errorf("pile remise comme avant : %v", l)
 	}
 }
+
+// Lecteur qui sait rejouer un titre dans la playlist en cours : c'est ce chemin qui est pris.
+type fakeReplayer struct {
+	fakeModesPlayer
+	replayed []string
+}
+
+func (f *fakeReplayer) ReplayInContext(_ context.Context, id string) error {
+	f.replayed = append(f.replayed, id)
+	return nil
+}
+
+func TestPlayFromHistoryReplaysInCurrentPlaylist(t *testing.T) {
+	p := &fakeReplayer{}
+	s := serviceWith(p)
+	h := history.NewStore(t.TempDir() + "/h.json")
+	for _, id := range []string{"1", "2", "3"} {
+		h.Playing(history.Entry{Source: "applemusic", TrackID: id})
+	}
+	s.SetHistory(h, nil)
+	if err := s.PlayFromHistory("applemusic", "1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.replayed) != 1 || p.replayed[0] != "1" || len(p.played) != 0 {
+		t.Errorf("rejoué %v, lancé seul %v", p.replayed, p.played)
+	}
+}
