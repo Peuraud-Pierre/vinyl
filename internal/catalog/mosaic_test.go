@@ -168,7 +168,7 @@ func TestPlaylistWithoutAnyCover(t *testing.T) {
 	}
 }
 
-// « Favourite Songs » : comme dans Musique, une étoile blanche sur un dégradé rose-rouge.
+// « Favourite Songs » : étoile en dégradé rose-rouge sur fond blanc (demande utilisateur).
 type favRunner struct{ calls int }
 
 func (r *favRunner) Run(context.Context, string, ...string) (string, error) {
@@ -190,14 +190,14 @@ func TestFavouriteSongsGetsTheStar(t *testing.T) {
 		t.Fatalf("taille %v", img.Bounds())
 	}
 	white := color.RGBA{255, 255, 255, 255}
-	if c := img.At(s/2, s/2); !near(c, white) {
-		t.Errorf("centre (étoile) : %v, attendu blanc", c)
-	}
-	for _, p := range []image.Point{{8, 8}, {s - 8, s - 8}} {
-		r8, g8, b8, _ := img.At(p.X, p.Y).RGBA()
-		if !(r8>>8 > 200 && g8>>8 < 120 && b8>>8 < 150) {
-			t.Errorf("coin %v : %v, attendu rose-rouge", p, img.At(p.X, p.Y))
+	for _, p := range []image.Point{{8, 8}, {s - 8, s - 8}, {s - 8, 8}} {
+		if c := img.At(p.X, p.Y); !near(c, white) {
+			t.Errorf("fond %v : %v, attendu blanc", p, c)
 		}
+	}
+	r8, g8, b8, _ := img.At(s/2, s/2).RGBA()
+	if !(r8>>8 > 200 && g8>>8 < 120 && b8>>8 < 150) {
+		t.Errorf("centre (étoile) : %v, attendu rose-rouge", img.At(s/2, s/2))
 	}
 }
 

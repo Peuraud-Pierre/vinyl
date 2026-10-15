@@ -40,6 +40,19 @@ func TestMusicPlaylists(t *testing.T) {
 	}
 }
 
+// La playlist que Vinyl crée pour lire un album (« Vinyl — Album ») n'est pas une playlist de
+// l'utilisateur : elle n'apparaît pas sur l'étagère.
+func TestMusicPlaylistsHideVinylTemporaryPlaylist(t *testing.T) {
+	r := &fakeRunner{out: []string{"Chill" + player.Sep + "P1" + player.Sep + "12" + rs + player.TempPlaylistName + player.Sep + "P9" + player.Sep + "8" + rs + "Rock" + player.Sep + "P2" + player.Sep + "3"}}
+	p, err := NewMusicLibrary(r, nil, t.TempDir()).Library(context.Background(), "playlists", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Items) != 2 || p.Items[0].Title != "Chill" || p.Items[1].Title != "Rock" {
+		t.Errorf("got %+v", p.Items)
+	}
+}
+
 func TestMusicAlbumsDedupSortAndPaginate(t *testing.T) {
 	var b strings.Builder
 	// 60 albums distincts, chacun en double, ordre inverse

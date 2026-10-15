@@ -143,8 +143,8 @@ func decodeImage(path string) (image.Image, error) {
 	return img, err
 }
 
-// favouriteStar dessine l'image de « Favourite Songs » dans Musique : étoile blanche au centre d'un
-// dégradé rose-rouge (haut gauche → bas droite). Bords lissés par suréchantillonnage 4 × 4.
+// favouriteStar dessine l'image de « Favourite Songs » : étoile en dégradé rose-rouge (haut gauche →
+// bas droite) au centre d'un fond blanc. Bords lissés par suréchantillonnage 4 × 4.
 func favouriteStar(size int) image.Image {
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
 	from, to := [3]float64{255, 94, 122}, [3]float64{247, 33, 60}
@@ -187,8 +187,8 @@ func favouriteStar(size int) image.Image {
 			}
 			var c [3]uint8
 			for k := range c {
-				bg := from[k] + (to[k]-from[k])*t
-				c[k] = uint8(bg + (255-bg)*cover + 0.5)
+				bg := from[k] + (to[k]-from[k])*t        // teinte du dégradé à cet endroit
+				c[k] = uint8(255 + (bg-255)*cover + 0.5) // blanc hors de l'étoile, dégradé dedans
 			}
 			img.SetRGBA(x, y, color.RGBA{c[0], c[1], c[2], 255})
 		}

@@ -142,7 +142,7 @@ func (m *MusicLibrary) Library(ctx context.Context, kind string, offset int) (Pa
 			return Page{}, err
 		}
 		for _, r := range recs {
-			if len(r) == 3 {
+			if len(r) == 3 && r[0] != player.TempPlaylistName { // playlist interne de Vinyl : masquée
 				items = append(items, Item{ID: "playlist:" + r[1], Kind: "playlist", Title: r[0], Subtitle: r[2] + " titres"})
 			}
 		}
@@ -197,7 +197,7 @@ func (m *MusicLibrary) Artwork(ctx context.Context, id string) (string, error) {
 	if kind == "playlist" {
 		// Image façon Musique (mosaïque, étoile de « Favourite Songs ») ; clé versionnée pour ne pas
 		// reprendre les images déjà en cache des versions précédentes.
-		key = "playlist-art-v2:" + id
+		key = "playlist-art-v3:" + id
 	}
 	file := player.ArtworkFileName(key)
 	path := filepath.Join(m.artworkDir, file)

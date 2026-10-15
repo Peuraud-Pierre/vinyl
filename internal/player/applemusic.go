@@ -57,12 +57,16 @@ const musicPlayTrackScript = `on run argv
 	tell application id "com.apple.Music" to play (first track of library playlist 1 whose persistent ID is (item 1 of argv))
 end run`
 
+// TempPlaylistName est la playlist que Vinyl remplit pour lire un album ou une liste de titres
+// dans l'ordre ; ce n'est pas une playlist de l'utilisateur (masquée de l'étagère).
+const TempPlaylistName = "Vinyl — Album"
+
 const musicPlayAlbumScript = `on run argv
 	set albumName to item 1 of argv
 	set albumArtist to item 2 of argv
 	tell application id "com.apple.Music"
-		if not (exists user playlist "Vinyl — Album") then make new user playlist with properties {name:"Vinyl — Album"}
-		set p to user playlist "Vinyl — Album"
+		if not (exists user playlist "` + TempPlaylistName + `") then make new user playlist with properties {name:"` + TempPlaylistName + `"}
+		set p to user playlist "` + TempPlaylistName + `"
 		delete every track of p
 		set ts to (every track of library playlist 1 whose album is albumName and album artist is albumArtist)
 		if (count of ts) is 0 then set ts to (every track of library playlist 1 whose album is albumName)
@@ -200,8 +204,8 @@ const musicPlayListScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
 	set startID to item 1 of argv
 	tell application id "com.apple.Music"
-		if not (exists user playlist "Vinyl — Album") then make new user playlist with properties {name:"Vinyl — Album"}
-		set p to user playlist "Vinyl — Album"
+		if not (exists user playlist "` + TempPlaylistName + `") then make new user playlist with properties {name:"` + TempPlaylistName + `"}
+		set p to user playlist "` + TempPlaylistName + `"
 		delete every track of p
 		repeat with i from 3 to count of argv
 			try
