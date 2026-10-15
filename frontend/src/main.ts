@@ -11,6 +11,8 @@ import * as album from "./views/album";
 import { render as renderWidgetUpdate, type WidgetStatus } from "./widgetupdate";
 import { animateOnce } from "./ui/animate";
 import { platform } from "./ui/platform";
+import { mountUpdateBanner, type UpdateInfo } from "./ui/updatebanner";
+import { Events } from "@wailsio/runtime";
 
 type View = { mount: (el: HTMLElement, param: string) => () => void };
 const views: Record<Route, View> = { platine, bibliotheque, artiste, album, personnaliser, reglages };
@@ -60,6 +62,21 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") api.Previous();
   if (e.key === "ArrowRight") api.Next();
 });
+
+// Mises à jour de Vinyl : vérification au lancement, puis annonces du backend (toutes les 6 h) et
+// recherche manuelle depuis Réglages (événement DOM « vinyl:update »).
+const updateBanner = mountUpdateBanner(document.getElementById("app-update")!, {
+  install: () => api.InstallUpdate(),
+  openRelease: (v) => void api.ReleaseURL(v).then((u) => api.OpenURL(u)),
+});
+api.CheckForUpdate().then((i) => updateBanner.show(i)).catch(() => {});
+Events.On("appupdate", (e) => updateBanner.show(e.data as UpdateInfo));
+window.addEventListener("vinyl:update", (e) => updateBanner.show((e as CustomEvent<UpdateInfo>).detail));
+Events.On("wails:updater:download-progress", (e) => {
+  const p = e.data as { written: number; total: number }; // updater.Progress
+  updateBanner.progress(p.written, p.total);
+});
+Events.On("wails:updater:error", () => updateBanner.installFailed());
 
 const widgetUpdateEl = document.getElementById("widget-update")!;
 const showWidgetUpdate = (s: WidgetStatus) =>

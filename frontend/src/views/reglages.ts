@@ -22,6 +22,7 @@ export function mount(el: HTMLElement): () => void {
           <label class="flex cursor-pointer items-center justify-between text-[17px]">Craquement quand l'aiguille se pose
             <input type="checkbox" id="crackle" class="h-5 w-5" style="accent-color:#2a1d1b"></label>
         </section>
+        <section id="version-section" class="flex flex-col gap-3 border-t py-5" style="border-color:rgba(42,29,27,.14)"></section>
       </div>
     </div>`;
   el.querySelector<HTMLElement>("#close")!.onclick = () => go("platine");
@@ -37,6 +38,46 @@ export function mount(el: HTMLElement): () => void {
   const crackle = el.querySelector<HTMLInputElement>("#crackle")!;
   const section = el.querySelector<HTMLElement>("#spotify-section")!;
   let cur: Settings | null = null;
+
+  // Version et mises à jour ; section « Contributeur » : code d'accès aux bêtas.
+  const vSection = el.querySelector<HTMLElement>("#version-section")!;
+  const renderVersion = async () => {
+    const [v, who] = await Promise.all([api.Version(), api.BetaAccess()]);
+    vSection.innerHTML = `
+      <h2>Version</h2>
+      <div class="flex items-center gap-3 text-[17px]">
+        <span>${v === "dev" ? "Vinyl (développement)" : `Vinyl ${escapeAttr(v)}`}</span>
+        ${v === "dev" ? "" : `<button id="up-check" class="btn-dark cursor-pointer">Rechercher une mise à jour</button>`}
+      </div>
+      <p id="up-msg" class="text-[14px]"></p>
+      <details class="text-[15px]" ${who ? "open" : ""}>
+        <summary class="cursor-pointer">Contributeur</summary>
+        ${who
+          ? `<p class="mt-2">Bêtas activées pour ${escapeAttr(who)}. <button id="beta-off" class="cursor-pointer underline">Retirer</button></p>`
+          : `<div class="mt-2 flex gap-2"><input id="beta-code" class="field flex-1" placeholder="Code contributeur" autocomplete="off" spellcheck="false"><button id="beta-on" class="btn-dark cursor-pointer">Activer</button></div><p id="beta-msg" class="mt-1"></p>`}
+      </details>`;
+    vSection.querySelector<HTMLButtonElement>("#up-check")?.addEventListener("click", async () => {
+      const msg = vSection.querySelector<HTMLElement>("#up-msg")!;
+      msg.textContent = "Recherche…";
+      const info = await api.CheckForUpdate();
+      msg.textContent = info.available ? `Vinyl ${info.version} est disponible.` : "Vinyl est à jour.";
+      if (info.available) window.dispatchEvent(new CustomEvent("vinyl:update", { detail: info }));
+    });
+    vSection.querySelector<HTMLButtonElement>("#beta-on")?.addEventListener("click", async () => {
+      const code = vSection.querySelector<HTMLInputElement>("#beta-code")!.value;
+      try {
+        await api.SetBetaCode(code);
+        renderVersion();
+      } catch {
+        vSection.querySelector<HTMLElement>("#beta-msg")!.textContent = "Code invalide";
+      }
+    });
+    vSection.querySelector<HTMLButtonElement>("#beta-off")?.addEventListener("click", async () => {
+      await api.SetBetaCode("");
+      renderVersion();
+    });
+  };
+  renderVersion();
 
   const renderSpotify = async () => {
     if (!cur) return;
