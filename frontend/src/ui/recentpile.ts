@@ -7,8 +7,8 @@ import { spineColors } from "../views/shelf";
 import { imageTint } from "./theme";
 
 export const RECENT_MAX = 7;
-export const PILE_W = 290; // largeur d'une pochette (px de scène)
-export const SLAB = 24; // épaisseur d'une tranche
+export const PILE_W = 360; // largeur d'une pochette (px de scène)
+export const SLAB = 16; // épaisseur d'une tranche
 
 // Décalage et légère inclinaison propres à chaque morceau (toujours les mêmes) : une pile naturelle
 // qui ne bouge pas quand un nouveau disque est posé dessus.
