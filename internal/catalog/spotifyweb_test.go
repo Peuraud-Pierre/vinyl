@@ -169,3 +169,15 @@ func TestSpotifyForbiddenShowsReason(t *testing.T) {
 		t.Errorf("sans marche à suivre : %v", err)
 	}
 }
+
+// 403 « Premium requis pour le propriétaire de l'app » : le dire en clair, sans renvoyer vers une autre app.
+func TestSpotifyOwnerPremiumRequired(t *testing.T) {
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(403)
+		w.Write([]byte(`{"error":{"status":403,"message":"Active premium subscription required for the owner of the app. When the subscription status changes, it can take a few hours before requests are allowed again."}}`))
+	})
+	_, err := c.Library(context.Background(), "playlists", 0)
+	if err == nil || !strings.Contains(err.Error(), "abonnement Premium actif") || strings.Contains(err.Error(), "ta propre app") {
+		t.Errorf("got %v", err)
+	}
+}

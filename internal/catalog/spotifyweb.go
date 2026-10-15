@@ -122,6 +122,10 @@ func spotifyError(resp *http.Response) error {
 	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil && body.Error.Message != "" {
 		err = fmt.Errorf("spotify: HTTP %d : %s", resp.StatusCode, body.Error.Message)
 	}
+	if resp.StatusCode == 403 && strings.Contains(strings.ToLower(body.Error.Message), "premium") {
+		return fmt.Errorf("%w — Spotify exige que le propriétaire de l'app Spotify utilisée ait un abonnement Premium actif "+
+			"(après un changement d'abonnement, l'accès peut revenir au bout de quelques heures)", err)
+	}
 	if resp.StatusCode == 403 { // le plus souvent : compte non inscrit dans l'app Spotify de Vinyl
 		err = fmt.Errorf("%w — Spotify refuse l'accès : dans Réglages › Spotify, utilise ta propre app Spotify", err)
 	}

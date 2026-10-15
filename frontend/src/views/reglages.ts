@@ -99,7 +99,8 @@ export function mount(el: HTMLElement): () => void {
       <details class="text-[14px]" style="color:rgba(42,29,27,.8)" ${cur.spotifyClientId ? "open" : ""}>
         <summary class="cursor-pointer">Utiliser ma propre app Spotify (si Spotify refuse l'accès à ta bibliothèque)</summary>
         <p class="mt-2 leading-relaxed">L'app Vinyl n'ouvre la bibliothèque qu'aux comptes inscrits par son auteur. Avec ta propre
-          app Spotify (gratuite, 3 minutes), tu y as accès sans inscription.</p>
+          app Spotify (3 minutes), tu y as accès sans inscription. Spotify exige un abonnement Premium actif
+          pour le compte qui crée l'app.</p>
         <div id="sp-wizard"></div>
       </details>`;
     const msg = section.querySelector<HTMLElement>("#sp-msg")!;
