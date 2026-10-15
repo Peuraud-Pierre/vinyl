@@ -19,3 +19,22 @@ export interface QueueState {
     "upcoming": player$0.Track[] | null;
     "note": string;
 }
+
+/**
+ * UpdateInfo : résultat d'une recherche de mise à jour.
+ */
+export interface UpdateInfo {
+    "available": boolean;
+    "version": string;
+    "notes": string;
+
+    /**
+     * fabrication à la main : pas de mise à jour
+     */
+    "dev": boolean;
+}
+
+/**
+ * Updater : ce dont le service a besoin du système de mise à jour de Wails (*updater.Updater).
+ */
+export type Updater = any;

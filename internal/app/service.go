@@ -43,6 +43,7 @@ type VinylService struct {
 	queue       *vinylQueue // morceaux enchaînés par Vinyl (album, réécoute depuis la pile)
 	back        *backReplay // réécoute par « précédent » dans la file de Musique
 	version     string      // numéro de la release, « dev » pour une fabrication à la main
+	upd         Updater     // système de mise à jour (nil en « dev »)
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {

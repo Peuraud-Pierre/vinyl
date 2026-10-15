@@ -38,6 +38,21 @@ export function Artist(source: string, name: string, trackID: string): $Cancella
     return $Call.ByID(610413143, source, name, trackID);
 }
 
+/**
+ * BetaAccess : nom du contributeur si un code valide est enregistré, "" sinon.
+ */
+export function BetaAccess(): $CancellablePromise<string> {
+    return $Call.ByID(186915024);
+}
+
+/**
+ * CheckForUpdate cherche une version plus récente (stable, ou bêta avec un code contributeur).
+ * Sans réseau : rien de nouveau, sans erreur.
+ */
+export function CheckForUpdate(): $CancellablePromise<$models.UpdateInfo> {
+    return $Call.ByID(4048733634);
+}
+
 export function GetSettings(): $CancellablePromise<settings$0.Settings> {
     return $Call.ByID(1783502765);
 }
@@ -51,6 +66,13 @@ export function GetSnapshot(): $CancellablePromise<player$0.Snapshot> {
  */
 export function History(): $CancellablePromise<history$0.Entry[] | null> {
     return $Call.ByID(3965231684);
+}
+
+/**
+ * InstallUpdate télécharge et vérifie la version proposée, la met en place et redémarre Vinyl.
+ */
+export function InstallUpdate(): $CancellablePromise<void> {
+    return $Call.ByID(1346529934);
 }
 
 /**
@@ -165,6 +187,13 @@ export function Queue(): $CancellablePromise<$models.QueueState> {
 }
 
 /**
+ * ReleaseURL : page GitHub d'une version (repli si l'installation échoue).
+ */
+export function ReleaseURL(version: string): $CancellablePromise<string> {
+    return $Call.ByID(2340616266, version);
+}
+
+/**
  * SaveShareImage demande où enregistrer la carte de partage puis écrit le PNG. Renvoie "" si annulé.
  */
 export function SaveShareImage(pngBase64: string, suggestedName: string): $CancellablePromise<string> {
@@ -173,6 +202,13 @@ export function SaveShareImage(pngBase64: string, suggestedName: string): $Cance
 
 export function SeekMs(ms: number): $CancellablePromise<void> {
     return $Call.ByID(2342611904, ms);
+}
+
+/**
+ * SetBetaCode enregistre un code contributeur valide (vide : retire l'accès aux bêtas).
+ */
+export function SetBetaCode(code: string): $CancellablePromise<string> {
+    return $Call.ByID(864132515, code);
 }
 
 /**
@@ -203,6 +239,10 @@ export function SetSpotifyAuth(a: auth$0.SpotifyAuth | null): $CancellablePromis
 
 export function SetStats(st: stats$0.Store | null): $CancellablePromise<void> {
     return $Call.ByID(4148061351, st);
+}
+
+export function SetUpdater(u: $models.Updater): $CancellablePromise<void> {
+    return $Call.ByID(1906548141, u);
 }
 
 /**
@@ -271,6 +311,15 @@ export function UpdateWidget(): $CancellablePromise<void> {
  */
 export function Version(): $CancellablePromise<string> {
     return $Call.ByID(3934402648);
+}
+
+/**
+ * WatchUpdates vérifie régulièrement s'il existe une nouvelle version et l'annonce (sans la télécharger :
+ * l'installation attend le clic sur « Mettre à jour »). Rien en « dev » ni pendant une installation.
+ * La fonction renvoyée arrête la vérification.
+ */
+export function WatchUpdates(every: time$0.Duration, announce: any): $CancellablePromise<any> {
+    return $Call.ByID(3347132783, every, announce);
 }
 
 /**

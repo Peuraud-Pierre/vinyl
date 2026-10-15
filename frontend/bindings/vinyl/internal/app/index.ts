@@ -8,5 +8,7 @@ export {
 
 export type {
     ModesState,
-    QueueState
+    QueueState,
+    UpdateInfo,
+    Updater
 } from "./models.js";

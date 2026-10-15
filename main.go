@@ -10,6 +10,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/wailsapp/wails/v3/pkg/updater"
 
 	"vinyl/internal/app"
 	"vinyl/internal/auth"
@@ -19,6 +20,7 @@ import (
 	"vinyl/internal/player"
 	"vinyl/internal/settings"
 	"vinyl/internal/stats"
+	"vinyl/internal/update"
 	"vinyl/internal/widgetupdate"
 )
 
@@ -204,8 +206,33 @@ func main() {
 	if widgetMgr != nil {
 		go widgetMgr.Run(ctx, 6*time.Hour)
 	}
+	setupUpdates(wailsApp, service)
+	defer service.WatchUpdates(6*time.Hour, func(i app.UpdateInfo) { wailsApp.Event.Emit("appupdate", i) })()
 
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// setupUpdates branche le système de mise à jour de Wails sur les releases GitHub (aucun pour une
+// fabrication « dev »). Pas de vérification automatique par Wails : elle téléchargerait sans attendre le
+// clic ; Vinyl vérifie lui-même (WatchUpdates) et n'installe qu'à la demande.
+func setupUpdates(wailsApp *application.App, service *app.VinylService) {
+	if version == "dev" {
+		return
+	}
+	src, err := update.NewGitHub(func() bool { return service.BetaAccess() != "" })
+	if err != nil {
+		log.Printf("mises à jour indisponibles : %v", err)
+		return
+	}
+	if err := wailsApp.Updater.Init(updater.Config{
+		CurrentVersion: version,
+		Providers:      []updater.Provider{src},
+		Window:         updater.WindowNone,
+	}); err != nil {
+		log.Printf("mises à jour indisponibles : %v", err)
+		return
+	}
+	service.SetUpdater(wailsApp.Updater)
 }
