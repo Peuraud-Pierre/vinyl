@@ -105,6 +105,14 @@ export function PlayFrom(source: string, collectionID: string, trackID: string, 
 }
 
 /**
+ * PlayFromHistory relance un morceau de la pile ; les disques posés au-dessus sont retirés.
+ * Si la lecture échoue, la pile est remise comme avant.
+ */
+export function PlayFromHistory(source: string, trackID: string): $CancellablePromise<void> {
+    return $Call.ByID(1509244506, source, trackID);
+}
+
+/**
  * PlayItem lance une playlist, un album ou un titre sur la source donnée ("applemusic" ou "spotify").
  */
 export function PlayItem(source: string, id: string): $CancellablePromise<void> {
@@ -145,10 +153,10 @@ export function SetCatalog(source: string, c: catalog$0.Catalog): $CancellablePr
 }
 
 /**
- * SetHistory branche la pile des derniers morceaux écoutés.
+ * SetHistory branche la pile des derniers morceaux écoutés et sa diffusion (notify peut être nil).
  */
-export function SetHistory(h: history$0.Store | null): $CancellablePromise<void> {
-    return $Call.ByID(2284534012, h);
+export function SetHistory(h: history$0.Store | null, notify: any): $CancellablePromise<void> {
+    return $Call.ByID(2284534012, h, notify);
 }
 
 export function SetRepeat(mode: string): $CancellablePromise<void> {

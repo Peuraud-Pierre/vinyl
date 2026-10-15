@@ -77,7 +77,7 @@ func main() {
 	}
 	histStore := history.NewStore(histPath)
 	histStore.Load()
-	service.SetHistory(histStore)
+	service.SetHistory(histStore, func(l []history.Entry) { wailsApp.Event.Emit("history", l) })
 	watcher.SetOnPlaying(func(np player.NowPlaying) {
 		if np.TrackID == "" {
 			return // radio ou flux sans identifiant : pas compté

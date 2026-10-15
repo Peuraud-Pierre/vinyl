@@ -75,7 +75,6 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         b.setAttribute("aria-label", `${it.title} — ${it.artist}`);
         b.title = `${it.title} — ${it.artist}`;
         b.innerHTML = `<b>${escapeHtml(it.title)}</b><span>${escapeHtml(it.artist)}</span>`;
-        b.onclick = () => deps.play(it);
         const side = document.createElement("div");
         side.className = "vy-recent-side";
         // Côté plus sombre par la couleur : un filtre aplatirait la 3D dans WebKit.
@@ -90,8 +89,9 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         lid.setAttribute("aria-label", `${it.title} — ${it.artist}`);
         lid.title = `${it.title} — ${it.artist}`;
         if (it.artworkUrl) lid.style.backgroundImage = cssUrl(it.artworkUrl);
-        lid.onclick = () => deps.play(it);
         d.append(b, side, lid);
+        // Tout le disque est cliquable (tranche, côté, pochette) ; au clavier, la tranche suffit.
+        d.onclick = () => deps.play(it);
         pile.appendChild(d);
         topDisc = d;
         if (!tints.has(key(it)) && it.artworkUrl) {

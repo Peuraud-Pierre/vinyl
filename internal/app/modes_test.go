@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -14,17 +15,22 @@ type fakeModesPlayer struct {
 	shuffle    bool
 	repeat     player.RepeatMode
 	modesCalls int
+	played     []string
+	playErr    error
 }
 
 func (f *fakeModesPlayer) Name() string { return "applemusic" }
 func (f *fakeModesPlayer) NowPlaying(context.Context) (player.NowPlaying, error) {
 	return player.NowPlaying{Source: "applemusic", State: player.StatePlaying, TrackID: "t"}, nil
 }
-func (f *fakeModesPlayer) PlayPause(context.Context) error             { return nil }
-func (f *fakeModesPlayer) Next(context.Context) error                  { return nil }
-func (f *fakeModesPlayer) Previous(context.Context) error              { return nil }
-func (f *fakeModesPlayer) Seek(context.Context, time.Duration) error   { return nil }
-func (f *fakeModesPlayer) PlayItem(context.Context, string) error      { return nil }
+func (f *fakeModesPlayer) PlayPause(context.Context) error           { return nil }
+func (f *fakeModesPlayer) Next(context.Context) error                { return nil }
+func (f *fakeModesPlayer) Previous(context.Context) error            { return nil }
+func (f *fakeModesPlayer) Seek(context.Context, time.Duration) error { return nil }
+func (f *fakeModesPlayer) PlayItem(_ context.Context, id string) error {
+	f.played = append(f.played, id)
+	return f.playErr
+}
 func (f *fakeModesPlayer) SetShuffle(_ context.Context, on bool) error { f.shuffle = on; return nil }
 func (f *fakeModesPlayer) SetRepeat(_ context.Context, m player.RepeatMode) error {
 	f.repeat = m
@@ -68,8 +74,46 @@ func TestHistoryListsThePile(t *testing.T) {
 	h := history.NewStore(t.TempDir() + "/h.json")
 	h.Playing(history.Entry{Source: "applemusic", TrackID: "1"})
 	h.Playing(history.Entry{Source: "applemusic", TrackID: "2"})
-	s.SetHistory(h)
+	s.SetHistory(h, nil)
 	if l := s.History(); len(l) != 1 || l[0].TrackID != "1" {
 		t.Errorf("pile = %v", l)
+	}
+}
+
+// Clic sur un ancien titre de la pile : il est relancé (identifiant « track: » pour Musique) et les
+// disques posés au-dessus sont retirés ; la pile mise à jour est diffusée.
+func TestPlayFromHistory(t *testing.T) {
+	p := &fakeModesPlayer{}
+	s := serviceWith(p)
+	h := history.NewStore(t.TempDir() + "/h.json")
+	for _, id := range []string{"1", "2", "3", "4"} {
+		h.Playing(history.Entry{Source: "applemusic", TrackID: id})
+	} // pile 321
+	var sent []history.Entry
+	s.SetHistory(h, func(l []history.Entry) { sent = l })
+	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.played) != 1 || p.played[0] != "track:2" {
+		t.Errorf("lancé : %v", p.played)
+	}
+	if l := s.History(); len(l) != 1 || l[0].TrackID != "1" || len(sent) != 1 {
+		t.Errorf("pile = %v, diffusée = %v", l, sent)
+	}
+}
+
+func TestPlayFromHistoryFailureKeepsThePile(t *testing.T) {
+	p := &fakeModesPlayer{playErr: errors.New("Musique ne répond pas")}
+	s := serviceWith(p)
+	h := history.NewStore(t.TempDir() + "/h.json")
+	for _, id := range []string{"1", "2", "3"} {
+		h.Playing(history.Entry{Source: "applemusic", TrackID: id})
+	}
+	s.SetHistory(h, nil)
+	if err := s.PlayFromHistory("applemusic", "1"); err == nil {
+		t.Fatal("erreur attendue")
+	}
+	if l := s.History(); len(l) != 2 {
+		t.Errorf("pile remise comme avant : %v", l)
 	}
 }

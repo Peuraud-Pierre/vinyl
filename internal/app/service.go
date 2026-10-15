@@ -32,6 +32,7 @@ type VinylService struct {
 	widget      *widgetupdate.Manager
 	stats       *stats.Store
 	history     *history.Store
+	onHistory   func([]history.Entry) // diffusion de la pile au frontend
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
@@ -231,8 +232,31 @@ func (s *VinylService) UpdateWidget() error {
 
 func (s *VinylService) SetStats(st *stats.Store) { s.stats = st }
 
-// SetHistory branche la pile des derniers morceaux écoutés.
-func (s *VinylService) SetHistory(h *history.Store) { s.history = h }
+// SetHistory branche la pile des derniers morceaux écoutés et sa diffusion (notify peut être nil).
+func (s *VinylService) SetHistory(h *history.Store, notify func([]history.Entry)) {
+	s.history, s.onHistory = h, notify
+}
+
+// PlayFromHistory relance un morceau de la pile ; les disques posés au-dessus sont retirés.
+// Si la lecture échoue, la pile est remise comme avant.
+func (s *VinylService) PlayFromHistory(source, trackID string) error {
+	if s.history == nil {
+		return errors.New("historique indisponible")
+	}
+	undo := s.history.TakeFrom(source, trackID)
+	id := trackID
+	if source == "applemusic" {
+		id = "track:" + trackID // Musique attend un identifiant typé
+	}
+	err := s.PlayItem(source, id)
+	if err != nil {
+		undo()
+	}
+	if s.onHistory != nil {
+		s.onHistory(s.history.List())
+	}
+	return err
+}
 
 // History renvoie les derniers morceaux écoutés (le plus récent en premier), pour la pile de la platine.
 func (s *VinylService) History() []history.Entry {

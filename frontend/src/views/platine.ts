@@ -83,8 +83,8 @@ export function mount(el: HTMLElement): () => void {
   });
   let deckTrack = "";
 
-  // Pile des derniers morceaux écoutés : un clic relance le morceau.
-  recent = mountRecentPile($("pl-recent"), { play: (e) => { api.PlayItem(e.source, e.trackId).catch(() => {}); } });
+  // Pile des derniers morceaux écoutés : un clic relance le morceau et retire ceux posés au-dessus.
+  recent = mountRecentPile($("pl-recent"), { play: (e) => { api.PlayFromHistory(e.source, e.trackId).catch(() => {}); } });
   const offHistory = onHistory((l) => recent?.update(l));
   api.History().then((l) => recent?.update(l ?? [])).catch(() => {});
   fit();

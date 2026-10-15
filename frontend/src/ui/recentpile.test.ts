@@ -92,3 +92,16 @@ test("côtés des disques assombris par la couleur, sans filtre (un filtre aplat
   expect(side.style.background).toContain("color-mix");
   expect(side.style.filter).toBe("");
 });
+
+test("toute la pochette est cliquable : tranche, côté et pochette posée dessus (un seul lancement)", () => {
+  const root = document.createElement("div");
+  const play = vi.fn();
+  mountRecentPile(root, { play }).update(["2", "1"].map(e));
+  const d = disc(root.querySelector<HTMLElement>('[data-track="1"]')!);
+  for (const part of [".vy-recent", ".vy-recent-side", ".vy-recent-lid"]) {
+    play.mockClear();
+    d.querySelector<HTMLElement>(part)!.click();
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(play).toHaveBeenCalledWith(e("1"));
+  }
+});

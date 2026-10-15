@@ -87,3 +87,44 @@ func TestEmptyTrackIDIgnored(t *testing.T) {
 		t.Error("flux sans identifiant : ignoré")
 	}
 }
+
+// Reprendre un ancien disque : ceux posés au-dessus sont retirés, il devient le morceau en cours
+// (le morceau qui jouait n'est pas reposé sur la pile).
+func TestTakeFromRemovesTheOnesAbove(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "h.json")
+	s := NewStore(path)
+	for _, id := range []string{"1", "2", "3", "4", "5"} {
+		s.Playing(e(id))
+	} // pile 4321, en cours 5
+	s.TakeFrom("applemusic", "2")
+	if got := ids(s.List()); got != "1" {
+		t.Fatalf("pile = %q, attendu les disques sous 2", got)
+	}
+	if _, changed := s.Playing(e("2")); changed {
+		t.Error("2 est le morceau en cours : quand il démarre, rien n'est reposé")
+	}
+	r := NewStore(path)
+	r.Load()
+	if ids(r.List()) != "1" {
+		t.Errorf("enregistré : %q", ids(r.List()))
+	}
+}
+
+func TestTakeFromUndo(t *testing.T) {
+	s := NewStore(filepath.Join(t.TempDir(), "h.json"))
+	for _, id := range []string{"1", "2", "3"} {
+		s.Playing(e(id))
+	}
+	undo := s.TakeFrom("applemusic", "1")
+	undo() // lecture impossible : pile remise comme avant
+	if got := ids(s.List()); got != "21" {
+		t.Errorf("pile = %q", got)
+	}
+	if _, changed := s.Playing(e("3")); changed {
+		t.Error("le morceau en cours est aussi rétabli")
+	}
+	s.TakeFrom("applemusic", "absent")() // inconnu : rien ne change
+	if got := ids(s.List()); got != "21" {
+		t.Errorf("pile = %q", got)
+	}
+}
