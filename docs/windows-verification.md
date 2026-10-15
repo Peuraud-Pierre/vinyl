@@ -15,3 +15,16 @@ Avec **Spotify** (app de bureau ou du Microsoft Store), puis avec **Apple Music 
 8. Fermer l'app : pas d'erreur ; désinstaller depuis Paramètres → Applications : Vinyl disparaît.
 
 Pour chaque point qui échoue : noter ce qui s'affiche, et joindre une capture d'écran.
+
+## Mises à jour (Mac et Windows)
+
+1. Installer à la main la release `vA` (la première qui contient les mises à jour) : `Vinyl-darwin-arm64.zip`
+   sur Mac, `Vinyl-Setup.exe` sur Windows (installée dans `%LOCALAPPDATA%\Programs\Vinyl`, sans droits
+   d'administrateur ; désinstaller d'abord une ancienne version 1.0.x).
+2. Réglages : la section Version affiche « Vinyl A ».
+3. Publier `vB` (`./release.sh`) ; relancer Vinyl : le bandeau « Vinyl B est disponible » apparaît en haut.
+4. « Mettre à jour » : « Téléchargement… N % », puis Vinyl se ferme et se relance ; Réglages affiche « Vinyl B ».
+5. Publier une bêta `vC-beta.1` : sans code, « Rechercher une mise à jour » répond « Vinyl est à jour ».
+   Coller un code (`./beta-code.sh "Prénom"`) dans Réglages > Contributeur : « Bêtas activées pour Prénom »,
+   et la bêta est proposée. « Retirer » : elle ne l'est plus.
+6. Couper le réseau et relancer : aucun message, l'app démarre normalement.
