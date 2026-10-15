@@ -1,5 +1,5 @@
-// Touches de platine (façon touches de vitesse 33/45 en aluminium brossé) : titre précédent,
-// lecture aléatoire avec témoin orange, titre suivant.
+// Touches de platine (façon touche Start/Stop Technics, noir mat) : titre précédent,
+// lecture aléatoire avec témoin rouge, titre suivant.
 import { icons } from "./icons";
 
 export interface DeckDeps {

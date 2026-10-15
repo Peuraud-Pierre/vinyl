@@ -16,7 +16,7 @@ export function mount(el: HTMLElement): () => void {
       <h1 id="pl-title" class="sr-only"></h1>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
-          <div id="pl-deck" class="absolute" style="left:136px;top:604px"></div>
+          <div id="pl-deck" class="absolute" style="left:156px;top:604px"></div>
         </div>
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
