@@ -12,7 +12,6 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"vinyl/internal/app"
-	"vinyl/internal/apps"
 	"vinyl/internal/auth"
 	"vinyl/internal/catalog"
 	"vinyl/internal/fluid"
@@ -51,9 +50,8 @@ func main() {
 	}
 	artworkDir := filepath.Join(cacheDir, "Vinyl", "artwork")
 
-	player.IsRunning = apps.Running // une app non lancée n'est pas interrogée (pas d'osascript)
-	runner := player.OSAScript{}
-	players := []player.Player{player.NewAppleMusic(runner, artworkDir), player.NewSpotify(runner)}
+	plat := newPlatform(artworkDir) // lecteurs et bibliothèque propres au système
+	players := plat.players
 
 	var wailsApp *application.App
 	var observe func(player.Snapshot) // réécoute depuis la pile : reprise de la playlist à la fin du morceau
@@ -64,8 +62,7 @@ func main() {
 			observe(s) // changements d'état (arrêt, morceau suivant…)
 		},
 		time.Now)
-	music := catalog.NewMusicLibrary(runner, catalog.NewITunes(), artworkDir)
-	service := app.New(store, watcher, music)
+	service := app.New(store, watcher, plat.music)
 	spAuth := auth.NewSpotifyAuth(func() string { return store.Get().SpotifyClientID }, auth.KeychainStore{})
 	service.SetSpotifyAuth(spAuth)
 	service.SetCatalog("spotify", catalog.NewSpotifyWeb(spAuth.AccessToken))
@@ -112,20 +109,10 @@ func main() {
 	})
 
 	cfg := store.Get()
-	widgetDir := cfg.WidgetProjectDir
-	if widgetDir == "" {
-		widgetDir = projectDir
+	widgetMgr := newWidgetManager(cfg, cacheDir, settingsPath, func(s widgetupdate.Status) { wailsApp.Event.Emit("widgetupdate", s) })
+	if widgetMgr != nil { // widget de bureau : Mac seulement
+		service.SetWidgetUpdates(widgetMgr)
 	}
-	widgetMgr := widgetupdate.NewManager(&widgetupdate.Updater{
-		ProjectDir:    widgetDir,
-		AppPath:       "/Applications/Vinyl Widget.app",
-		BuildDir:      filepath.Join(cacheDir, "Vinyl", "widget-build"),
-		RecordPath:    filepath.Join(filepath.Dir(settingsPath), "widget-install.json"),
-		XcodeGenPaths: []string{"/opt/homebrew/bin/xcodegen", "/usr/local/bin/xcodegen"},
-		Run:           widgetupdate.ExecRunner{},
-		Now:           time.Now,
-	}, func(s widgetupdate.Status) { wailsApp.Event.Emit("widgetupdate", s) })
-	service.SetWidgetUpdates(widgetMgr)
 	widgetOpts := application.WebviewWindowOptions{
 		Name:           "widget",
 		Title:          "Vinyl",
@@ -210,7 +197,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go watcher.RunAdaptive(ctx, service.PollInterval)
-	go widgetMgr.Run(ctx, 6*time.Hour)
+	if widgetMgr != nil {
+		go widgetMgr.Run(ctx, 6*time.Hour)
+	}
 
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)

@@ -41,8 +41,11 @@ type VinylService struct {
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
-	return &VinylService{store: store, watcher: watcher, music: music,
-		catalogs: map[string]catalog.Catalog{"applemusic": music}}
+	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}}
+	if music != nil { // bibliothèque Apple Music : Mac seulement
+		s.catalogs["applemusic"] = music
+	}
+	return s
 }
 
 // SetCatalog enregistre le catalogue d'une source (utilisé pour Spotify).
@@ -164,7 +167,7 @@ func (s *VinylService) Artist(source, name, trackID string) (catalog.ArtistPage,
 
 // ItemArtwork renvoie la pochette d'un élément de la bibliothèque Musique (chargée à la demande).
 func (s *VinylService) ItemArtwork(source, id string) (string, error) {
-	if source != "applemusic" {
+	if source != "applemusic" || s.music == nil {
 		return "", nil
 	}
 	// Délai large : la demande peut attendre son tour (2 exports à la fois).
