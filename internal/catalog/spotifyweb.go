@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -105,9 +106,22 @@ func (c *SpotifyWeb) get(ctx context.Context, path string, q url.Values, out any
 	case resp.StatusCode == 401:
 		return fmt.Errorf("session Spotify expirée, reconnecte-toi")
 	case resp.StatusCode != 200:
-		return fmt.Errorf("spotify: HTTP %d", resp.StatusCode)
+		return spotifyError(resp)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// spotifyError garde l'explication envoyée par Spotify avec l'erreur (ex. compte non inscrit dans l'app).
+func spotifyError(resp *http.Response) error {
+	var body struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body) == nil && body.Error.Message != "" {
+		return fmt.Errorf("spotify: HTTP %d : %s", resp.StatusCode, body.Error.Message)
+	}
+	return fmt.Errorf("spotify: HTTP %d", resp.StatusCode)
 }
 
 func nextOffset(next *string, offset int) int {

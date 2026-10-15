@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -150,5 +151,17 @@ func TestShelfImagePicksTheLightestLargeEnough(t *testing.T) {
 	}
 	if shelfImage(nil) != "" {
 		t.Error("aucune image → vide")
+	}
+}
+
+// 403 : Spotify explique la raison (compte non inscrit dans l'app, etc.) ; elle doit rester lisible.
+func TestSpotifyForbiddenShowsReason(t *testing.T) {
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(403)
+		w.Write([]byte(`{"error":{"status":403,"message":"User not registered in the Developer Dashboard"}}`))
+	})
+	_, err := c.Library(context.Background(), "playlists", 0)
+	if err == nil || !strings.Contains(err.Error(), "User not registered in the Developer Dashboard") {
+		t.Errorf("got %v", err)
 	}
 }
