@@ -43,14 +43,19 @@ export function mount(el: HTMLElement): () => void {
     const connected = await api.SpotifyStatus();
     section.innerHTML = `
       <h2>Spotify</h2>
-      <p class="text-[14px] leading-relaxed" style="color:rgba(42,29,27,.8)">Crée une app gratuite sur developer.spotify.com/dashboard, ajoute l'URI de redirection
-        <code class="rounded-md px-1.5" style="background:rgba(255,255,255,.55)">http://127.0.0.1:43821/callback</code>, puis colle son Client ID ici.</p>
-      <div class="flex gap-2.5">
-        <label for="cid" class="sr-only">Client ID Spotify</label>
-        <input id="cid" class="field flex-1" placeholder="Client ID" value="${escapeAttr(cur.spotifyClientId)}">
-        <button id="sp-btn" class="btn-dark cursor-pointer">${connected ? "Se déconnecter" : "Se connecter"}</button>
+      <p class="text-[14px] leading-relaxed" style="color:rgba(42,29,27,.8)">La platine pilote Spotify sans connexion.
+        Connecte ton compte pour retrouver ta bibliothèque (albums, playlists, titres likés) : Spotify te demandera d'autoriser Vinyl.</p>
+      <div class="flex items-center gap-3">
+        <button id="sp-btn" class="btn-dark cursor-pointer">${connected ? "Se déconnecter" : "Se connecter à Spotify"}</button>
+        <p id="sp-msg" class="text-[14px]" style="color:rgba(42,29,27,.8)">${connected ? "Connecté." : ""}</p>
       </div>
-      <p id="sp-msg" class="text-[14px]" style="color:rgba(42,29,27,.8)">${connected ? "Connecté." : ""}</p>`;
+      <details class="text-[14px]" style="color:rgba(42,29,27,.8)" ${cur.spotifyClientId ? "open" : ""}>
+        <summary class="cursor-pointer">Avancé : utiliser ma propre app Spotify</summary>
+        <p class="mt-2 leading-relaxed">Facultatif. Crée une app sur developer.spotify.com/dashboard avec l'URI de redirection
+          <code class="rounded-md px-1.5" style="background:rgba(255,255,255,.55)">http://127.0.0.1:43821/callback</code>, puis colle son Client ID. Vide : l'app Vinyl est utilisée.</p>
+        <label for="cid" class="sr-only">Client ID Spotify personnel</label>
+        <input id="cid" class="field mt-2 w-full" placeholder="Client ID (facultatif)" value="${escapeAttr(cur.spotifyClientId)}">
+      </details>`;
     const cid = section.querySelector<HTMLInputElement>("#cid")!;
     const msg = section.querySelector<HTMLElement>("#sp-msg")!;
     const saveClientID = async () => {

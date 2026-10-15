@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -78,10 +79,34 @@ func TestRefreshRejectedLogsOut(t *testing.T) {
 	}
 }
 
-func TestLoginRequiresClientID(t *testing.T) {
+// Sans Client ID personnel, la connexion utilise celui de Vinyl : l'utilisateur n'a rien à créer.
+func TestLoginUsesVinylClientIDByDefault(t *testing.T) {
 	a := NewSpotifyAuth(func() string { return "" }, &memStore{})
-	if err := a.Login(context.Background()); err == nil {
-		t.Error("Client ID vide → erreur attendue")
+	var opened string
+	a.OpenBrowser = func(u string) error { opened = u; return errors.New("stop") }
+	a.Login(context.Background())
+	if !strings.Contains(opened, "client_id="+DefaultClientID) {
+		t.Errorf("page d'autorisation : %q", opened)
+	}
+}
+
+// Le rafraîchissement du jeton utilise le même Client ID que la connexion (sinon déconnexion au bout d'une heure).
+func TestRefreshUsesVinylClientIDByDefault(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if r.Form.Get("client_id") != DefaultClientID {
+			http.Error(w, "bad", 400)
+			return
+		}
+		w.Write([]byte(`{"access_token":"B","expires_in":3600}`))
+	}))
+	defer srv.Close()
+	now := time.Unix(1000, 0)
+	st := &memStore{tok: Token{AccessToken: "A", RefreshToken: "R", Expiry: now.Add(-time.Minute)}, has: true}
+	a := NewSpotifyAuth(func() string { return "" }, st)
+	a.Now, a.TokenURL, a.HTTP = func() time.Time { return now }, srv.URL, srv.Client()
+	if tok, err := a.AccessToken(context.Background()); err != nil || tok != "B" {
+		t.Errorf("got %q %v", tok, err)
 	}
 }
 
@@ -131,5 +156,15 @@ func TestRefreshServerErrorKeepsToken(t *testing.T) {
 		if !st.has {
 			t.Errorf("HTTP %d : le jeton ne doit pas être effacé", code)
 		}
+	}
+}
+
+// Plus rien à créer chez Spotify : le Client ID de Vinyl est utilisé, sauf si l'utilisateur en a mis un.
+func TestEffectiveClientID(t *testing.T) {
+	if got := EffectiveClientID(""); got != DefaultClientID || len(got) != 32 {
+		t.Errorf("par défaut : %q", got)
+	}
+	if got := EffectiveClientID("  perso  "); got != "perso" {
+		t.Errorf("personnel : %q", got)
 	}
 }

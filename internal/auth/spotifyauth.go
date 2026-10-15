@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +21,18 @@ const (
 )
 
 var ErrNotLoggedIn = errors.New("Spotify non connecté")
+
+// DefaultClientID : l'app Vinyl enregistrée chez Spotify. Public par nature (connexion PKCE, sans
+// secret) : l'utilisateur n'a rien à créer, il accepte juste l'accès dans la page Spotify.
+const DefaultClientID = "9a0e3508a94e44658407da3a3cb7b59d"
+
+// EffectiveClientID : le Client ID personnel s'il y en a un (Réglages > Avancé), sinon celui de Vinyl.
+func EffectiveClientID(custom string) string {
+	if c := strings.TrimSpace(custom); c != "" {
+		return c
+	}
+	return DefaultClientID
+}
 
 // tokenHTTPError est une réponse non 200 du serveur de jetons Spotify.
 type tokenHTTPError struct{ status int }
@@ -85,7 +96,7 @@ func NewSpotifyAuth(clientID func() string, store TokenStore) *SpotifyAuth {
 		TokenURL:    "https://accounts.spotify.com/api/token",
 		HTTP:        &http.Client{Timeout: 10 * time.Second},
 		Now:         time.Now,
-		OpenBrowser: func(u string) error { return exec.Command("open", u).Run() },
+		OpenBrowser: openBrowser, // propre à chaque système (openbrowser_*.go)
 	}
 }
 
@@ -98,10 +109,7 @@ func (a *SpotifyAuth) Logout() error { return a.Store.Delete() }
 
 // Login ouvre la page d'autorisation Spotify et attend le retour sur RedirectURI (OAuth PKCE).
 func (a *SpotifyAuth) Login(ctx context.Context) error {
-	clientID := strings.TrimSpace(a.ClientID())
-	if clientID == "" {
-		return errors.New("renseigne d'abord ton Client ID Spotify dans Réglages")
-	}
+	clientID := EffectiveClientID(a.ClientID())
 	verifier, err := NewVerifier()
 	if err != nil {
 		return err
@@ -214,7 +222,7 @@ func (a *SpotifyAuth) AccessToken(ctx context.Context) (string, error) {
 		return tok.AccessToken, nil
 	}
 	fresh, err := a.exchange(ctx, url.Values{
-		"grant_type": {"refresh_token"}, "refresh_token": {tok.RefreshToken}, "client_id": {a.ClientID()},
+		"grant_type": {"refresh_token"}, "refresh_token": {tok.RefreshToken}, "client_id": {EffectiveClientID(a.ClientID())},
 	}, tok.RefreshToken)
 	if err != nil {
 		// Seul un refus explicite (400/401 : refresh token révoqué ou invalide) déconnecte.
