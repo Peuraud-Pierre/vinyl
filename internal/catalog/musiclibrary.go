@@ -195,7 +195,9 @@ func (m *MusicLibrary) Artwork(ctx context.Context, id string) (string, error) {
 	kind, rest, _ := strings.Cut(id, ":")
 	key := "item:" + id
 	if kind == "playlist" {
-		key = "mosaic:" + id // nouvelle image (mosaïque) : l'ancienne, pochette du 1er titre, est ignorée
+		// Image façon Musique (mosaïque, étoile de « Favourite Songs ») ; clé versionnée pour ne pas
+		// reprendre les images déjà en cache des versions précédentes.
+		key = "playlist-art-v2:" + id
 	}
 	file := player.ArtworkFileName(key)
 	path := filepath.Join(m.artworkDir, file)

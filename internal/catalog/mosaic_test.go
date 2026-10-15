@@ -167,3 +167,47 @@ func TestPlaylistWithoutAnyCover(t *testing.T) {
 		t.Errorf("absence mémorisée attendue : %d appels", r.calls)
 	}
 }
+
+// « Favourite Songs » : comme dans Musique, une étoile blanche sur un dégradé rose-rouge.
+type favRunner struct{ calls int }
+
+func (r *favRunner) Run(context.Context, string, ...string) (string, error) {
+	r.calls++
+	return "FAV", nil
+}
+
+func TestFavouriteSongsGetsTheStar(t *testing.T) {
+	dir := t.TempDir()
+	r := &favRunner{}
+	m := NewMusicLibrary(r, nil, dir)
+	u, err := m.Artwork(context.Background(), "playlist:F")
+	if err != nil || u == "" {
+		t.Fatalf("url=%q err=%v", u, err)
+	}
+	img := decodeFile(t, filepath.Join(dir, strings.TrimPrefix(u, "/artwork/")))
+	s := img.Bounds().Dx()
+	if s != 2*mosaicTile || img.Bounds().Dy() != s {
+		t.Fatalf("taille %v", img.Bounds())
+	}
+	white := color.RGBA{255, 255, 255, 255}
+	if c := img.At(s/2, s/2); !near(c, white) {
+		t.Errorf("centre (étoile) : %v, attendu blanc", c)
+	}
+	for _, p := range []image.Point{{8, 8}, {s - 8, s - 8}} {
+		r8, g8, b8, _ := img.At(p.X, p.Y).RGBA()
+		if !(r8>>8 > 200 && g8>>8 < 120 && b8>>8 < 150) {
+			t.Errorf("coin %v : %v, attendu rose-rouge", p, img.At(p.X, p.Y))
+		}
+	}
+}
+
+func TestPlaylistScriptRecognisesFavouriteSongs(t *testing.T) {
+	for _, name := range []string{"Favourite Songs", "Favorite Songs", "Morceaux favoris"} {
+		if !strings.Contains(playlistArtworkScript, `"`+name+`"`) {
+			t.Errorf("nom %q non reconnu", name)
+		}
+	}
+	if !strings.Contains(playlistArtworkScript, "smart of p") {
+		t.Error("seule une playlist intelligente doit être prise pour « Favourite Songs »")
+	}
+}

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"image/jpeg"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -18,12 +20,18 @@ const mosaicTile = 300
 
 // argv : persistent ID de la playlist, préfixe des fichiers. Comme Musique pour une playlist sans
 // image propre : pochettes des quatre premiers albums différents, dans l'ordre de la playlist.
-// Écrit <préfixe>1.img … <préfixe>4.img et renvoie leur nombre.
+// Écrit <préfixe>1.img … <préfixe>4.img et renvoie leur nombre ; « FAV » pour « Favourite Songs »
+// (playlist intelligente de Musique, reconnue à son nom), qui a son image à elle : l'étoile.
 const playlistArtworkScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
 	set found to 0
 	tell application id "com.apple.Music"
 		set p to (first playlist whose persistent ID is (item 1 of argv))
+		set fav to false
+		try -- les playlists abonnées n'ont pas de propriété « smart »
+			if smart of p and ({"Favourite Songs", "Favorite Songs", "Morceaux favoris", "Titres favoris", "Lieblingssongs", "Canciones favoritas", "Brani preferiti"} contains (name of p)) then set fav to true
+		end try
+		if fav then return "FAV"
 		set ts to a reference to (every track of p)
 		set n to count of ts
 		if n is 0 then return "0"
@@ -64,8 +72,11 @@ func (m *MusicLibrary) playlistArtwork(ctx context.Context, id, path string) (bo
 	if err != nil {
 		return false, err
 	}
-	if out == "NOTRUNNING" {
+	switch out {
+	case "NOTRUNNING":
 		return false, player.ErrNotRunning
+	case "FAV":
+		return true, writeJPEG(favouriteStar(2*mosaicTile), path)
 	}
 	n, err := strconv.Atoi(strings.TrimSpace(out))
 	if err != nil {
@@ -102,12 +113,16 @@ func (m *MusicLibrary) mosaic(srcs []string, path string) error {
 		at := image.Pt((i%2)*mosaicTile, (i/2)*mosaicTile)
 		draw.Draw(out, image.Rectangle{Min: at, Max: at.Add(image.Pt(mosaicTile, mosaicTile))}, img, img.Bounds().Min, draw.Src)
 	}
+	return writeJPEG(out, path)
+}
+
+func writeJPEG(img image.Image, path string) error {
 	tmp := path + ".tmp"
 	f, err := os.Create(tmp)
 	if err != nil {
 		return err
 	}
-	if err := jpeg.Encode(f, out, &jpeg.Options{Quality: 90}); err != nil {
+	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: 90}); err != nil {
 		f.Close()
 		os.Remove(tmp)
 		return err
@@ -126,4 +141,57 @@ func decodeImage(path string) (image.Image, error) {
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	return img, err
+}
+
+// favouriteStar dessine l'image de « Favourite Songs » dans Musique : étoile blanche au centre d'un
+// dégradé rose-rouge (haut gauche → bas droite). Bords lissés par suréchantillonnage 4 × 4.
+func favouriteStar(size int) image.Image {
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
+	from, to := [3]float64{255, 94, 122}, [3]float64{247, 33, 60}
+	cx, cy := float64(size)/2, float64(size)/2
+	outer := 0.30 * float64(size)
+	inner := outer * 0.42
+	var star [10][2]float64
+	for i := range star {
+		r := outer
+		if i%2 == 1 {
+			r = inner
+		}
+		a := -math.Pi/2 + float64(i)*math.Pi/5
+		star[i] = [2]float64{cx + r*math.Cos(a), cy + r*math.Sin(a)}
+	}
+	inside := func(x, y float64) bool {
+		in := false
+		for i, j := 0, len(star)-1; i < len(star); j, i = i, i+1 {
+			xi, yi, xj, yj := star[i][0], star[i][1], star[j][0], star[j][1]
+			if (yi > y) != (yj > y) && x < (xj-xi)*(y-yi)/(yj-yi)+xi {
+				in = !in
+			}
+		}
+		return in
+	}
+	const ss = 4
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			t := float64(x+y) / float64(2*(size-1))
+			cover := 0.0
+			if math.Abs(float64(x)-cx) <= outer+1 && math.Abs(float64(y)-cy) <= outer+1 {
+				for sy := 0; sy < ss; sy++ {
+					for sx := 0; sx < ss; sx++ {
+						if inside(float64(x)+(float64(sx)+0.5)/ss, float64(y)+(float64(sy)+0.5)/ss) {
+							cover++
+						}
+					}
+				}
+				cover /= ss * ss
+			}
+			var c [3]uint8
+			for k := range c {
+				bg := from[k] + (to[k]-from[k])*t
+				c[k] = uint8(bg + (255-bg)*cover + 0.5)
+			}
+			img.SetRGBA(x, y, color.RGBA{c[0], c[1], c[2], 255})
+		}
+	}
+	return img
 }
