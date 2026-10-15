@@ -5,6 +5,14 @@
 // @ts-ignore: Unused imports
 import * as player$0 from "../player/models.js";
 
+/**
+ * ModesState : aléatoire et répétition du lecteur actif (boutons de la platine).
+ */
+export interface ModesState {
+    "shuffle": boolean;
+    "repeat": string;
+}
+
 export interface QueueState {
     "shuffle": boolean;
     "repeat": string;

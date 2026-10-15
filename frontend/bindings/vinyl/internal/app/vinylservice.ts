@@ -51,6 +51,13 @@ export function Library(source: string, kind: string, offset: number): $Cancella
     return $Call.ByID(1851563471, source, kind, offset);
 }
 
+/**
+ * Modes renvoie l'aléatoire et la répétition, sans charger la file d'attente (rapide).
+ */
+export function Modes(): $CancellablePromise<$models.ModesState> {
+    return $Call.ByID(1050456508);
+}
+
 export function Next(): $CancellablePromise<void> {
     return $Call.ByID(653202973);
 }

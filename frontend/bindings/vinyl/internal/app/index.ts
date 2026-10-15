@@ -7,5 +7,6 @@ export {
 };
 
 export type {
+    ModesState,
     QueueState
 } from "./models.js";

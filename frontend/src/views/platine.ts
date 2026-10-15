@@ -2,6 +2,7 @@ import { api, onSettings, onSnapshot, onStats, type Snapshot, type StatsSnapshot
 import { go } from "../router";
 import { openShareCard } from "../share/sharecard";
 import { STAGE_H, STAGE_W, Turntable } from "../turntable/turntable";
+import { mountDeck } from "../ui/deck";
 import { icons } from "../ui/icons";
 import { mountOdometer } from "../ui/odometer";
 
@@ -14,7 +15,9 @@ export function mount(el: HTMLElement): () => void {
     <section class="relative h-screen">
       <h1 id="pl-title" class="sr-only"></h1>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
-        <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div></div>
+        <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
+          <div id="pl-deck" class="absolute" style="left:136px;top:604px"></div>
+        </div>
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
       <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
@@ -58,8 +61,20 @@ export function mount(el: HTMLElement): () => void {
   const ro = new ResizeObserver(fit);
   ro.observe($("pl-wrap"));
 
+  // Touches sous la pochette : précédent, aléatoire, suivant (comme sur une platine).
+  const deck = mountDeck($("pl-deck"), {
+    previous: () => api.Previous(), next: () => api.Next(),
+    setShuffle: (on) => api.SetShuffle(on), modes: () => api.Modes(),
+  });
+  let deckTrack = "";
+  const onFocus = () => { if (!snap?.problem) deck.refresh(); };
+  window.addEventListener("focus", onFocus);
+
   const render = (s: Snapshot) => {
     snap = s;
+    deck.setEnabled(!s.problem);
+    // Aléatoire relu à chaque changement de morceau (il a pu être réglé dans Musique ou Spotify).
+    if (!s.problem && s.nowPlaying.trackId !== deckTrack) { deckTrack = s.nowPlaying.trackId; deck.refresh(); }
     tt.update(s);
     $("pl-mini").style.backgroundImage = s.nowPlaying.artworkUrl ? `url("${s.nowPlaying.artworkUrl.replace(/["\\]/g, "\\$&")}")` : "";
     $("pl-title").textContent = s.problem ? "Vinyl" : `${s.nowPlaying.title} — ${s.nowPlaying.artist}`;
@@ -89,6 +104,7 @@ export function mount(el: HTMLElement): () => void {
   return () => {
     offStats();
     offSnap();
+    window.removeEventListener("focus", onFocus);
     offSet();
     ro.disconnect();
     tt.destroy();

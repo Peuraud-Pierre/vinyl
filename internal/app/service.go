@@ -292,6 +292,27 @@ func (s *VinylService) modes() (player.Modes, error) {
 	return m, nil
 }
 
+// ModesState : aléatoire et répétition du lecteur actif (boutons de la platine).
+type ModesState struct {
+	Shuffle bool   `json:"shuffle"`
+	Repeat  string `json:"repeat"`
+}
+
+// Modes renvoie l'aléatoire et la répétition, sans charger la file d'attente (rapide).
+func (s *VinylService) Modes() (ModesState, error) {
+	m, err := s.modes()
+	if err != nil {
+		return ModesState{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+	defer cancel()
+	sh, rep, err := m.PlaybackModes(ctx)
+	if err != nil {
+		return ModesState{}, err
+	}
+	return ModesState{Shuffle: sh, Repeat: string(rep)}, nil
+}
+
 // Queue renvoie l'aléatoire, la répétition et les titres à venir du lecteur actif.
 func (s *VinylService) Queue() (QueueState, error) {
 	m, err := s.modes()
