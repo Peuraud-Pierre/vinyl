@@ -124,20 +124,18 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-key:disabled { opacity: .5; cursor: default; }
 .vy-led { position: absolute; top: 16px; left: 9px; width: 6px; height: 6px; border-radius: 50%; background: #4a1412; box-shadow: inset 0 1px 1px rgba(0,0,0,.6); transition: background .2s, box-shadow .2s; }
 .vy-key[aria-pressed="true"] .vy-led { background: #ff3b30; box-shadow: 0 0 6px 2px rgba(255,59,48,.75), inset 0 -1px 1px rgba(0,0,0,.25); }
-/* Pile des derniers écoutés (à droite du disque) : pochettes couchées vues de face, tranches du bas
-   vers le haut ; la pochette du dessus est posée à plat (vue en perspective). */
-.vy-recent { position: absolute; left: 0; bottom: 0; width: 500px; height: 20px; display: flex; align-items: center; gap: 10px; padding: 0 20px; border: 0; border-radius: 2px; cursor: pointer;
+/* Pile des derniers écoutés (à droite du disque) : disques couchés vus un peu d'en haut. Chaque face
+   (tranche, côté, pochette) reçoit sa matrice de projection calculée (ui/pile3d.ts) : pas de preserve-3d,
+   qui s'aplatissait dans WebKit. Toutes les faces partent du coin haut gauche de la pile. */
+.vy-recent-3d { position: absolute; left: 0; top: 0; width: 500px; height: 460px; transform-origin: 0 0; }
+.vy-recent-disc { position: absolute; inset: 0; pointer-events: none; }
+.vy-recent, .vy-recent-side, .vy-recent-lid { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: auto; cursor: pointer; }
+.vy-recent { width: 500px; height: 20px; display: flex; align-items: center; gap: 10px; padding: 0 18px; border: 0; border-radius: 2px;
   font-size: 13px; line-height: 1; white-space: nowrap; overflow: hidden; text-align: left;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -2px 3px rgba(0,0,0,.28), 0 1px 0 rgba(0,0,0,.35), 0 6px 12px rgba(20,8,6,.25); }
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -2px 3px rgba(0,0,0,.28); }
 .vy-recent b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
 .vy-recent span { opacity: .75; overflow: hidden; text-overflow: ellipsis; }
 .vy-recent:hover { filter: brightness(1.12); }
-.vy-recent-lid { position: absolute; left: 0; bottom: 20px; width: 500px; height: 500px; border: 0; padding: 0; border-radius: 3px; cursor: pointer; background: #2a2220 center / cover;
-  transform-origin: 50% 100%; transform: rotateX(90deg); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.vy-recent-side { width: 500px; height: 20px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 2px rgba(0,0,0,.35); }
+.vy-recent-lid { width: 500px; height: 500px; border: 0; padding: 0; border-radius: 3px; background: #2a2220 center / cover; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
 .vy-recent-lid:hover { filter: brightness(1.08); }
-/* Scène 3D de la pile : vue un peu d'en haut ; la pile pivote autour de son centre. */
-.vy-recent-scene { perspective-origin: 40% -15%; }
-.vy-recent-3d { position: absolute; left: 0; top: 0; width: 500px; height: 460px; transform-style: preserve-3d; transform-origin: 0 0; }
-.vy-recent-disc { position: absolute; left: 0; width: 500px; height: 20px; transform-style: preserve-3d; transform-origin: 250px 50% -250px; cursor: pointer; }
-.vy-recent-side { position: absolute; left: 500px; bottom: 0; width: 500px; height: 20px; transform-origin: 0 50%; transform: rotateY(90deg);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 2px rgba(0,0,0,.35); }

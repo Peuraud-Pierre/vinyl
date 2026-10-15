@@ -4,9 +4,9 @@ import { mountRecentPile, PILE_TURN } from "./recentpile";
 
 const e = (id: string): HistoryEntry => ({ source: "applemusic", trackId: id, title: "Titre " + id, artist: "Artiste", album: "", artworkUrl: "/artwork/" + id });
 
-// Chaque disque est un petit volume (.vy-recent-disc) : sa hauteur dans la pile est portée par lui.
+// Chaque disque est un groupe (.vy-recent-disc) de faces projetées ; son rang dans la pile est data-level.
 const disc = (el: HTMLElement) => el.closest<HTMLElement>(".vy-recent-disc")!;
-const bottom = (el: HTMLElement) => parseFloat(disc(el).style.bottom);
+const bottom = (el: HTMLElement) => Number(disc(el).dataset.level);
 
 test("pile sur la tranche : du bas vers le haut, le plus récent tout en haut", () => {
   const root = document.createElement("div");
@@ -40,9 +40,9 @@ test("un disque posé dessus ne fait pas bouger ceux d'en dessous", () => {
   const pile = mountRecentPile(root, { play: vi.fn() });
   pile.update(["2", "1"].map(e));
   const at = () => disc(root.querySelector<HTMLElement>('[data-track="2"]')!);
-  const before = [at().style.transform, at().style.bottom];
+  const before = [at().dataset.level, at().dataset.yaw, at().dataset.dx];
   pile.update(["3", "2", "1"].map(e));
-  expect([at().style.transform, at().style.bottom]).toEqual(before);
+  expect([at().dataset.level, at().dataset.yaw, at().dataset.dx]).toEqual(before);
 });
 
 test("un clic sur une pochette la relance", () => {
@@ -65,7 +65,7 @@ test("pile tournée dans l'autre sens, chaque disque un peu de travers au hasard
   mountRecentPile(root, { play: vi.fn() }).update(["a", "b", "c", "d", "e", "f", "g"].map(e));
   expect(PILE_TURN).toBeLessThan(0);
   // Rotation de chaque disque = rotation de la pile + son propre écart (±9°).
-  const yaws = Array.from(root.querySelectorAll<HTMLElement>(".vy-recent-disc")).map((d) => Number(/rotateY\((-?[\d.]+)deg\)/.exec(d.style.transform)![1]));
+  const yaws = Array.from(root.querySelectorAll<HTMLElement>(".vy-recent-disc")).map((d) => Number(d.dataset.yaw));
   expect(yaws.every((y) => Math.abs(y - PILE_TURN) <= 9)).toBe(true);
   expect(new Set(yaws).size).toBeGreaterThan(2); // pas tous pareils
 });

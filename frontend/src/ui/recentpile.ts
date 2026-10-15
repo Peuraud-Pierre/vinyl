@@ -4,6 +4,7 @@
 import type { HistoryEntry } from "../api";
 import { escapeHtml } from "../views/grid";
 import { spineColors } from "../views/shelf";
+import { faceMatrices, toCss, type PileView } from "./pile3d";
 import { imageTint } from "./theme";
 
 export const RECENT_MAX = 7;
@@ -25,16 +26,15 @@ const tints = new Map<string, string | null>(); // teinte de chaque pochette, ca
 
 export interface RecentPile { update(list: HistoryEntry[]): void; setScale(k: number): void; }
 
-const PERSPECTIVE = 1800; // px de scène ; vue un peu d'en haut (perspective-origin dans styles.css)
+// Vue de la pile : un peu d'en haut (point de fuite au-dessus, à 40 % de la largeur).
+const VIEW: PileView = { width: PILE_W, height: 460, depth: PILE_W, slab: SLAB, eye: { x: PILE_W * 0.4, y: -70 }, perspective: 1800 };
 
 export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry): void }): RecentPile {
   let top = "";
   let scale = 1;
   let zoom: HTMLElement | null = null;
-  // Même montage que l'étagère, dont la 3D s'affiche bien dans WebKit : la perspective est sur un
-  // conteneur non transformé (root), l'échelle sur le niveau en preserve-3d juste en dessous.
+  // Faces projetées par le calcul (pile3d) : aucune 3D du navigateur, seulement une mise à l'échelle.
   const applyScale = () => {
-    root.style.perspective = `${PERSPECTIVE * scale}px`;
     if (zoom) zoom.style.scale = String(scale);
   };
   const paint = (slab: HTMLElement, it: HistoryEntry) => {
@@ -51,7 +51,6 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
       const dropped = top !== "" && newTop !== "" && newTop !== top; // un disque vient d'être posé
       top = newTop;
       root.innerHTML = "";
-      root.classList.add("vy-recent-scene");
       const pile = document.createElement("div");
       pile.className = "vy-recent-3d";
       root.appendChild(pile);
@@ -66,18 +65,21 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         const { dx, yaw } = jitter(key(it));
         const d = document.createElement("div");
         d.className = "vy-recent-disc";
-        d.style.bottom = `${level * SLAB}px`;
-        // La pile a pivoté sur la table (PILE_TURN) ; chaque disque y ajoute son propre écart.
-        d.style.transform = `translateX(${dx}px) rotateY(${PILE_TURN + yaw}deg)`;
+        d.dataset.level = String(level);
+        d.dataset.yaw = String(PILE_TURN + yaw); // la pile a pivoté (PILE_TURN), chaque disque en plus
+        d.dataset.dx = String(dx);
+        const m = faceMatrices(VIEW, level, dx, PILE_TURN + yaw);
         const b = document.createElement("button");
         b.className = "vy-recent";
         b.dataset.track = it.trackId;
         b.setAttribute("aria-label", `${it.title} — ${it.artist}`);
         b.title = `${it.title} — ${it.artist}`;
         b.innerHTML = `<b>${escapeHtml(it.title)}</b><span>${escapeHtml(it.artist)}</span>`;
+        b.style.transform = toCss(m.front);
         const side = document.createElement("div");
         side.className = "vy-recent-side";
-        // Côté plus sombre par la couleur : un filtre aplatirait la 3D dans WebKit.
+        side.style.transform = toCss(m.side);
+        // Côté plus sombre, par la couleur.
         const paintAll = () => {
           paint(b, it);
           side.style.background = `color-mix(in srgb, ${spineColors(it.title, tints.get(key(it)) ?? undefined).bg} 62%, #000)`;
@@ -89,7 +91,9 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         lid.setAttribute("aria-label", `${it.title} — ${it.artist}`);
         lid.title = `${it.title} — ${it.artist}`;
         if (it.artworkUrl) lid.style.backgroundImage = cssUrl(it.artworkUrl);
-        d.append(b, side, lid);
+        lid.style.transform = toCss(m.top);
+        // Ordre de dessin : pochette, côté, puis tranche (devant).
+        d.append(lid, side, b);
         // Tout le disque est cliquable (tranche, côté, pochette) ; au clavier, la tranche suffit.
         d.onclick = () => deps.play(it);
         pile.appendChild(d);
