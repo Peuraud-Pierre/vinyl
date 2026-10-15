@@ -15,6 +15,7 @@ import (
 	"vinyl/internal/auth"
 	"vinyl/internal/catalog"
 	"vinyl/internal/fluid"
+	"vinyl/internal/history"
 	"vinyl/internal/player"
 	"vinyl/internal/settings"
 	"vinyl/internal/stats"
@@ -32,6 +33,7 @@ func init() {
 	application.RegisterEvent[settings.Settings]("settings")
 	application.RegisterEvent[widgetupdate.Status]("widgetupdate")
 	application.RegisterEvent[stats.Snapshot]("stats")
+	application.RegisterEvent[[]history.Entry]("history")
 }
 
 func main() {
@@ -69,9 +71,21 @@ func main() {
 	statStore := stats.NewStore(statsPath, time.Now)
 	statStore.Load()
 	service.SetStats(statStore)
+	histPath, err := history.DefaultPath()
+	if err != nil {
+		log.Fatal(err)
+	}
+	histStore := history.NewStore(histPath)
+	histStore.Load()
+	service.SetHistory(histStore)
 	watcher.SetOnPlaying(func(np player.NowPlaying) {
 		if np.TrackID == "" {
 			return // radio ou flux sans identifiant : pas compté
+		}
+		// Pile des derniers morceaux écoutés, à droite du disque.
+		if pile, changed := histStore.Playing(history.Entry{Source: np.Source, TrackID: np.TrackID, Title: np.Title,
+			Artist: np.Artist, Album: np.Album, ArtworkURL: np.ArtworkURL}); changed {
+			wailsApp.Event.Emit("history", pile)
 		}
 		if snap, changed := statStore.Played(np.Source + ":" + np.TrackID); changed {
 			wailsApp.Event.Emit("stats", snap)

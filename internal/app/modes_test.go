@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"vinyl/internal/history"
 	"vinyl/internal/player"
 )
 
@@ -56,5 +57,19 @@ func TestModesWithoutPlayer(t *testing.T) {
 	w := player.NewWatcher(nil, func() string { return "auto" }, func(player.Snapshot) {}, time.Now)
 	if _, err := New(nil, w, nil).Modes(); err == nil {
 		t.Error("sans lecteur actif, une erreur est attendue")
+	}
+}
+
+func TestHistoryListsThePile(t *testing.T) {
+	s := New(nil, player.NewWatcher(nil, func() string { return "auto" }, func(player.Snapshot) {}, time.Now), nil)
+	if l := s.History(); l == nil || len(l) != 0 {
+		t.Errorf("sans historique : liste vide attendue, obtenu %v", l)
+	}
+	h := history.NewStore(t.TempDir() + "/h.json")
+	h.Playing(history.Entry{Source: "applemusic", TrackID: "1"})
+	h.Playing(history.Entry{Source: "applemusic", TrackID: "2"})
+	s.SetHistory(h)
+	if l := s.History(); len(l) != 1 || l[0].TrackID != "1" {
+		t.Errorf("pile = %v", l)
 	}
 }

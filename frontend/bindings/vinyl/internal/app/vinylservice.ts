@@ -13,6 +13,9 @@ import * as auth$0 from "../auth/models.js";
 import * as catalog$0 from "../catalog/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as history$0 from "../history/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as player$0 from "../player/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -38,6 +41,13 @@ export function GetSettings(): $CancellablePromise<settings$0.Settings> {
 
 export function GetSnapshot(): $CancellablePromise<player$0.Snapshot> {
     return $Call.ByID(1640412372);
+}
+
+/**
+ * History renvoie les derniers morceaux écoutés (le plus récent en premier), pour la pile de la platine.
+ */
+export function History(): $CancellablePromise<history$0.Entry[] | null> {
+    return $Call.ByID(3965231684);
 }
 
 /**
@@ -132,6 +142,13 @@ export function SeekMs(ms: number): $CancellablePromise<void> {
  */
 export function SetCatalog(source: string, c: catalog$0.Catalog): $CancellablePromise<void> {
     return $Call.ByID(411284595, source, c);
+}
+
+/**
+ * SetHistory branche la pile des derniers morceaux écoutés.
+ */
+export function SetHistory(h: history$0.Store | null): $CancellablePromise<void> {
+    return $Call.ByID(2284534012, h);
 }
 
 export function SetRepeat(mode: string): $CancellablePromise<void> {

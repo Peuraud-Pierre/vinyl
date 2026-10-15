@@ -16,6 +16,9 @@ export interface Settings {
   widgetX: number; widgetY: number; widgetPlaced: boolean; spotifyClientId: string;
 }
 
+// Morceau posé sur la pile des derniers écoutés (à droite du disque).
+export interface HistoryEntry { source: string; trackId: string; title: string; artist: string; album: string; artworkUrl: string; }
+
 export const api = VinylService;
 
 export function onSnapshot(cb: (s: Snapshot) => void): () => void {
@@ -23,6 +26,9 @@ export function onSnapshot(cb: (s: Snapshot) => void): () => void {
 }
 export function onSettings(cb: (s: Settings) => void): () => void {
   return Events.On("settings", (ev) => cb(ev.data as Settings));
+}
+export function onHistory(cb: (l: HistoryEntry[]) => void): () => void {
+  return Events.On("history", (ev) => cb((ev.data as HistoryEntry[] | null) ?? []));
 }
 export function onWidgetUpdate(cb: (s: WidgetStatus) => void): () => void {
   return Events.On("widgetupdate", (ev) => cb(ev.data as WidgetStatus));

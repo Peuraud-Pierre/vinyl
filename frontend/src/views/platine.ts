@@ -1,13 +1,16 @@
-import { api, onSettings, onSnapshot, onStats, type Snapshot, type StatsSnapshot } from "../api";
+import { api, onHistory, onSettings, onSnapshot, onStats, type Snapshot, type StatsSnapshot } from "../api";
 import { go } from "../router";
 import { openShareCard } from "../share/sharecard";
 import { STAGE_H, STAGE_W, Turntable } from "../turntable/turntable";
 import { mountDeck } from "../ui/deck";
 import { icons } from "../ui/icons";
+import { mountRecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
 const CONTROLS_W = 140;
+// Scène de la page : platine, plus la pile des derniers écoutés à sa droite (au-delà du bras au repos).
+const SCENE_W = STAGE_W + 200;
 
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
@@ -17,6 +20,7 @@ export function mount(el: HTMLElement): () => void {
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:179px;top:610px"></div>
+          <div id="pl-recent" class="absolute" style="left:${STAGE_W + 12}px;top:380px;width:150px;height:150px" aria-label="Derniers morceaux écoutés"></div>
         </div>
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
@@ -52,10 +56,10 @@ export function mount(el: HTMLElement): () => void {
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const fit = () => {
     const wrap = $("pl-wrap").getBoundingClientRect();
-    const k = Math.min(wrap.width / STAGE_W, wrap.height / STAGE_H);
+    const k = Math.min(wrap.width / SCENE_W, wrap.height / STAGE_H);
     const s = $("pl-scaled");
     s.style.transform = `scale(${k})`;
-    s.style.left = `${(wrap.width - STAGE_W * k) / 2}px`;
+    s.style.left = `${(wrap.width - SCENE_W * k) / 2}px`;
     s.style.top = `${(wrap.height - STAGE_H * k) / 2}px`;
   };
   const ro = new ResizeObserver(fit);
@@ -67,6 +71,11 @@ export function mount(el: HTMLElement): () => void {
     setShuffle: (on) => api.SetShuffle(on), modes: () => api.Modes(),
   });
   let deckTrack = "";
+
+  // Pile des derniers morceaux écoutés : un clic relance le morceau.
+  const recent = mountRecentPile($("pl-recent"), { play: (e) => { api.PlayItem(e.source, e.trackId).catch(() => {}); } });
+  const offHistory = onHistory((l) => recent.update(l));
+  api.History().then((l) => recent.update(l ?? [])).catch(() => {});
   const onFocus = () => { if (!snap?.problem) deck.refresh(); };
   window.addEventListener("focus", onFocus);
 
@@ -105,6 +114,7 @@ export function mount(el: HTMLElement): () => void {
     offStats();
     offSnap();
     window.removeEventListener("focus", onFocus);
+    offHistory();
     offSet();
     ro.disconnect();
     tt.destroy();

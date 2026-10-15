@@ -7,6 +7,9 @@ import type { Events } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as history$0 from "../../../../../vinyl/internal/history/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as player$0 from "../../../../../vinyl/internal/player/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -21,6 +24,7 @@ import type * as widgetupdate$0 from "../../../../../vinyl/internal/widgetupdate
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "history": history$0.Entry[] | null;
             "nowplaying": player$0.Snapshot;
             "settings": settings$0.Settings;
             "stats": stats$0.Snapshot;

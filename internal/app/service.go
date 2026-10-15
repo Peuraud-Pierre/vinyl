@@ -14,6 +14,7 @@ import (
 
 	"vinyl/internal/auth"
 	"vinyl/internal/catalog"
+	"vinyl/internal/history"
 	"vinyl/internal/player"
 	"vinyl/internal/settings"
 	"vinyl/internal/stats"
@@ -30,6 +31,7 @@ type VinylService struct {
 	spotifyAuth *auth.SpotifyAuth
 	widget      *widgetupdate.Manager
 	stats       *stats.Store
+	history     *history.Store
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
@@ -228,6 +230,17 @@ func (s *VinylService) UpdateWidget() error {
 }
 
 func (s *VinylService) SetStats(st *stats.Store) { s.stats = st }
+
+// SetHistory branche la pile des derniers morceaux écoutés.
+func (s *VinylService) SetHistory(h *history.Store) { s.history = h }
+
+// History renvoie les derniers morceaux écoutés (le plus récent en premier), pour la pile de la platine.
+func (s *VinylService) History() []history.Entry {
+	if s.history == nil {
+		return []history.Entry{}
+	}
+	return s.history.List()
+}
 
 // Stats renvoie le compteur « Morceaux lus depuis ».
 func (s *VinylService) Stats() stats.Snapshot {
