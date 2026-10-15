@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.26" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - name: Frontend
+        working-directory: frontend
+        run: npm ci && npx tsc --noEmit && npm test && npm run build
+      - name: Go (Mac)
+        if: runner.os == 'macOS'
+        env: { CGO_ENABLED: "1" }
+        run: go vet . ./internal/... && go test -race . ./internal/...
+      - name: Go (Windows)
+        if: runner.os == 'Windows'
+        env: { CGO_ENABLED: "0" }
+        run: go vet . ./internal/... && go test . ./internal/...

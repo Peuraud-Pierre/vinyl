@@ -1,0 +1,50 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.26" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
+      - run: CGO_ENABLED=1 wails3 package
+      - run: ditto -c -k --keepParent bin/vinyl.app Vinyl-mac.zip
+      - uses: actions/upload-artifact@v4
+        with: { name: mac, path: Vinyl-mac.zip }
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.26" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - run: choco install nsis -y
+      - run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
+      - run: wails3 package
+        env: { CGO_ENABLED: "0" }
+      - name: Renommer l'installateur
+        shell: pwsh
+        run: Get-ChildItem bin -Filter *installer*.exe | Select-Object -First 1 | Copy-Item -Destination Vinyl-Setup.exe
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: Vinyl-Setup.exe }
+  release:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mac/Vinyl-mac.zip
+            windows/Vinyl-Setup.exe
+          body: |
+            **Mac (Apple Silicon)** : `Vinyl-mac.zip` — app non signée : clic droit → Ouvrir au premier lancement.
+            **Windows 10/11** : `Vinyl-Setup.exe` — non signé : « Informations complémentaires » → « Exécuter quand même ».
