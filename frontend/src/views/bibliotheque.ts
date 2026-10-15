@@ -127,14 +127,12 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
 
   // Étagère : tous les boîtiers vus par la tranche ; seuls ceux à l'écran sont dans le DOM.
   const halfWidth = () => area.clientWidth / 2 / scale;
-  // Zone de droite à laisser libre : barre de commandes (≈ 130 px) et fondu du bord.
-  const rightReserve = () => 170 / scale;
   const layout = () => {
     const row = area.querySelector<HTMLElement>("#cf-row");
     if (!row) return;
     const list = shown();
     const half = halfWidth();
-    offset = clampOffset(offset, list.length, half, rightReserve());
+    offset = clampOffset(offset, list.length, half);
     const [a, b] = visibleIndices(offset, list.length, half);
     const keep = new Set<string>();
     for (let i = a; i <= b; i++) {
@@ -175,7 +173,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     else { raf = 0; lastFrame = 0; }
   };
   const scrollBy = (dx: number) => {
-    scrollGoal = clampOffset(scrollGoal + dx, shown().length, halfWidth(), rightReserve());
+    scrollGoal = clampOffset(scrollGoal + dx, shown().length, halfWidth());
     if (!raf && scrollGoal !== offset) raf = requestAnimationFrame(frame);
   };
 

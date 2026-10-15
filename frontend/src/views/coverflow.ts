@@ -27,12 +27,13 @@ export function shelfTransform(i: number, offset: number, halfWidth: number): { 
 }
 
 /**
- * Décalage borné : 0 au début ; à la fin, le dernier boîtier s'arrête avant la zone réservée à
- * droite (barre de commandes et fondu), pour qu'il ne reste jamais caché dessous.
+ * Décalage borné : tout à gauche, le premier boîtier vient au centre ; tout à droite, le dernier.
+ * (Le décalage 0, premier boîtier contre le bord gauche, reste la position de départ.)
  */
-export function clampOffset(offset: number, count: number, halfWidth: number, rightReserve = 0): number {
-  const max = Math.max(0, (count - 1) * SHELF_GAP + CENTER_GAP - 2 * (halfWidth - SHELF_MARGIN) + rightReserve);
-  return Math.min(max, Math.max(0, offset));
+export function clampOffset(offset: number, count: number, halfWidth: number): number {
+  const min = SHELF_MARGIN - halfWidth; // premier boîtier au centre
+  const max = Math.max(0, count - 1) * SHELF_GAP + min; // dernier boîtier au centre
+  return Math.min(max, Math.max(min, offset));
 }
 
 /** Indices à rendre : ceux dans la scène, plus trois boîtiers de marge de chaque côté. */
