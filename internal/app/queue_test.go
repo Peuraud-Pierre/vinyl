@@ -131,13 +131,17 @@ func TestAlbumQueueStopsWhenTheUserPicksSomethingElse(t *testing.T) {
 type fakeBack struct {
 	fakeResumer
 	backOK bool
+	extra  int // morceaux en plus trouvés au-delà de la pile (pile décalée)
 	backs  [][2]any
 	jumps  [][3]any
 }
 
-func (f *fakeBack) ReplayBack(_ context.Context, id string, steps int) (bool, error) {
+func (f *fakeBack) ReplayBack(_ context.Context, id string, steps, _ int) (int, error) {
 	f.backs = append(f.backs, [2]any{id, steps})
-	return f.backOK, nil
+	if !f.backOK {
+		return 0, nil
+	}
+	return steps + f.extra, nil
 }
 func (f *fakeBack) JumpForward(_ context.Context, steps int, id string, pos int) error {
 	f.jumps = append(f.jumps, [3]any{steps, id, pos})
@@ -185,15 +189,32 @@ func TestReplayComesBackEvenIfTheEndWasMissed(t *testing.T) {
 	}
 }
 
-// Morceau absent de la file de Musique : dernier recours, joué une fois puis reprise.
-func TestReplayFallsBackWhenNotInTheQueue(t *testing.T) {
+// Morceau introuvable dans la file de Musique : surtout pas de nouveau « play » (la file serait
+// vidée) ; une erreur explique pourquoi rien ne se passe.
+func TestReplayNeverReplacesMusicQueue(t *testing.T) {
 	p := &fakeBack{backOK: false}
 	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
 	s := serviceWith(p)
 	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+	if err := s.PlayFromHistory("applemusic", "2"); err == nil {
+		t.Error("erreur attendue (morceau plus dans la file)")
+	}
+	if len(p.alone) != 0 || len(p.played) != 0 {
+		t.Errorf("rien ne doit être lancé : seul %v, lancé %v", p.alone, p.played)
+	}
+}
+
+// Pile décalée : le morceau est trouvé un cran plus loin ; le retour utilise le vrai nombre de pas.
+func TestReplayUsesTheStepsReallyTaken(t *testing.T) {
+	p := &fakeBack{backOK: true, extra: 1}
+	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 5}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
 	s.PlayFromHistory("applemusic", "2")
-	if len(p.alone) != 1 || p.alone[0] != "2" {
-		t.Errorf("joué seul : %v", p.alone)
+	s.ObservePlayback(playing("2", 1000, 200000))
+	s.ObservePlayback(playing("2", 199000, 200000))
+	if len(p.jumps) != 1 || p.jumps[0] != [3]any{3, "4", 5} {
+		t.Errorf("retour : %v", p.jumps)
 	}
 }
 

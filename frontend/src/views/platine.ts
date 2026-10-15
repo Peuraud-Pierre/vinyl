@@ -26,6 +26,7 @@ export function mount(el: HTMLElement): () => void {
           <div id="pl-deck" class="absolute" style="left:179px;top:610px"></div>
         </div>
         <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>
+        <p id="pl-recent-msg" class="glass pointer-events-none absolute hidden rounded-full px-5 py-2 text-[14px]" role="status"></p>
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
       <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
@@ -73,6 +74,17 @@ export function mount(el: HTMLElement): () => void {
     recent?.setScale(k);
   };
   let recent: RecentPile | null = null;
+  // Message bref au-dessus de la pile (morceau introuvable…).
+  let msgTimer = 0;
+  const showRecentMsg = (text: string) => {
+    const m = $("pl-recent-msg"), r = $("pl-recent");
+    m.textContent = text;
+    m.style.left = r.style.left;
+    m.style.top = `${parseFloat(r.style.top) - 10}px`;
+    m.classList.remove("hidden");
+    clearTimeout(msgTimer);
+    msgTimer = window.setTimeout(() => m.classList.add("hidden"), 3500);
+  };
   const ro = new ResizeObserver(fit);
   ro.observe($("pl-wrap"));
 
@@ -86,7 +98,11 @@ export function mount(el: HTMLElement): () => void {
   // Pile des derniers morceaux écoutés : un clic relance le morceau et retire ceux posés au-dessus.
   recent = mountRecentPile($("pl-recent"), {
     // Puis la pile est relue : elle reste juste même si un événement s'est perdu.
-    play: (e) => { api.PlayFromHistory(e.source, e.trackId).catch(() => {}).finally(() => api.History().then((l) => recent?.update(l ?? [])).catch(() => {})); },
+    play: (e) => {
+      api.PlayFromHistory(e.source, e.trackId)
+        .catch((err) => showRecentMsg(String(err).includes("plus dans la file") ? "Ce morceau n'est plus dans la file de Musique" : "Lecture impossible"))
+        .finally(() => api.History().then((l) => recent?.update(l ?? [])).catch(() => {}));
+    },
   });
   const offHistory = onHistory((l) => recent?.update(l));
   api.History().then((l) => recent?.update(l ?? [])).catch(() => {});
@@ -130,6 +146,7 @@ export function mount(el: HTMLElement): () => void {
     offSnap();
     window.removeEventListener("focus", onFocus);
     offHistory();
+    clearTimeout(msgTimer);
     offSet();
     ro.disconnect();
     tt.destroy();

@@ -422,20 +422,43 @@ func (m *AppleMusic) Resume(ctx context.Context, c PlaybackContext) error {
 	return err
 }
 
-// argv : morceau visé, nombre de morceaux en arrière. Réécoute sans toucher à la file de Musique :
-// uniquement « précédent », puis vérification. « MISS » : le morceau n'est pas dans la file en cours.
+// argv : morceau visé, nombre de morceaux en arrière (d'après la pile), position du morceau en cours (s).
+// Réécoute sans jamais remplacer la file de Musique : uniquement « précédent ». On attend que Musique
+// ait vraiment changé de morceau (fondus, AutoMix) et on recule d'un ou deux morceaux de plus si la
+// pile est décalée. Introuvable : retour par « suivant » au morceau de départ, à sa position ; « MISS ».
 const musicReplayBackScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	set target to item 1 of argv
+	set us to character id 31
 	tell application id "com.apple.Music"
+		set taken to 0
 		repeat ((item 2 of argv) as integer) times
 			previous track
-			delay 0.15
+			set taken to taken + 1
+			delay 0.1
 		end repeat
-		try
-			if (persistent ID of current track) is (item 1 of argv) then
-				if player state is not playing then playpause
-				return "BACK"
+		repeat with extra from 0 to 2
+			if extra > 0 then
+				previous track
+				set taken to taken + 1
 			end if
+			repeat 15 times
+				try
+					if (persistent ID of current track) is target then
+						if player state is not playing then playpause
+						return "BACK" & us & taken
+					end if
+				end try
+				delay 0.1
+			end repeat
+		end repeat
+		repeat taken times
+			next track
+			delay 0.1
+		end repeat
+		delay 0.3
+		try
+			set player position to ((item 3 of argv) as integer)
 		end try
 	end tell
 	return "MISS"
@@ -457,10 +480,18 @@ const musicJumpForwardScript = `on run argv
 	return "OK"
 end run`
 
-// ReplayBack recule de steps morceaux dans la file de Musique ; false si le morceau n'y est pas.
-func (m *AppleMusic) ReplayBack(ctx context.Context, trackID string, steps int) (bool, error) {
-	out, err := m.simpleRun(ctx, musicReplayBackScript, trackID, strconv.Itoa(steps))
-	return err == nil && out == "BACK", err
+// ReplayBack recule dans la file de Musique jusqu'au morceau ; renvoie le nombre de « précédent »
+// réellement faits (0 : introuvable, la lecture est revenue où elle était).
+func (m *AppleMusic) ReplayBack(ctx context.Context, trackID string, steps, posSec int) (int, error) {
+	out, err := m.simpleRun(ctx, musicReplayBackScript, trackID, strconv.Itoa(steps), strconv.Itoa(posSec))
+	if err != nil {
+		return 0, err
+	}
+	if n, ok := strings.CutPrefix(out, "BACK"+Sep); ok {
+		taken, _ := strconv.Atoi(n)
+		return taken, nil
+	}
+	return 0, nil
 }
 
 // JumpForward avance de steps morceaux et replace le morceau interrompu à sa position.

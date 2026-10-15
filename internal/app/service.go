@@ -280,17 +280,19 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 			defer cancel()
 			saved, err := r.SaveContext(ctx)
 			if err == nil && saved.TrackID != "" {
-				back, err := b.ReplayBack(ctx, trackID, steps)
+				taken, err := b.ReplayBack(ctx, trackID, steps, saved.PositionSec)
+				s.watcher.Wake()
 				if err != nil {
 					return err
 				}
-				if back {
-					s.queueMu.Lock()
-					s.back = &backReplay{source: source, trackID: trackID, steps: steps, saved: saved, started: time.Now()}
-					s.queueMu.Unlock()
-					s.watcher.Wake()
-					return nil
+				if taken == 0 {
+					// Surtout pas de nouveau « play » : la file de Musique serait remplacée.
+					return errors.New("ce morceau n'est plus dans la file de Musique")
 				}
+				s.queueMu.Lock()
+				s.back = &backReplay{source: source, trackID: trackID, steps: taken, saved: saved, started: time.Now()}
+				s.queueMu.Unlock()
+				return nil
 			}
 		}
 	}

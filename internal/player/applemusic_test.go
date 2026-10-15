@@ -319,20 +319,29 @@ func TestPlayAloneUsesOnceWithoutPlaylist(t *testing.T) {
 	}
 }
 
-// Réécoute sans toucher à la file de Musique : « précédent » N fois, puis vérification du morceau.
+// Réécoute sans toucher à la file de Musique : « précédent » N fois, attente du changement de morceau
+// (AutoMix, fondus), un ou deux morceaux de plus si la pile est décalée ; sinon retour où on était.
 func TestReplayBackWalksThroughTheQueue(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"BACK"}}
-	ok, err := NewAppleMusic(r, t.TempDir()).ReplayBack(context.Background(), "T2", 3)
-	if err != nil || !ok {
-		t.Fatalf("ok=%v err=%v", ok, err)
+	r := &fakeRunner{outputs: []string{"BACK" + Sep + "4"}}
+	taken, err := NewAppleMusic(r, t.TempDir()).ReplayBack(context.Background(), "T2", 3, 61)
+	if err != nil || taken != 4 {
+		t.Fatalf("taken=%d err=%v", taken, err)
 	}
 	c := r.calls[0]
-	if strings.Join(c.args, "|") != "T2|3" || !strings.Contains(c.script, "previous track") || strings.Contains(c.script, "play (") {
-		t.Errorf("argv %v / script : seulement « précédent », jamais un nouveau play", c.args)
+	if strings.Join(c.args, "|") != "T2|3|61" {
+		t.Errorf("argv %v", c.args)
+	}
+	for _, want := range []string{"previous track", "next track", "player position", "delay"} {
+		if !strings.Contains(c.script, want) {
+			t.Errorf("script sans %q", want)
+		}
+	}
+	if strings.Contains(c.script, "play (") || strings.Contains(c.script, "with once") {
+		t.Error("jamais de nouveau « play » : la file de Musique ne doit pas être remplacée")
 	}
 	r = &fakeRunner{outputs: []string{"MISS"}}
-	if ok, _ := NewAppleMusic(r, t.TempDir()).ReplayBack(context.Background(), "T2", 3); ok {
-		t.Error("morceau absent de la file : ok=false attendu")
+	if taken, _ := NewAppleMusic(r, t.TempDir()).ReplayBack(context.Background(), "T2", 3, 61); taken != 0 {
+		t.Error("morceau introuvable : 0 attendu")
 	}
 }
 
