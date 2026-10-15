@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -21,6 +22,7 @@ type Settings struct {
 	WidgetPlaced     bool      `json:"widgetPlaced"`
 	SpotifyClientID  string    `json:"spotifyClientId"`
 	WidgetProjectDir string    `json:"widgetProjectDir,omitempty"` // dossier du dépôt (widget/), facultatif
+	BetaCode         string    `json:"betaCode,omitempty"`         // code contributeur (bêtas)
 }
 
 func Defaults() Settings {
@@ -107,6 +109,7 @@ type Patch struct {
 	Accent          *string    `json:"accent,omitempty"`
 	Crackle         *bool      `json:"crackle,omitempty"`
 	SpotifyClientID *string    `json:"spotifyClientId,omitempty"`
+	BetaCode        *string    `json:"betaCode,omitempty"`
 }
 
 // Update applique un Patch aux réglages courants, sous verrou, et renvoie le résultat.
@@ -131,6 +134,9 @@ func (s *Store) Update(p Patch) (Settings, error) {
 	}
 	if p.SpotifyClientID != nil {
 		v.SpotifyClientID = *p.SpotifyClientID
+	}
+	if p.BetaCode != nil {
+		v.BetaCode = strings.TrimSpace(*p.BetaCode)
 	}
 	v = Normalize(v)
 	if err := s.writeLocked(v); err != nil {

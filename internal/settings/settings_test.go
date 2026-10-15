@@ -116,3 +116,18 @@ func TestWidgetProjectDirIsKept(t *testing.T) {
 		t.Fatal("une mise à jour partielle ne doit pas effacer widgetProjectDir")
 	}
 }
+
+func TestBetaCodeIsSaved(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.json")
+	s := NewStore(path)
+	s.Load()
+	code := "VINYL-abc"
+	if _, err := s.Update(Patch{BetaCode: &code}); err != nil {
+		t.Fatal(err)
+	}
+	r := NewStore(path)
+	r.Load()
+	if r.Get().BetaCode != code {
+		t.Errorf("relu : %q", r.Get().BetaCode)
+	}
+}

@@ -11,6 +11,7 @@ export interface Patch {
     "accent"?: string | null;
     "crackle"?: boolean | null;
     "spotifyClientId"?: string | null;
+    "betaCode"?: string | null;
 }
 
 export interface Settings {
@@ -28,4 +29,9 @@ export interface Settings {
      * dossier du dépôt (widget/), facultatif
      */
     "widgetProjectDir"?: string;
+
+    /**
+     * code contributeur (bêtas)
+     */
+    "betaCode"?: string;
 }
