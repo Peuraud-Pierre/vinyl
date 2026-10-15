@@ -18,8 +18,9 @@ Pour chaque point qui échoue : noter ce qui s'affiche, et joindre une capture d
 
 ## Mises à jour (Mac et Windows)
 
-0. **Avant de publier `vA`** : créer la clé des codes contributeur (`./beta-code.sh "Prénom"`) et commiter
-   `internal/beta/pubkey.go`. Sans elle, tout code est refusé (« Code invalide ») dans cette version.
+0. **Avant de publier `vA`** : créer la paire de clés des codes contributeur (`./beta-code.sh "Prénom"`, écrite
+   dans `.env`, ignoré par git) et ajouter sur GitHub le secret `VINYL_BETA_PUBLIC_KEY` (valeur affichée par
+   le script). Sans ce secret, la release refuse tout code (« Code invalide »).
 1. Installer à la main la release `vA` (la première qui contient les mises à jour) : `Vinyl-darwin-arm64.zip`
    sur Mac (glisser Vinyl dans Applications : lancée depuis Téléchargements, elle ne peut pas se remplacer),
    `Vinyl-Setup.exe` sur Windows (installée dans `%LOCALAPPDATA%\Programs\Vinyl`, sans droits

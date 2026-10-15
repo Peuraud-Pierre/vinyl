@@ -17,4 +17,6 @@ widget/App/Info.plist
 widget/App/*.entitlements
 widget/Extension/Info.plist
 widget/Extension/*.entitlements
-/screen/
+/screen/# Clés des codes contributeur (bêtas) : jamais dans le dépôt
+.env
+.env.*

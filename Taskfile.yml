@@ -1,5 +1,8 @@
 version: '3'
 
+# Clés locales (codes contributeur, VINYL_BETA_PUBLIC_KEY) : fichier ignoré par git, facultatif.
+dotenv: ['.env']
+
 vars:
   APP_NAME: "vinyl"
   BIN_DIR: "bin"

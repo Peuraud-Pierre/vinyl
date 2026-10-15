@@ -2,6 +2,7 @@ package beta
 
 import (
 	"crypto/ed25519"
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -64,4 +65,18 @@ func flip(code string) string {
 		last = "B"
 	}
 	return code[:len(code)-1] + last
+}
+
+// Clé publique injectée à la fabrication (base64) : valide → clé ; vide ou abîmée → aucune (codes refusés).
+func TestParsePublicKey(t *testing.T) {
+	pub, priv := keys(t)
+	k := parsePublicKey(base64.StdEncoding.EncodeToString(pub))
+	if _, ok := Verify(k, Sign(priv, "Léa")); !ok {
+		t.Error("clé valide refusée")
+	}
+	for _, s := range []string{"", "pas-du-base64", base64.StdEncoding.EncodeToString([]byte("trop court"))} {
+		if parsePublicKey(s) != nil {
+			t.Errorf("%q accepté", s)
+		}
+	}
 }

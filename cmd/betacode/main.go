@@ -1,54 +1,103 @@
-// Commande betacode : fabrique un code contributeur (bêtas). Crée la paire de clés au premier usage :
-// la clé privée dans ~/.vinyl/beta-private.key (jamais dans le dépôt), la clé publique dans
-// internal/beta/pubkey.go (à commiter).
+// Commande betacode : fabrique un code contributeur (bêtas). La clé privée vient de la variable
+// VINYL_BETA_PRIVATE_KEY ou du fichier .env à la racine du dépôt (ignoré par git) ; au premier usage, la
+// paire est créée et inscrite dans .env (VINYL_BETA_PRIVATE_KEY, VINYL_BETA_PUBLIC_KEY).
 package main
 
 import (
+	"bufio"
 	"crypto/ed25519"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"strings"
 
 	"vinyl/internal/beta"
 )
 
+const (
+	privVar = "VINYL_BETA_PRIVATE_KEY"
+	pubVar  = "VINYL_BETA_PUBLIC_KEY"
+)
+
 func main() {
-	if len(os.Args) != 2 || os.Args[1] == "" {
+	if len(os.Args) != 2 || strings.TrimSpace(os.Args[1]) == "" {
 		fmt.Fprintln(os.Stderr, "usage : ./beta-code.sh \"Prénom\"")
 		os.Exit(2)
 	}
-	home, err := os.UserHomeDir()
+	if _, err := os.Stat("go.mod"); err != nil {
+		fail(errors.New("à lancer depuis la racine du dépôt (./beta-code.sh)"))
+	}
+	priv, created, err := loadOrCreateKey(".env", os.Getenv)
 	if err != nil {
 		fail(err)
 	}
-	keyPath := filepath.Join(home, ".vinyl", "beta-private.key")
-	seed, err := os.ReadFile(keyPath)
+	if created {
+		pub := base64.StdEncoding.EncodeToString(priv.Public().(ed25519.PublicKey))
+		fmt.Fprintln(os.Stderr, "Nouvelle paire de clés inscrite dans .env (jamais dans le dépôt ; garde une copie de ce fichier).")
+		fmt.Fprintln(os.Stderr, "Pour les releases, ajoute sur GitHub (Settings › Secrets and variables › Actions) le secret")
+		fmt.Fprintln(os.Stderr, "  "+pubVar+" = "+pub)
+		fmt.Fprintln(os.Stderr, "puis publie une version : les codes ne sont reconnus qu'à partir de celle-ci.")
+	}
+	fmt.Println(beta.Sign(priv, strings.TrimSpace(os.Args[1])))
+}
+
+// loadOrCreateKey lit la clé privée (variable d'environnement, sinon fichier .env) ou crée la paire et
+// l'ajoute au fichier .env (droits 600). created : la paire vient d'être créée.
+func loadOrCreateKey(envPath string, getenv func(string) string) (ed25519.PrivateKey, bool, error) {
+	if v := getenv(privVar); v != "" {
+		k, err := decodeSeed(v)
+		return k, false, err
+	}
+	if v, err := readEnvFile(envPath, privVar); err != nil {
+		return nil, false, err
+	} else if v != "" {
+		k, err := decodeSeed(v)
+		return k, false, err
+	}
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return nil, false, err
+	}
+	f, err := os.OpenFile(envPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, false, err
+	}
+	defer f.Close()
+	if err := f.Chmod(0o600); err != nil {
+		return nil, false, err
+	}
+	_, err = fmt.Fprintf(f, "\n# Codes contributeur Vinyl (bêtas) — ne jamais commiter ce fichier\n%s=%s\n%s=%s\n",
+		privVar, base64.StdEncoding.EncodeToString(priv.Seed()), pubVar, base64.StdEncoding.EncodeToString(pub))
+	return priv, err == nil, err
+}
+
+func decodeSeed(v string) (ed25519.PrivateKey, error) {
+	seed, err := base64.StdEncoding.DecodeString(strings.TrimSpace(v))
+	if err != nil || len(seed) != ed25519.SeedSize {
+		return nil, fmt.Errorf("%s invalide", privVar)
+	}
+	return ed25519.NewKeyFromSeed(seed), nil
+}
+
+// readEnvFile renvoie la valeur d'une variable d'un fichier .env ("" si absente ou fichier inexistant).
+func readEnvFile(path, key string) (string, error) {
+	f, err := os.Open(path)
 	if os.IsNotExist(err) {
-		_, priv, err := ed25519.GenerateKey(nil)
-		if err != nil {
-			fail(err)
-		}
-		seed = priv.Seed()
-		if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
-			fail(err)
-		}
-		if err := os.WriteFile(keyPath, seed, 0o600); err != nil {
-			fail(err)
-		}
-		pub := priv.Public().(ed25519.PublicKey)
-		src := fmt.Sprintf("package beta\n\nimport \"crypto/ed25519\"\n\n// PublicKey : clé publique des codes contributeur (écrite par cmd/betacode).\nvar PublicKey = ed25519.PublicKey(%#v)\n", []byte(pub))
-		if err := os.WriteFile(filepath.Join("internal", "beta", "pubkey.go"), []byte(src), 0o644); err != nil {
-			fail(err)
-		}
-		fmt.Fprintln(os.Stderr, "Nouvelle clé créée : "+keyPath+" (à garder précieusement, jamais dans le dépôt).")
-		fmt.Fprintln(os.Stderr, "internal/beta/pubkey.go mis à jour : commite-le et publie une version pour que les codes soient reconnus.")
-	} else if err != nil {
-		fail(err)
+		return "", nil
 	}
-	if len(seed) != ed25519.SeedSize {
-		fail(fmt.Errorf("clé invalide : %s", keyPath))
+	if err != nil {
+		return "", err
 	}
-	fmt.Println(beta.Sign(ed25519.NewKeyFromSeed(seed), os.Args[1]))
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		k, v, ok := strings.Cut(strings.TrimSpace(sc.Text()), "=")
+		if ok && strings.TrimSpace(k) == key {
+			return strings.Trim(strings.TrimSpace(v), `"'`), nil
+		}
+	}
+	return "", sc.Err()
 }
 
 func fail(err error) {

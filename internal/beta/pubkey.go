@@ -1,6 +1,22 @@
 package beta
 
-import "crypto/ed25519"
+import (
+	"crypto/ed25519"
+	"encoding/base64"
+)
 
-// PublicKey : clé publique des codes contributeur (écrite par cmd/betacode).
-var PublicKey = ed25519.PublicKey([]byte{0xe7, 0xc, 0xf3, 0x85, 0xd, 0x92, 0x7c, 0xb6, 0x34, 0x20, 0x63, 0xc1, 0x81, 0x90, 0xfa, 0x87, 0xfa, 0x45, 0x91, 0xee, 0x15, 0xe8, 0x7f, 0xf1, 0x5d, 0xbb, 0x15, 0x44, 0x95, 0x4e, 0x25, 0x8})
+// publicKey : clé publique des codes contributeur (base64), inscrite à la fabrication
+// (-ldflags "-X vinyl/internal/beta.publicKey=…") depuis VINYL_BETA_PUBLIC_KEY : le fichier .env en local,
+// un secret GitHub pour les releases. Vide : aucun code n'est accepté.
+var publicKey string
+
+// PublicKey : clé publique de Vinyl (nil si absente de la fabrication).
+var PublicKey = parsePublicKey(publicKey)
+
+func parsePublicKey(s string) ed25519.PublicKey {
+	raw, err := base64.StdEncoding.DecodeString(s)
+	if err != nil || len(raw) != ed25519.PublicKeySize {
+		return nil
+	}
+	return ed25519.PublicKey(raw)
+}

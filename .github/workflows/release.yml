@@ -4,6 +4,9 @@ on:
     tags: ["v*"]
 permissions:
   contents: write
+# Clé publique des codes contributeur (bêtas), inscrite dans l'app à la fabrication.
+env:
+  VINYL_BETA_PUBLIC_KEY: ${{ secrets.VINYL_BETA_PUBLIC_KEY }}
 jobs:
   mac:
     runs-on: macos-latest
