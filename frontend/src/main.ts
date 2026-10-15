@@ -9,6 +9,7 @@ import * as bibliotheque from "./views/bibliotheque";
 import * as artiste from "./views/artiste";
 import * as album from "./views/album";
 import { render as renderWidgetUpdate, type WidgetStatus } from "./widgetupdate";
+import { animateOnce } from "./ui/animate";
 
 type View = { mount: (el: HTMLElement, param: string) => () => void };
 const views: Record<Route, View> = { platine, bibliotheque, artiste, album, personnaliser, reglages };
@@ -35,7 +36,7 @@ async function route() {
   viewEl.innerHTML = "";
   viewEl.scrollTop = 0;
   cleanup = views[route].mount(viewEl, param);
-  viewEl.firstElementChild?.classList.add("vy-enter");
+  animateOnce(viewEl.firstElementChild, "vy-enter");
 }
 window.addEventListener("hashchange", route);
 route();

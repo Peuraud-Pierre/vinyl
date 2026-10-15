@@ -310,3 +310,19 @@ func TestPlayAloneNotRunning(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// Pendant une réécoute, la file affiche la suite de la playlist qui sera reprise, à partir du morceau
+// interrompu (comme Apple Music), et non la playlist interne qui ne contient que le morceau réécouté.
+func TestUpcomingFromSavedPlaylist(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"5" + Sep + "9\x1e" + join("T5", "Cinq", "A", "200", "Alb") + "\x1e" + join("T6", "Six", "A", "180", "Alb") + "\x1e"}}
+	ts, err := NewAppleMusic(r, t.TempDir()).UpcomingFrom(context.Background(), "PL", "T5", 30, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ts) != 2 || ts[0].ID != "T5" || ts[1].Title != "Six" {
+		t.Errorf("file = %+v", ts)
+	}
+	if strings.Join(r.calls[0].args, "|") != "PL|T5|30|0" {
+		t.Errorf("argv %v", r.calls[0].args)
+	}
+}

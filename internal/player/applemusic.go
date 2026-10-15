@@ -342,6 +342,11 @@ func (m *AppleMusic) Upcoming(ctx context.Context, limit int, wrap bool) ([]Trac
 	if err != nil {
 		return nil, err
 	}
+	return parseUpcoming(out)
+}
+
+// parseUpcoming lit la sortie des scripts de file : en-tête (index, nombre), puis un titre par ligne.
+func parseUpcoming(out string) ([]Track, error) {
 	switch out {
 	case "NOTRUNNING":
 		return nil, ErrNotRunning
@@ -357,6 +362,47 @@ func (m *AppleMusic) Upcoming(ctx context.Context, limit int, wrap bool) ([]Trac
 		}
 	}
 	return tracks, nil
+}
+
+// argv : playlist, morceau, limite, boucle (1/0). Titres d'une playlist à partir d'un morceau (inclus) :
+// la suite qui reprendra après une réécoute.
+const musicUpcomingFromScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	set us to character id 31
+	set rs to character id 30
+	set lim to (item 3 of argv) as integer
+	tell application id "com.apple.Music"
+		try
+			set cp to (first playlist whose persistent ID is (item 1 of argv))
+			set idx to index of (first track of cp whose persistent ID is (item 2 of argv))
+		on error
+			return "NONE"
+		end try
+		set n to count of tracks of cp
+		set out to (idx as string) & us & (n as string) & rs
+		set k to 0
+		set i to idx
+		repeat while k < lim and k < n
+			if i > n then
+				if (item 4 of argv) is not "1" then exit repeat
+				set i to 1
+			end if
+			set t to track i of cp
+			set out to out & (persistent ID of t) & us & (name of t) & us & (artist of t) & us & ((duration of t) as string) & us & (album of t) & rs
+			set k to k + 1
+			set i to i + 1
+		end repeat
+		return out
+	end tell
+end run`
+
+// UpcomingFrom renvoie les titres d'une playlist à partir d'un morceau (inclus).
+func (m *AppleMusic) UpcomingFrom(ctx context.Context, playlistID, trackID string, limit int, wrap bool) ([]Track, error) {
+	out, err := m.run.Run(ctx, musicUpcomingFromScript, playlistID, trackID, strconv.Itoa(limit), flag(wrap))
+	if err != nil {
+		return nil, err
+	}
+	return parseUpcoming(out)
 }
 
 // ReplayPlaylistName est la playlist interne où Vinyl joue seul un morceau repris de la pile (rien ne

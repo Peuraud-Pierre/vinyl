@@ -392,6 +392,14 @@ type QueueState struct {
 	Note     string         `json:"note"`
 }
 
+// sourceOf renvoie le nom du lecteur (« applemusic », « spotify »), ou "" s'il n'en a pas.
+func sourceOf(m any) string {
+	if p, ok := m.(player.Player); ok {
+		return p.Name()
+	}
+	return ""
+}
+
 func (s *VinylService) modes() (player.Modes, error) {
 	p := s.watcher.Active()
 	if p == nil {
@@ -438,6 +446,19 @@ func (s *VinylService) Queue() (QueueState, error) {
 		return QueueState{Upcoming: []player.Track{}}, err
 	}
 	q := QueueState{Shuffle: sh, Repeat: string(rep), Upcoming: []player.Track{}}
+	// Réécoute depuis la pile : la suite est celle de la playlist qui reprendra ensuite (comme Apple Music),
+	// pas la playlist interne qui ne contient que le morceau réécouté.
+	s.replayMu.Lock()
+	pending := s.replay
+	s.replayMu.Unlock()
+	if u, ok := m.(interface {
+		UpcomingFrom(ctx context.Context, playlistID, trackID string, limit int, wrap bool) ([]player.Track, error)
+	}); ok && pending != nil && sourceOf(m) == pending.source {
+		if ts, err := u.UpcomingFrom(ctx, pending.saved.PlaylistID, pending.saved.TrackID, 30, rep == player.RepeatAll); err == nil && ts != nil {
+			q.Upcoming = ts
+		}
+		return q, nil
+	}
 	switch p := m.(type) {
 	case *player.AppleMusic:
 		if sh {

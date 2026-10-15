@@ -95,6 +95,9 @@ func (f *fakeResumer) PlayAlone(_ context.Context, id string) error {
 	f.alone = append(f.alone, id)
 	return f.playErr
 }
+func (f *fakeResumer) UpcomingFrom(_ context.Context, playlistID, trackID string, limit int, wrap bool) ([]player.Track, error) {
+	return []player.Track{{ID: trackID, Title: "repris"}, {ID: "x", Title: "suivant"}}, nil
+}
 func (f *fakeResumer) Resume(_ context.Context, c player.PlaybackContext) error {
 	f.resumed = append(f.resumed, c)
 	return nil
@@ -194,5 +197,21 @@ func TestReplayWithoutResumeSupport(t *testing.T) {
 	s.SetHistory(pileOf(t, "1", "2"), nil)
 	if err := s.PlayFromHistory("applemusic", "1"); err != nil || len(p.played) != 1 || p.played[0] != "track:1" {
 		t.Errorf("lancé : %v (%v)", p.played, err)
+	}
+}
+
+func TestQueueDuringReplayShowsThePlaylistToResume(t *testing.T) {
+	p := &fakeResumer{saved: player.PlaybackContext{PlaylistID: "PL", TrackID: "4"}}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
+		t.Fatal(err)
+	}
+	q, err := s.Queue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(q.Upcoming) != 2 || q.Upcoming[0].ID != "4" {
+		t.Errorf("file = %+v", q.Upcoming)
 	}
 }
