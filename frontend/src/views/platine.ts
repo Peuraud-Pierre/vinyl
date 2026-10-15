@@ -11,7 +11,7 @@ import { mountOdometer } from "../ui/odometer";
 const CONTROLS_W = 140;
 // Scène de la page : platine, plus la pile des derniers écoutés à sa droite (au-delà du bras au repos).
 // La pile déborde un peu sous la colonne de commandes (libre en bas) pour ne pas rapetisser la platine.
-const SCENE_W = STAGE_W + 380;
+const SCENE_W = STAGE_W + 450;
 
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
@@ -21,7 +21,7 @@ export function mount(el: HTMLElement): () => void {
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:179px;top:610px"></div>
-          <div id="pl-recent" class="absolute" style="left:${STAGE_W - 4}px;top:160px;width:520px;height:450px" aria-label="Derniers morceaux écoutés"></div>
+          <div id="pl-recent" class="absolute" style="left:${STAGE_W - 6}px;top:130px;width:590px;height:480px" aria-label="Derniers morceaux écoutés"></div>
         </div>
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
