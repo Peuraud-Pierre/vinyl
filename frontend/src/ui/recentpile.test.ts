@@ -4,14 +4,24 @@ import { mountRecentPile } from "./recentpile";
 
 const e = (id: string): HistoryEntry => ({ source: "applemusic", trackId: id, title: "Titre " + id, artist: "Artiste", album: "", artworkUrl: "/artwork/" + id });
 
-test("pile des derniers écoutés : le plus récent est posé au-dessus (dernier dans le DOM)", () => {
+const bottom = (el: HTMLElement) => parseFloat(el.style.bottom);
+
+test("pile sur la tranche : du bas vers le haut, le plus récent tout en haut", () => {
   const root = document.createElement("div");
   const pile = mountRecentPile(root, { play: vi.fn() });
   pile.update(["3", "2", "1"].map(e));
-  const sleeves = root.querySelectorAll<HTMLElement>("[data-track]");
-  expect(sleeves.length).toBe(3);
-  expect(sleeves[sleeves.length - 1]!.dataset.track).toBe("3");
-  expect(sleeves[sleeves.length - 1]!.getAttribute("aria-label")).toContain("Titre 3");
+  const at = (id: string) => root.querySelector<HTMLElement>(`[data-track="${id}"]`)!;
+  expect(bottom(at("1"))).toBe(0); // le plus ancien en bas
+  expect(bottom(at("2"))).toBeGreaterThan(bottom(at("1")));
+  expect(bottom(at("3"))).toBeGreaterThan(bottom(at("2")));
+  expect(at("3").textContent).toContain("Titre 3"); // titre sur la tranche
+});
+
+test("la pochette du dessus est posée à plat sur la pile", () => {
+  const root = document.createElement("div");
+  mountRecentPile(root, { play: vi.fn() }).update(["3", "2"].map(e));
+  const lid = root.querySelector<HTMLElement>(".vy-recent-lid")!;
+  expect(lid.style.backgroundImage).toContain("/artwork/3");
 });
 
 test("au plus 7 pochettes", () => {
@@ -21,13 +31,14 @@ test("au plus 7 pochettes", () => {
   expect(root.querySelectorAll("[data-track]").length).toBe(7);
 });
 
-test("chaque pochette garde la même position d'une mise à jour à l'autre (pile naturelle, sans tressauter)", () => {
+test("un disque posé dessus ne fait pas bouger ceux d'en dessous", () => {
   const root = document.createElement("div");
   const pile = mountRecentPile(root, { play: vi.fn() });
   pile.update(["2", "1"].map(e));
-  const before = root.querySelector<HTMLElement>('[data-track="2"]')!.style.transform;
+  const at = () => root.querySelector<HTMLElement>('[data-track="2"]')!;
+  const before = [at().style.transform, at().style.bottom];
   pile.update(["3", "2", "1"].map(e));
-  expect(root.querySelector<HTMLElement>('[data-track="2"]')!.style.transform).toBe(before);
+  expect([at().style.transform, at().style.bottom]).toEqual(before);
 });
 
 test("un clic sur une pochette la relance", () => {
@@ -42,4 +53,5 @@ test("pile vide : rien d'affiché", () => {
   const root = document.createElement("div");
   mountRecentPile(root, { play: vi.fn() }).update([]);
   expect(root.querySelectorAll("[data-track]").length).toBe(0);
+  expect(root.querySelector(".vy-recent-lid")).toBeNull();
 });

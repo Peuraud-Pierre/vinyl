@@ -10,7 +10,7 @@ import { mountOdometer } from "../ui/odometer";
 // Place réservée à droite pour la gélule et les boutons ronds.
 const CONTROLS_W = 140;
 // Scène de la page : platine, plus la pile des derniers écoutés à sa droite (au-delà du bras au repos).
-const SCENE_W = STAGE_W + 200;
+const SCENE_W = STAGE_W + 280;
 
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
@@ -20,7 +20,7 @@ export function mount(el: HTMLElement): () => void {
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:179px;top:610px"></div>
-          <div id="pl-recent" class="absolute" style="left:${STAGE_W + 12}px;top:380px;width:150px;height:150px" aria-label="Derniers morceaux écoutés"></div>
+          <div id="pl-recent" class="absolute" style="left:${STAGE_W + 16}px;top:230px;width:240px;height:380px" aria-label="Derniers morceaux écoutés"></div>
         </div>
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
