@@ -4,7 +4,10 @@ export const SHELF_GAP = 74; // un peu plus d’air entre les tranches, pour plu
 export const SHELF_MARGIN = 55; // marge du premier boîtier par rapport au bord gauche
 export const SHELF_ANGLE = 75; // plus de relief : on voit ~30 % de chaque pochette
 export const SHELF_PERSPECTIVE = 1450; // px par unité d’échelle : perspective plus marquée (effet 3D)
-export const CENTER_GAP = 0; // vidéo : aucun vide au centre (les pochettes partent des tranches vers le centre)
+export const SHELF_SPINE = 9; // épaisseur de la tranche (px), cf. .vy-spine dans styles.css
+// À droite du centre, la tranche est sur l'autre bord du boîtier : on recule ces boîtiers d'une épaisseur
+// pour que la tranche qui franchit le centre reste exactement au même endroit (sinon, petit saut).
+export const CENTER_GAP = -SHELF_SPINE;
 
 /** Position du boîtier i pour un décalage de défilement donné (x relatif au centre de la scène). */
 // Comme dans la vidéo : tranche sur le bord extérieur, face à l'utilisateur ; la pochette part de la
@@ -43,11 +46,26 @@ export function visibleIndices(offset: number, count: number, halfWidth: number)
 }
 
 /**
- * Défilement lissé, calculé image par image : la position rattrape la cible de façon exponentielle
- * (constante de temps tau), sans jamais la dépasser, et s'y accroche à moins d'un demi-pixel.
+ * Défilement amorti, calculé image par image : ressort à amortissement critique vers la cible.
+ * Contrairement à un simple rattrapage, la vitesse varie continûment : les événements irréguliers
+ * du trackpad ne se traduisent plus par des à-coups. Depuis l'arrêt, jamais de dépassement.
+ * omega : raideur (par ms) ; ~70 ms pour parcourir l'essentiel du chemin, comme avant.
  */
-export function smoothStep(current: number, target: number, dtMs: number, tau = 70): number {
-  const k = 1 - Math.exp(-Math.max(0, dtMs) / tau);
-  const next = current + (target - current) * k;
-  return Math.abs(target - next) < 0.5 ? target : next;
+export function springStep(x: number, v: number, target: number, dtMs: number, omega = 0.028): { x: number; v: number } {
+  const t = Math.max(0, dtMs);
+  const y = x - target;
+  const e = Math.exp(-omega * t);
+  const c = v + omega * y;
+  const nx = target + (y + c * t) * e;
+  const nv = (v - omega * c * t) * e;
+  return Math.abs(nx - target) < 0.5 && Math.abs(nv) < 0.02 ? { x: target, v: 0 } : { x: nx, v: nv };
+}
+
+/**
+ * Molette / trackpad : l'axe dominant (horizontal ou vertical) est fixé au début du geste (après une
+ * pause de plus de 150 ms) et gardé jusqu'à la fin, pour qu'une légère diagonale ne fasse pas d'à-coups.
+ */
+export function wheelDelta(dx: number, dy: number, gapMs: number, axis: "x" | "y" | null): { axis: "x" | "y"; delta: number } {
+  const a = axis && gapMs <= 150 ? axis : Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+  return { axis: a, delta: a === "x" ? dx : dy };
 }

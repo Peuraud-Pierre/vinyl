@@ -4,7 +4,7 @@ import { activeSource, api, type Item } from "../api";
 import { albumParam, go, TABS, type Tab } from "../router";
 import { icons } from "../ui/icons";
 import { imageTint } from "../ui/theme";
-import { clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, smoothStep, visibleIndices } from "./coverflow";
+import { clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, springStep, wheelDelta, visibleIndices } from "./coverflow";
 import { albumCoverRect, flightFrames } from "../ui/flight";
 import { escapeHtml, initials } from "./grid";
 import { filterItems, spineColors } from "./shelf";
@@ -56,6 +56,9 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   let loading = false;
   let offset = 0; // défilement affiché de l'étagère (px, avant mise à l'échelle)
   let scrollGoal = 0; // défilement visé : la position affichée le rattrape image par image
+  let velocity = 0; // vitesse du défilement affiché (px/ms), pour un mouvement sans à-coups
+  let wheelAxis: "x" | "y" | null = null; // axe du geste en cours au trackpad
+  let lastWheel = 0;
   let raf = 0;
   let lastFrame = 0;
   let scale = 1;
@@ -163,9 +166,12 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   const frame = (now: number) => {
     const dt = lastFrame ? now - lastFrame : 16;
     lastFrame = now;
-    offset = smoothStep(offset, scrollGoal, dt);
-    layout();
-    if (offset !== scrollGoal) raf = requestAnimationFrame(frame);
+    const sprung = springStep(offset, velocity, scrollGoal, dt);
+    offset = sprung.x;
+    velocity = sprung.v;
+    layout(); // borne le décalage : contre une butée, le mouvement s'arrête net
+    if (offset !== sprung.x) velocity = 0;
+    if (offset !== scrollGoal || velocity !== 0) raf = requestAnimationFrame(frame);
     else { raf = 0; lastFrame = 0; }
   };
   const scrollBy = (dx: number) => {
@@ -196,7 +202,10 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       // Défilement continu à la molette ou au trackpad (horizontal ou vertical).
       area.querySelector("#cf")!.addEventListener("wheel", (e) => {
         const w = e as WheelEvent;
-        scrollBy((Math.abs(w.deltaX) > Math.abs(w.deltaY) ? w.deltaX : w.deltaY) / scale);
+        const d = wheelDelta(w.deltaX, w.deltaY, w.timeStamp - lastWheel, wheelAxis);
+        wheelAxis = d.axis;
+        lastWheel = w.timeStamp;
+        scrollBy(d.delta / scale);
         w.preventDefault();
       }, { passive: false });
       fit();
@@ -345,7 +354,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     items.length = 0;
     tints.clear();
     next = 0;
-    offset = scrollGoal = 0;
+    velocity = 0; offset = scrollGoal = 0;
     entering = true;
     area.innerHTML = "";
     scroller = null;
@@ -383,11 +392,11 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     const q = $<HTMLInputElement>("sh-q");
     q.classList.toggle("hidden");
     if (!q.classList.contains("hidden")) q.focus();
-    else if (query) { query = ""; q.value = ""; offset = scrollGoal = 0; render(); }
+    else if (query) { query = ""; q.value = ""; velocity = 0; offset = scrollGoal = 0; render(); }
   };
   $<HTMLInputElement>("sh-q").addEventListener("input", (e) => {
     query = (e.target as HTMLInputElement).value;
-    offset = scrollGoal = 0;
+    velocity = 0; offset = scrollGoal = 0;
     render();
     status.textContent = query && shown().length === 0 ? "Aucun résultat dans ce qui est chargé." : "";
   });
@@ -403,7 +412,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (saved && saved.items.length > 0) {
       items.push(...saved.items);
       next = saved.next;
-      offset = scrollGoal = saved.position;
+      velocity = 0; offset = scrollGoal = saved.position;
       entering = false;
       render();
       items.forEach(decorate);
