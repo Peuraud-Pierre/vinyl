@@ -40,10 +40,11 @@ type Player struct {
 	src      Source
 	sessions Sessions
 	now      func() time.Time
+	sleep    func(time.Duration) // attente entre deux commandes (remplacée dans les tests)
 }
 
 func NewPlayer(src Source, s Sessions, now func() time.Time) *Player {
-	return &Player{src: src, sessions: s, now: now}
+	return &Player{src: src, sessions: s, now: now, sleep: time.Sleep}
 }
 
 func (p *Player) Name() string { return p.src.Name }
