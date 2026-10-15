@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-ole/go-ole"
 	"github.com/saltosystems/winrt-go/windows/foundation"
-	"github.com/saltosystems/winrt-go/windows/media/control"
 
 	"vinyl/internal/winmedia/winrtgen/windows/storage/streams"
 )
@@ -16,25 +15,22 @@ import (
 func (x *systemSession) readThumbnail() ([]byte, error) {
 	var out []byte
 	err := call(func() error {
-		op, err := x.s.TryGetMediaPropertiesAsync()
-		if err != nil {
+		props, err := x.properties()
+		if err != nil || props == nil {
 			return err
 		}
-		res, err := await(op)
-		if err != nil {
-			return err
-		}
-		props := (*control.GlobalSystemMediaTransportControlsSessionMediaProperties)(res)
+		defer props.Release()
 		ref, err := props.GetThumbnail()
 		if err != nil || ref == nil {
-			return err
+			return err // pas de pochette : rien à lire
 		}
+		defer ref.Release()
 		openOp, err := ref.OpenReadAsync()
 		if err != nil {
 			return err
 		}
 		stream, err := await(openOp)
-		if err != nil {
+		if err != nil || stream == nil {
 			return err
 		}
 		unk := (*ole.IUnknown)(stream)
@@ -45,7 +41,7 @@ func (x *systemSession) readThumbnail() ([]byte, error) {
 		}
 		defer in.Release()
 		r, err := streams.DataReaderCreateDataReader((*streams.IInputStream)(unsafe.Pointer(in)))
-		if err != nil {
+		if err != nil || r == nil {
 			return err
 		}
 		defer r.Release()
@@ -56,8 +52,8 @@ func (x *systemSession) readThumbnail() ([]byte, error) {
 		}
 		// L'opération de chargement (IAsyncOperation<uint32>) a la même forme qu'une opération ordinaire.
 		n, err := await((*foundation.IAsyncOperation)(unsafe.Pointer(load)))
-		if err != nil {
-			return err
+		if err != nil || uint32(uintptr(n)) == 0 {
+			return err // flux vide : pas de pochette
 		}
 		out, err = r.ReadBytes(uint32(uintptr(n)))
 		return err

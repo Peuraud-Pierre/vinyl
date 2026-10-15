@@ -134,3 +134,28 @@ func TestCommandsAndModes(t *testing.T) {
 		t.Error("PlayItem : non disponible sous Windows")
 	}
 }
+
+// Relevé de position absent (0) ou dans le futur : pas d'extrapolation ; jamais de position négative.
+func TestPositionWithBogusUpdateTime(t *testing.T) {
+	s := &fakeSession{id: "Spotify.exe", info: song("Creep")}
+	s.info.UpdatedAt = t0.Add(time.Hour) // dans le futur
+	p := NewPlayer(SpotifySource, fakeSessions{s}, func() time.Time { return t0 }, "")
+	if np, _ := p.NowPlaying(context.Background()); np.PositionMs != 10000 {
+		t.Errorf("relevé futur : position %d", np.PositionMs)
+	}
+	s.info.Position = -5 * time.Second
+	s.info.UpdatedAt = time.Time{}
+	if np, _ := p.NowPlaying(context.Background()); np.PositionMs != 0 {
+		t.Errorf("position négative : %d", np.PositionMs)
+	}
+}
+
+// Garde-fou : une panique dans un appel système devient une erreur, l'app ne s'arrête pas.
+func TestSafeRunRecoversPanics(t *testing.T) {
+	if err := safeRun(func() error { var b []byte; _ = b[0]; return nil }); err == nil {
+		t.Error("erreur attendue")
+	}
+	if err := safeRun(func() error { return nil }); err != nil {
+		t.Errorf("err = %v", err)
+	}
+}

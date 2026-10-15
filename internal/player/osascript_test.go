@@ -3,6 +3,7 @@ package player
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 )
 
@@ -51,8 +52,8 @@ func TestClassifyError(t *testing.T) {
 }
 
 func TestOSAScriptPassesArgsWithoutInterpolation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("appelle /usr/bin/osascript")
+	if testing.Short() || runtime.GOOS != "darwin" {
+		t.Skip("appelle /usr/bin/osascript (Mac seulement)")
 	}
 	title := `Don't Stop "Live" – Beyoncé 🎵`
 	out, err := OSAScript{}.Run(context.Background(), "on run argv\nreturn item 1 of argv\nend run", title)
@@ -65,8 +66,8 @@ func TestOSAScriptPassesArgsWithoutInterpolation(t *testing.T) {
 }
 
 func TestOSAScriptArgStartingWithDashIsNotAnOption(t *testing.T) {
-	if testing.Short() {
-		t.Skip("appelle /usr/bin/osascript")
+	if testing.Short() || runtime.GOOS != "darwin" {
+		t.Skip("appelle /usr/bin/osascript (Mac seulement)")
 	}
 	// Un titre « -e … » ne doit jamais être lu comme une option d'osascript (injection de code).
 	for _, arg := range []string{"-e", "-ism", `property p : do shell script "exit 1"`} {

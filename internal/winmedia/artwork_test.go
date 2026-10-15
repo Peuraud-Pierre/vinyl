@@ -44,3 +44,22 @@ func TestArtworkFailureIsRemembered(t *testing.T) {
 		t.Errorf("miniature relue %d fois", s.thumbRead)
 	}
 }
+
+// Pochette publiée après le titre (fréquent avec Spotify) : nouvel essai quelques secondes plus tard.
+func TestArtworkRetriedWhenLate(t *testing.T) {
+	now := t0
+	s := &fakeSession{id: "Spotify.exe", info: song("Creep")}
+	p := NewPlayer(SpotifySource, fakeSessions{s}, func() time.Time { return now }, t.TempDir())
+	if np, _ := p.NowPlaying(context.Background()); np.ArtworkURL != "" {
+		t.Fatal("pas encore de pochette")
+	}
+	p.NowPlaying(context.Background()) // aussitôt : pas de nouvel essai
+	if s.thumbRead != 1 {
+		t.Fatalf("relu trop tôt : %d", s.thumbRead)
+	}
+	s.thumb = []byte("jpeg")
+	now = now.Add(3 * time.Second)
+	if np, _ := p.NowPlaying(context.Background()); np.ArtworkURL == "" {
+		t.Error("la pochette arrivée entre-temps doit s'afficher")
+	}
+}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -317,5 +318,29 @@ func TestReplayFromPileWithBackOnlyPlayer(t *testing.T) {
 	s.ObservePlayback(playing("2", 199000, 200000))
 	if len(p.jumps) != 1 || p.jumps[0] != "4" {
 		t.Errorf("retour : %v", p.jumps)
+	}
+}
+
+// Windows : morceau impossible à retrouver dans la file → message, jamais d'empreinte envoyée à Spotify.
+func TestReplayFallbackOnWindowsNeverSendsFingerprint(t *testing.T) {
+	p := &backOnly{saved: player.PlaybackContext{}} // contexte inconnu (publicité, app fermée…)
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3"), nil)
+	var opened []string
+	s.openLink = func(u string) error { opened = append(opened, u); return nil }
+	err := s.PlayFromHistory("applemusic", "w1234")
+	if err == nil || !strings.Contains(err.Error(), "plus dans la file") || len(p.played) != 0 || len(opened) != 0 {
+		t.Errorf("err=%v lancé=%v ouvert=%v", err, p.played, opened)
+	}
+}
+
+// Seuls de vrais liens Spotify partent vers l'API web ou s'ouvrent.
+func TestPlaySpotifyWebRejectsNonSpotifyIDs(t *testing.T) {
+	s := serviceWith(&namedModes{name: "spotify"})
+	var opened []string
+	s.openLink = func(u string) error { opened = append(opened, u); return nil }
+	s.spotifyPlay = func(context.Context, string, string, bool) error { return catalog.ErrPlaybackRefused }
+	if err := s.PlayItem("spotify", "w1234"); err == nil || len(opened) != 0 {
+		t.Errorf("err=%v ouvert=%v", err, opened)
 	}
 }

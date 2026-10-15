@@ -309,6 +309,11 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 		}
 	}
 	r, ok := p.(player.ReplayResumer)
+	if !ok && back {
+		// Lecteur qui ne sait que reculer / avancer (Windows) : son identifiant de morceau est une
+		// empreinte, inutilisable pour lancer le morceau autrement ; surtout pas de nouveau « play ».
+		return errors.New("ce morceau n'est plus dans la file de lecture")
+	}
 	if !ok {
 		id := trackID
 		if source == "applemusic" && runtime.GOOS == "darwin" {
@@ -730,6 +735,9 @@ func (s *VinylService) spotifyQueue(ctx context.Context, q *QueueState) {
 // playSpotifyWeb lance un titre, un album ou une playlist Spotify par l'API web (hors Mac) ; refusé
 // (pas Premium, aucun appareil actif) → le lien s'ouvre dans Spotify.
 func (s *VinylService) playSpotifyWeb(id string) error {
+	if !strings.HasPrefix(id, "spotify:") {
+		return errors.New("lien Spotify invalide") // jamais d'autre identifiant vers l'API ni ouvert comme lien
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	defer s.watcher.Wake()

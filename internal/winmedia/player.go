@@ -47,7 +47,7 @@ type Player struct {
 // NewPlayer : artworkDir est le dossier des pochettes servi sous /artwork/ ("" : pas de pochette).
 func NewPlayer(src Source, s Sessions, now func() time.Time, artworkDir string) *Player {
 	return &Player{src: src, sessions: s, now: now, sleep: time.Sleep,
-		art: &artwork{dir: artworkDir, done: map[string]string{}}}
+		art: &artwork{dir: artworkDir, done: map[string]*artworkState{}}}
 }
 
 func (p *Player) Name() string { return p.src.Name }
@@ -79,18 +79,22 @@ func (p *Player) NowPlaying(context.Context) (player.NowPlaying, error) {
 		return player.NowPlaying{Source: p.src.Name, State: player.StateStopped}, nil
 	}
 	pos := in.Position
-	if in.Status == player.StatePlaying && !in.UpdatedAt.IsZero() {
-		pos += p.now().Sub(in.UpdatedAt) // Windows ne relève la position que de temps en temps
+	now := p.now()
+	if in.Status == player.StatePlaying && !in.UpdatedAt.IsZero() && !in.UpdatedAt.After(now) {
+		pos += now.Sub(in.UpdatedAt) // Windows ne relève la position que de temps en temps
 	}
 	if in.Duration > 0 && pos > in.Duration {
 		pos = in.Duration
+	}
+	if pos < 0 {
+		pos = 0
 	}
 	id := TrackID(in.Title, in.Artist, in.Album)
 	return player.NowPlaying{
 		Source: p.src.Name, State: in.Status, TrackID: id,
 		Title: in.Title, Artist: in.Artist, Album: in.Album,
 		DurationMs: in.Duration.Milliseconds(), PositionMs: pos.Milliseconds(),
-		ArtworkURL: p.art.url(id, s),
+		ArtworkURL: p.art.url(id, s, now),
 	}, nil
 }
 

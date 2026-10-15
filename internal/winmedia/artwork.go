@@ -4,34 +4,52 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"vinyl/internal/player"
 )
 
-// artwork : pochettes écrites une fois par morceau dans le dossier servi sous /artwork/ ; un échec est
-// retenu pour ne pas relire la miniature à chaque sondage.
+// Pochette absente : nouvel essai après artworkRetry, au plus artworkTries fois (Spotify publie
+// souvent le titre avant la pochette) ; jamais une lecture à chaque sondage.
+const (
+	artworkTries = 3
+	artworkRetry = 2 * time.Second
+)
+
+type artworkState struct {
+	url   string
+	tries int
+	next  time.Time // pas de nouvel essai avant
+}
+
+// artwork : pochettes écrites une fois par morceau dans le dossier servi sous /artwork/.
 type artwork struct {
 	dir  string
 	mu   sync.Mutex
-	done map[string]string // trackID → URL ("" : pas de pochette)
+	done map[string]*artworkState // trackID → état
 }
 
-func (a *artwork) url(trackID string, s Session) string {
+func (a *artwork) url(trackID string, s Session, now time.Time) string {
 	if a.dir == "" {
 		return ""
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if u, ok := a.done[trackID]; ok {
-		return u
+	st := a.done[trackID]
+	if st == nil {
+		st = &artworkState{}
+		a.done[trackID] = st
 	}
-	u := ""
+	if st.url != "" || st.tries >= artworkTries || now.Before(st.next) {
+		return st.url
+	}
+	st.tries++
+	st.next = now.Add(artworkRetry)
 	if b, err := s.Thumbnail(); err == nil && len(b) > 0 {
 		file := player.ArtworkFileName(trackID)
 		if os.MkdirAll(a.dir, 0o755) == nil && os.WriteFile(filepath.Join(a.dir, file), b, 0o644) == nil {
-			u = "/artwork/" + file
+			st.url = "/artwork/" + file
 		}
 	}
-	a.done[trackID] = u
-	return u
+	return st.url
 }
