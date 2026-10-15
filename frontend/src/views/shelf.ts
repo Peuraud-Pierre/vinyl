@@ -55,3 +55,8 @@ export function pileCurrent(scrollTop: number, viewHeight: number, pad: number, 
   const i = Math.round((scrollTop + viewHeight / 2 - pad - PILE_SIZE / 2) / PILE_STEP);
   return Math.min(count - 1, Math.max(0, i));
 }
+
+/** Message quand la bibliothèque Apple Music n'est pas accessible (Windows : jamais). */
+export function unavailableLibraryMessage(platform: string): string {
+  return platform === "windows" ? "La bibliothèque Apple Music n'est disponible que sur Mac." : "Non disponible pour Apple Music.";
+}

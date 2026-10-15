@@ -7,7 +7,8 @@ import { imageTint } from "../ui/theme";
 import { clampOffset, SHELF_ANGLE, SHELF_START, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, springStep, wheelDelta, visibleIndices } from "./coverflow";
 import { albumCoverRect, flightFrames } from "../ui/flight";
 import { escapeHtml, initials } from "./grid";
-import { filterItems, pileCurrent, pilePad, settleWithin, spineColors } from "./shelf";
+import { filterItems, pileCurrent, pilePad, settleWithin, spineColors, unavailableLibraryMessage } from "./shelf";
+import { platform } from "../ui/platform";
 import { recall, remember } from "./shelfcache";
 
 const SEGMENTS: Tab[] = ["albums", "playlists"];
@@ -326,7 +327,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       status.innerHTML = `Connecte ton compte Spotify pour voir ta bibliothèque. <button id="go-settings" class="underline">Ouvrir les Réglages</button>`;
       status.querySelector("#go-settings")!.addEventListener("click", () => go("reglages"));
     } else if (msg.includes("non disponible")) {
-      status.textContent = "Non disponible pour Apple Music.";
+      platform().then((p) => (status.textContent = unavailableLibraryMessage(p)));
     } else if (msg.includes("non lancé")) {
       status.textContent = "Ouvre l'app Musique pour voir ta bibliothèque.";
     } else if (msg.includes("non autorisée")) {

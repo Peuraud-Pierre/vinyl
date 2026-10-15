@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { filterItems, PILE_SIZE, PILE_STEP, pileCurrent, pilePad, settleWithin, spineColors } from "./shelf";
+import { filterItems, PILE_SIZE, PILE_STEP, pileCurrent, pilePad, settleWithin, spineColors, unavailableLibraryMessage } from "./shelf";
 
 const items = [
   { id: "1", kind: "album", title: "Lumen", subtitle: "Aurore Vale", artworkUrl: "", url: "" },
@@ -55,4 +55,9 @@ test("vue pile : tout en bas, le dernier élément est au milieu", () => {
   // Hauteur totale : marges + pile (chaque élément ne dépasse que de PILE_STEP, sauf le dernier, entier).
   const scrollHeight = pad + (n - 1) * PILE_STEP + PILE_SIZE + pad;
   expect(pileCurrent(scrollHeight - h, h, pad, n)).toBe(n - 1);
+});
+
+test("Apple Music sans bibliothèque : message selon la plateforme", () => {
+  expect(unavailableLibraryMessage("windows")).toBe("La bibliothèque Apple Music n'est disponible que sur Mac.");
+  expect(unavailableLibraryMessage("darwin")).toBe("Non disponible pour Apple Music.");
 });

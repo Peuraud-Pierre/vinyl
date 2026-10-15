@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -18,5 +19,11 @@ func TestServiceWithoutAppleMusicLibrary(t *testing.T) {
 	}
 	if u, err := s.ItemArtwork("applemusic", "album:X"); u != "" || err != nil {
 		t.Errorf("ItemArtwork : %q %v", u, err)
+	}
+}
+
+func TestPlatform(t *testing.T) {
+	if p := New(nil, player.NewWatcher(nil, func() string { return "auto" }, func(player.Snapshot) {}, time.Now), nil).Platform(); p != runtime.GOOS {
+		t.Errorf("Platform = %q", p)
 	}
 }

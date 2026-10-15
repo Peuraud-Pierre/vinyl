@@ -103,6 +103,13 @@ export function OpenURL(u: string): $CancellablePromise<void> {
 }
 
 /**
+ * Platform : « darwin » ou « windows » ; le frontend masque ce qui n'existe pas sur le système.
+ */
+export function Platform(): $CancellablePromise<string> {
+    return $Call.ByID(3777040183);
+}
+
+/**
  * PlayCatalogTrack joue un titre de page artiste : bibliothèque si possible, sinon ouverture dans l'app.
  */
 export function PlayCatalogTrack(source: string, item: catalog$0.Item, artist: string): $CancellablePromise<void> {

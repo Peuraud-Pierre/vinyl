@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -134,6 +135,9 @@ func (s *VinylService) OpenMainWindow() {
 
 // OpenAutomationSettings ouvre Réglages Système > Confidentialité et sécurité > Automatisation.
 func (s *VinylService) OpenAutomationSettings() error {
+	if runtime.GOOS != "darwin" {
+		return nil // réglage propre au Mac
+	}
 	return exec.Command("open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation").Run()
 }
 
@@ -195,14 +199,14 @@ func (s *VinylService) PlayCatalogTrack(source string, item catalog.Item, artist
 
 // OpenURL ouvre un lien Apple Music dans l'app Musique (https → music://), sinon dans le navigateur.
 func (s *VinylService) OpenURL(u string) error {
-	if strings.HasPrefix(u, "https://music.apple.com/") {
-		u = "music://" + strings.TrimPrefix(u, "https://")
-	}
 	if !strings.HasPrefix(u, "music://") && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "spotify:") {
 		return errors.New("lien refusé")
 	}
-	return exec.Command("open", u).Run()
+	return openURL(u)
 }
+
+// Platform : « darwin » ou « windows » ; le frontend masque ce qui n'existe pas sur le système.
+func (s *VinylService) Platform() string { return runtime.GOOS }
 
 func (s *VinylService) SetSpotifyAuth(a *auth.SpotifyAuth) { s.spotifyAuth = a }
 

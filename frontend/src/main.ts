@@ -10,6 +10,7 @@ import * as artiste from "./views/artiste";
 import * as album from "./views/album";
 import { render as renderWidgetUpdate, type WidgetStatus } from "./widgetupdate";
 import { animateOnce } from "./ui/animate";
+import { platform } from "./ui/platform";
 
 type View = { mount: (el: HTMLElement, param: string) => () => void };
 const views: Record<Route, View> = { platine, bibliotheque, artiste, album, personnaliser, reglages };
@@ -63,5 +64,9 @@ window.addEventListener("keydown", (e) => {
 const widgetUpdateEl = document.getElementById("widget-update")!;
 const showWidgetUpdate = (s: WidgetStatus) =>
   renderWidgetUpdate(widgetUpdateEl, s, { update: () => void api.UpdateWidget().catch(console.error) });
-api.WidgetUpdateStatus().then(showWidgetUpdate);
-onWidgetUpdate(showWidgetUpdate);
+// Widget de bureau (WidgetKit) : Mac seulement.
+platform().then((p) => {
+  if (p !== "darwin") return;
+  api.WidgetUpdateStatus().then(showWidgetUpdate);
+  onWidgetUpdate(showWidgetUpdate);
+});

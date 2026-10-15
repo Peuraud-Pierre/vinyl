@@ -3,6 +3,7 @@ import { go } from "../router";
 import { openShareCard } from "../share/sharecard";
 import { STAGE_H, STAGE_W, Turntable } from "../turntable/turntable";
 import { mountDeck } from "../ui/deck";
+import { platform } from "../ui/platform";
 import { icons } from "../ui/icons";
 import { mountRecentPile, type RecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
@@ -41,6 +42,7 @@ export function mount(el: HTMLElement): () => void {
     </footer>
     </div>`;
   const $ = (id: string) => el.querySelector<HTMLElement>("#" + id)!;
+  platform().then((p) => ($("pl-mini").title = p === "darwin" ? "Mini-platine (⌘⇧M)" : "Mini-platine (Ctrl+Maj+M)"));
   const tt = new Turntable($("tt"), { variant: "stage" });
   let snap: Snapshot | null = null;
 
