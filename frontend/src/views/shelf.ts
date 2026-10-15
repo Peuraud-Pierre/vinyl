@@ -30,3 +30,12 @@ export function spineColors(title: string, coverHex?: string): { bg: string; ink
   }
   return { bg: rgbToHex(rgb), ink: luminance(rgb) > 0.3 ? "#1b1513" : "#f6efe9" };
 }
+
+/** Attend p (réussite ou échec) au plus ms millisecondes ; true si p s'est terminé à temps. */
+export function settleWithin(p: Promise<unknown>, ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms);
+    const done = () => { clearTimeout(timer); resolve(true); };
+    p.then(done, done);
+  });
+}

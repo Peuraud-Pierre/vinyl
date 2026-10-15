@@ -69,9 +69,6 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-cf { position: absolute; left: 0; top: 0; width: 300px; height: 300px; border: 0; padding: 0; background: none; cursor: pointer; transform-style: preserve-3d; will-change: transform; backface-visibility: visible; }
 .vy-cf.cf-right .vy-spine { left: auto; right: -9px; transform-origin: 0 50%; transform: rotateY(90deg); }
 .vy-cf:hover .vy-face { filter: brightness(1.08); }
-/* Arrivée des boîtiers en cascade (vidéo MD Vinyl, 15,5 s) : fondu flou, sans toucher au transform 3D. */
-@keyframes vy-shelf-in { from { opacity: 0; filter: blur(14px); } }
-.vy-shelf-in { animation: vy-shelf-in .6s cubic-bezier(.2,.75,.2,1) both; animation-delay: calc(var(--i, 0) * 40ms); }
 /* Indicateur de chargement façon iOS. */
 .vy-spin { display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid color-mix(in srgb, var(--ink) 25%, transparent); border-top-color: var(--ink); animation: vy-spin .8s linear infinite; }
 /* Pile : pochettes carrées empilées de haut en bas, qu'on ressort vers la droite. */

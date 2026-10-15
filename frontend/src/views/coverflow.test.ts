@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { CENTER_GAP, clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_MARGIN, SHELF_SPINE, shelfTransform, springStep, visibleIndices, wheelDelta } from "./coverflow";
+import { CENTER_GAP, clampOffset, SHELF_START, SHELF_ANGLE, SHELF_GAP, SHELF_MARGIN, SHELF_SPINE, shelfTransform, springStep, visibleIndices, wheelDelta } from "./coverflow";
 
 const HALF = 600; // demi-largeur de la scène
 
@@ -143,4 +143,8 @@ test("passage du centre sans saut : la tranche reste au même endroit à l'écra
     return t.spineRight ? t.x + SHELF_SPINE / 2 : t.x - SHELF_SPINE / 2;
   };
   expect(spineCenter(0.01) - spineCenter(-0.01)).toBeCloseTo(0.02, 3);
+});
+
+test("au départ (demande utilisateur), le premier boîtier est au milieu", () => {
+  for (const n of [1, 3, 120]) expect(shelfTransform(0, clampOffset(SHELF_START, n, HALF), HALF).x).toBeCloseTo(0, 6);
 });

@@ -26,9 +26,11 @@ export function shelfTransform(i: number, offset: number, halfWidth: number): { 
   return { x, rotateY: onRight ? -angle : angle, zIndex: 1000 - Math.round(Math.abs(x)), spineRight: onRight };
 }
 
+/** Position de départ : borné par clampOffset, le premier boîtier se place au milieu. */
+export const SHELF_START = -Infinity;
+
 /**
  * Décalage borné : tout à gauche, le premier boîtier vient au centre ; tout à droite, le dernier.
- * (Le décalage 0, premier boîtier contre le bord gauche, reste la position de départ.)
  */
 export function clampOffset(offset: number, count: number, halfWidth: number): number {
   const min = SHELF_MARGIN - halfWidth; // premier boîtier au centre

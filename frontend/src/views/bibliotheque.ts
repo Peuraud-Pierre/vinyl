@@ -4,10 +4,10 @@ import { activeSource, api, type Item } from "../api";
 import { albumParam, go, TABS, type Tab } from "../router";
 import { icons } from "../ui/icons";
 import { imageTint } from "../ui/theme";
-import { clampOffset, SHELF_ANGLE, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, springStep, wheelDelta, visibleIndices } from "./coverflow";
+import { clampOffset, SHELF_ANGLE, SHELF_START, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, springStep, wheelDelta, visibleIndices } from "./coverflow";
 import { albumCoverRect, flightFrames } from "../ui/flight";
 import { escapeHtml, initials } from "./grid";
-import { filterItems, spineColors } from "./shelf";
+import { filterItems, settleWithin, spineColors } from "./shelf";
 import { recall, remember } from "./shelfcache";
 
 const SEGMENTS: Tab[] = ["albums", "playlists"];
@@ -54,8 +54,8 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   let source: "applemusic" | "spotify" = "applemusic";
   let next = 0;
   let loading = false;
-  let offset = 0; // défilement affiché de l'étagère (px, avant mise à l'échelle)
-  let scrollGoal = 0; // défilement visé : la position affichée le rattrape image par image
+  let offset = SHELF_START; // défilement affiché de l'étagère (px, avant mise à l'échelle)
+  let scrollGoal = SHELF_START; // défilement visé : la position affichée le rattrape image par image
   let velocity = 0; // vitesse du défilement affiché (px/ms), pour un mouvement sans à-coups
   let wheelAxis: "x" | "y" | null = null; // axe du geste en cours au trackpad
   let lastWheel = 0;
@@ -84,6 +84,33 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   // Pochettes décodées en arrière-plan (img.decode) avant d'être posées : aucun décodage pendant
   // le défilement. Une pochette déjà décodée s'affiche tout de suite.
   const decoded = new Set<string>();
+  const decode = (url: string) => {
+    if (decoded.has(url)) return Promise.resolve();
+    const img = new Image();
+    img.src = url;
+    return img.decode().catch(() => {}).then(() => { decoded.add(url); });
+  };
+  // Tout ce qu'il faut pour afficher un boîtier d'un coup : pochette (récupérée si besoin) décodée,
+  // et teinte de la tranche calculée. Une seule préparation par élément.
+  const prepared = new Map<string, Promise<void>>();
+  const ready = new Set<string>(); // préparation terminée
+  const prep = (it: Item) => {
+    let p = prepared.get(it.id);
+    if (!p) {
+      p = (async () => {
+        if (!it.artworkUrl && source === "applemusic" && it.kind !== "artist") {
+          it.artworkUrl = await api.ItemArtwork(source, it.id).catch(() => "");
+        }
+        if (it.artworkUrl) {
+          const [tint] = await Promise.all([imageTint(it.artworkUrl), decode(it.artworkUrl)]);
+          if (tint) tints.set(it.id, tint);
+        }
+        ready.add(it.id);
+      })();
+      prepared.set(it.id, p);
+    }
+    return p;
+  };
   const applyCover = (face: HTMLElement, url: string) => {
     if (!url) return;
     const show = () => {
@@ -125,6 +152,39 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       <div class="vy-edge"><b>${escapeHtml(it.title)}</b><span class="opacity-80">${escapeHtml(it.subtitle)}</span></div></button>`;
   };
 
+  // Un boîtier n'apparaît qu'une fois prêt, pochette et tranche ensemble. Le fondu est posé sur la face
+  // et la tranche, jamais sur le boîtier : opacité ou flou sur un élément 3D l'aplatissent, et la
+  // tranche (perpendiculaire) disparaissait jusqu'à la fin de l'animation.
+  const reveal = (slot: HTMLElement, it: Item, cascade: number) => {
+    const parts = Array.from(slot.querySelectorAll<HTMLElement>(".vy-face, .vy-spine"));
+    const paint = () => {
+      const face = slot.querySelector<HTMLElement>(".vy-face")!;
+      if (it.artworkUrl) {
+        face.style.backgroundImage = cssUrl(it.artworkUrl);
+        face.querySelector("span")?.remove();
+      }
+      const c = spine(it);
+      face.style.backgroundColor = c.bg;
+      const sp = slot.querySelector<HTMLElement>(".vy-spine")!;
+      sp.style.background = c.bg;
+      sp.style.color = c.ink;
+    };
+    if (ready.has(it.id) && cascade < 0) return paint(); // déjà vu : tout de suite, sans animation
+    parts.forEach((p) => (p.style.opacity = "0"));
+    const t0 = performance.now();
+    settleWithin(prep(it), 2500).then(() => {
+      if (!alive || !slot.isConnected) return;
+      paint();
+      // Arrivée en cascade (vidéo MD Vinyl, 15,5 s) : fondu flou, 40 ms d'écart d'un boîtier à l'autre.
+      const delay = cascade < 0 ? 0 : Math.max(0, cascade * 40 - (performance.now() - t0));
+      const frames = cascade < 0 ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, filter: "blur(14px)" }, { opacity: 1, filter: "blur(0)" }];
+      parts.forEach((p) => {
+        p.style.opacity = "";
+        p.animate(frames, { duration: cascade < 0 ? 220 : 600, delay, easing: "cubic-bezier(.2,.75,.2,1)", fill: "backwards" });
+      });
+    });
+  };
+
   // Étagère : tous les boîtiers vus par la tranche ; seuls ceux à l'écran sont dans le DOM.
   const halfWidth = () => area.clientWidth / 2 / scale;
   const layout = () => {
@@ -133,6 +193,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     const list = shown();
     const half = halfWidth();
     offset = clampOffset(offset, list.length, half);
+    if (!Number.isFinite(scrollGoal)) scrollGoal = offset; // départ : la cible rejoint la position réelle
     const [a, b] = visibleIndices(offset, list.length, half);
     const keep = new Set<string>();
     for (let i = a; i <= b; i++) {
@@ -142,11 +203,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       if (!slot) {
         row.insertAdjacentHTML("beforeend", boxHtml(it));
         slot = row.lastElementChild as HTMLElement;
-        applyCover(slot.querySelector<HTMLElement>(".vy-face")!, it.artworkUrl);
-        if (entering) {
-          slot.classList.add("vy-shelf-in");
-          slot.style.setProperty("--i", String(Math.max(0, i - a)));
-        }
+        reveal(slot, it, entering ? Math.max(0, i - a) : -1);
       }
       const t = shelfTransform(i, offset, half);
       slot.style.transform = `translate(-50%,-50%) translateX(${t.x}px) rotateY(${t.rotateY}deg)`;
@@ -230,15 +287,12 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
   };
 
   const decorate = async (it: Item) => {
-    if (!it.artworkUrl && source === "applemusic" && it.kind !== "artist") {
-      it.artworkUrl = await api.ItemArtwork(source, it.id).catch(() => "");
-      if (!alive || !it.artworkUrl) return;
-      area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover, [data-id="${CSS.escape(it.id)}"] .vy-face`).forEach((n) => applyCover(n, it.artworkUrl));
-    }
-    const tint = await imageTint(it.artworkUrl);
-    if (!alive || !tint) return;
-    tints.set(it.id, tint);
-    recolor(it);
+    const had = it.artworkUrl;
+    await prep(it);
+    if (!alive) return;
+    // Vue pile : pochette arrivée après coup. (L'étagère, elle, attend prep avant d'afficher le boîtier.)
+    if (!had && it.artworkUrl) area.querySelectorAll<HTMLElement>(`[data-id="${CSS.escape(it.id)}"] .vy-cover`).forEach((n) => applyCover(n, it.artworkUrl));
+    if (tints.has(it.id)) recolor(it);
   };
 
   const showError = (e: unknown) => {
@@ -323,7 +377,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       .finally(() => ghost.remove());
   };
 
-  area.addEventListener("animationend", (e) => (e.target as HTMLElement).classList.remove("vy-fly", "vy-rise", "vy-shelf-in"));
+  area.addEventListener("animationend", (e) => (e.target as HTMLElement).classList.remove("vy-fly", "vy-rise"));
   area.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-id]");
     const it = btn && items.find((i) => i.id === btn.dataset.id);
@@ -351,8 +405,10 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     if (!alive || tab !== target) return;
     items.length = 0;
     tints.clear();
+    prepared.clear();
+    ready.clear();
     next = 0;
-    velocity = 0; offset = scrollGoal = 0;
+    velocity = 0; offset = scrollGoal = SHELF_START;
     entering = true;
     area.innerHTML = "";
     scroller = null;
@@ -390,11 +446,11 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     const q = $<HTMLInputElement>("sh-q");
     q.classList.toggle("hidden");
     if (!q.classList.contains("hidden")) q.focus();
-    else if (query) { query = ""; q.value = ""; velocity = 0; offset = scrollGoal = 0; render(); }
+    else if (query) { query = ""; q.value = ""; velocity = 0; offset = scrollGoal = SHELF_START; render(); }
   };
   $<HTMLInputElement>("sh-q").addEventListener("input", (e) => {
     query = (e.target as HTMLInputElement).value;
-    velocity = 0; offset = scrollGoal = 0;
+    velocity = 0; offset = scrollGoal = SHELF_START;
     render();
     status.textContent = query && shown().length === 0 ? "Aucun résultat dans ce qui est chargé." : "";
   });

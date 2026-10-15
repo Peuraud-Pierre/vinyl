@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { filterItems, spineColors } from "./shelf";
+import { filterItems, settleWithin, spineColors } from "./shelf";
 
 const items = [
   { id: "1", kind: "album", title: "Lumen", subtitle: "Aurore Vale", artworkUrl: "", url: "" },
@@ -25,4 +25,12 @@ test("couleur de tranche stable pour un même titre, encre lisible", () => {
 test("couleur de tranche depuis la couleur de la pochette", () => {
   expect(spineColors("x", "#efe6c4").ink).toBe("#1b1513");
   expect(spineColors("x", "#101010").ink).toBe("#f6efe9");
+});
+
+test("boîtier prêt (pochette + teinte) : on attend, mais jamais plus que le délai", async () => {
+  expect(await settleWithin(Promise.resolve("prêt"), 1000)).toBe(true);
+  expect(await settleWithin(Promise.reject(new Error("x")), 1000)).toBe(true); // échec : on affiche quand même
+  const t0 = Date.now();
+  expect(await settleWithin(new Promise(() => {}), 50)).toBe(false); // jamais prêt : affiché après le délai
+  expect(Date.now() - t0).toBeLessThan(500);
 });
