@@ -107,3 +107,10 @@ func parseRepeat(s string) RepeatMode {
 	}
 	return RepeatOff
 }
+
+// BackReplayer est implémentée par les lecteurs qui savent naviguer dans leur propre file
+// (précédent / suivant) : réécouter un morceau déjà passé sans remplacer la file, comme Apple Music.
+type BackReplayer interface {
+	ReplayBack(ctx context.Context, trackID string, steps int) (bool, error)
+	JumpForward(ctx context.Context, steps int, trackID string, posSec int) error
+}

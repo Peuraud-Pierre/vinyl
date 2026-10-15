@@ -37,6 +37,7 @@ type VinylService struct {
 	onHistory   func([]history.Entry) // diffusion de la pile au frontend
 	queueMu     sync.Mutex
 	queue       *vinylQueue // morceaux enchaînés par Vinyl (album, réécoute depuis la pile)
+	back        *backReplay // réécoute par « précédent » dans la file de Musique
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
@@ -271,6 +272,28 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 		}
 		return s.PlayItem(source, id)
 	}
+	// D'abord sans toucher à la file de Musique : « précédent » jusqu'au morceau, puis retour par
+	// « suivant » au morceau interrompu juste avant la fin (voir ObservePlayback).
+	if b, ok := p.(player.BackReplayer); ok && s.activeQueue() == nil {
+		if steps := s.stepsBack(source, trackID); steps > 0 {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			saved, err := r.SaveContext(ctx)
+			if err == nil && saved.TrackID != "" {
+				back, err := b.ReplayBack(ctx, trackID, steps)
+				if err != nil {
+					return err
+				}
+				if back {
+					s.queueMu.Lock()
+					s.back = &backReplay{source: source, trackID: trackID, steps: steps, saved: saved, started: time.Now()}
+					s.queueMu.Unlock()
+					s.watcher.Wake()
+					return nil
+				}
+			}
+		}
+	}
 	q := &vinylQueue{source: source, tracks: []player.Track{{ID: trackID}}}
 	if prev := s.activeQueue(); prev != nil && prev.source == source {
 		// Déjà en train d'enchaîner : on reprendra là où on en était (morceau interrompu compris).
@@ -308,7 +331,70 @@ func (q *vinylQueue) nearEnd() bool { return q.seen && q.dur > 0 && q.lastPos >=
 func (s *VinylService) setQueue(q *vinylQueue) {
 	s.queueMu.Lock()
 	s.queue = q
+	s.back = nil
 	s.queueMu.Unlock()
+}
+
+// backReplay : morceau réécouté en reculant dans la file de Musique ; à sa fin, on revient de steps
+// morceaux en avant, au morceau interrompu et à sa position.
+type backReplay struct {
+	source, trackID string
+	steps           int
+	saved           player.PlaybackContext
+	started         time.Time
+	seen            bool
+	lastPos, dur    int64
+}
+
+// stepsBack : à combien de morceaux en arrière se trouve trackID (1 = celui d'avant le morceau en
+// cours), d'après la pile ; 0 s'il n'y est pas.
+func (s *VinylService) stepsBack(source, trackID string) int {
+	for i, e := range s.History() {
+		if e.Source == source && e.TrackID == trackID {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// observeBack suit une réécoute par « précédent » ; renvoie true si elle est en cours.
+func (s *VinylService) observeBack(np player.NowPlaying) bool {
+	s.queueMu.Lock()
+	b := s.back
+	if b == nil {
+		s.queueMu.Unlock()
+		return false
+	}
+	steps := -1 // < 0 : rien à faire
+	drop := false
+	switch {
+	case np.Source != "" && np.Source != b.source, np.State == player.StateStopped:
+		drop = b.seen
+	case np.TrackID == b.trackID:
+		b.seen, b.lastPos, b.dur = true, np.PositionMs, np.DurationMs
+		if b.dur > 0 && np.PositionMs >= b.dur-1500 {
+			steps = b.steps // dernière seconde : retour direct au morceau interrompu
+		}
+	case !b.seen:
+		drop = time.Since(b.started) > 15*time.Second
+	case b.dur > 0 && b.lastPos >= b.dur-4000:
+		steps = b.steps - 1 // Musique est déjà passé au morceau suivant
+	default:
+		drop = true // l'utilisateur a choisi autre chose
+	}
+	if drop || steps >= 0 {
+		s.back = nil
+	}
+	s.queueMu.Unlock()
+	if steps >= 0 {
+		if j, ok := s.watcher.Player(b.source).(player.BackReplayer); ok {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			j.JumpForward(ctx, steps, b.saved.TrackID, b.saved.PositionSec)
+			s.watcher.Wake()
+		}
+	}
+	return true
 }
 
 // activeQueue renvoie les morceaux enchaînés par Vinyl s'ils concernent le lecteur actif.
@@ -389,6 +475,9 @@ func (s *VinylService) step(q *vinylQueue, delta int, natural bool) error {
 // (arrêt, morceau suivant ou répétition), la suite est lancée. Si l'utilisateur choisit lui-même autre
 // chose, Vinyl arrête de piloter la suite.
 func (s *VinylService) ObservePlayback(snap player.Snapshot) {
+	if snap.Problem == "" && s.observeBack(snap.NowPlaying) {
+		return
+	}
 	s.queueMu.Lock()
 	q := s.queue
 	if q == nil || snap.Problem != "" {

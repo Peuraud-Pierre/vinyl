@@ -126,3 +126,87 @@ func TestAlbumQueueStopsWhenTheUserPicksSomethingElse(t *testing.T) {
 		t.Errorf("joués : %v", p.alone)
 	}
 }
+
+// fakeBack : lecteur qui sait naviguer dans sa propre file (précédent / suivant).
+type fakeBack struct {
+	fakeResumer
+	backOK bool
+	backs  [][2]any
+	jumps  [][3]any
+}
+
+func (f *fakeBack) ReplayBack(_ context.Context, id string, steps int) (bool, error) {
+	f.backs = append(f.backs, [2]any{id, steps})
+	return f.backOK, nil
+}
+func (f *fakeBack) JumpForward(_ context.Context, steps int, id string, pos int) error {
+	f.jumps = append(f.jumps, [3]any{steps, id, pos})
+	return nil
+}
+
+// Comme Apple Music : la file de Musique n'est jamais remplacée. Précédent ×N vers le morceau choisi,
+// puis juste avant sa fin, suivant ×N vers le morceau interrompu, à sa position.
+func TestReplayKeepsMusicQueueAndComesBack(t *testing.T) {
+	p := &fakeBack{backOK: true}
+	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil) // pile 3 2 1, en cours 4
+	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.backs) != 1 || p.backs[0] != [2]any{"2", 2} || len(p.alone) != 0 {
+		t.Fatalf("précédent : %v, joué seul : %v", p.backs, p.alone)
+	}
+	s.ObservePlayback(playing("2", 1000, 200000))
+	if len(p.jumps) != 0 {
+		t.Fatal("pas de retour avant la fin")
+	}
+	s.ObservePlayback(playing("2", 199000, 200000)) // dernière seconde
+	if len(p.jumps) != 1 || p.jumps[0] != [3]any{2, "4", 61} {
+		t.Fatalf("retour : %v", p.jumps)
+	}
+	s.ObservePlayback(playing("4", 61500, 300000))
+	if len(p.jumps) != 1 {
+		t.Error("un seul retour")
+	}
+}
+
+// Fin manquée (Musique est déjà passé au morceau suivant) : un « suivant » de moins.
+func TestReplayComesBackEvenIfTheEndWasMissed(t *testing.T) {
+	p := &fakeBack{backOK: true}
+	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 10}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+	s.PlayFromHistory("applemusic", "1") // 3 morceaux en arrière
+	s.ObservePlayback(playing("1", 197000, 200000))
+	s.ObservePlayback(playing("2", 300, 200000))
+	if len(p.jumps) != 1 || p.jumps[0] != [3]any{2, "4", 10} {
+		t.Fatalf("retour : %v", p.jumps)
+	}
+}
+
+// Morceau absent de la file de Musique : dernier recours, joué une fois puis reprise.
+func TestReplayFallsBackWhenNotInTheQueue(t *testing.T) {
+	p := &fakeBack{backOK: false}
+	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+	s.PlayFromHistory("applemusic", "2")
+	if len(p.alone) != 1 || p.alone[0] != "2" {
+		t.Errorf("joué seul : %v", p.alone)
+	}
+}
+
+func TestReplayBackCancelledWhenTheUserPicksSomethingElse(t *testing.T) {
+	p := &fakeBack{backOK: true}
+	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+	s.PlayFromHistory("applemusic", "2")
+	s.ObservePlayback(playing("2", 30000, 200000))
+	s.ObservePlayback(playing("88", 100, 200000))
+	s.ObservePlayback(playing("88", 199000, 200000))
+	if len(p.jumps) != 0 {
+		t.Errorf("aucun retour attendu : %v", p.jumps)
+	}
+}

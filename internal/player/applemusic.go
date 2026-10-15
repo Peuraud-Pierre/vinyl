@@ -421,3 +421,50 @@ func (m *AppleMusic) Resume(ctx context.Context, c PlaybackContext) error {
 	_, err := m.simpleRun(ctx, musicResumeScript, c.PlaylistID, c.TrackID, strconv.Itoa(c.PositionSec))
 	return err
 }
+
+// argv : morceau visé, nombre de morceaux en arrière. Réécoute sans toucher à la file de Musique :
+// uniquement « précédent », puis vérification. « MISS » : le morceau n'est pas dans la file en cours.
+const musicReplayBackScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	tell application id "com.apple.Music"
+		repeat ((item 2 of argv) as integer) times
+			previous track
+			delay 0.15
+		end repeat
+		try
+			if (persistent ID of current track) is (item 1 of argv) then
+				if player state is not playing then playpause
+				return "BACK"
+			end if
+		end try
+	end tell
+	return "MISS"
+end run`
+
+// argv : nombre de morceaux, morceau interrompu, position (s). Revient au morceau interrompu par
+// « suivant », sans toucher à la file, et le replace où il en était.
+const musicJumpForwardScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	tell application id "com.apple.Music"
+		repeat ((item 1 of argv) as integer) times
+			next track
+			delay 0.15
+		end repeat
+		try
+			if (persistent ID of current track) is (item 2 of argv) then set player position to ((item 3 of argv) as integer)
+		end try
+	end tell
+	return "OK"
+end run`
+
+// ReplayBack recule de steps morceaux dans la file de Musique ; false si le morceau n'y est pas.
+func (m *AppleMusic) ReplayBack(ctx context.Context, trackID string, steps int) (bool, error) {
+	out, err := m.simpleRun(ctx, musicReplayBackScript, trackID, strconv.Itoa(steps))
+	return err == nil && out == "BACK", err
+}
+
+// JumpForward avance de steps morceaux et replace le morceau interrompu à sa position.
+func (m *AppleMusic) JumpForward(ctx context.Context, steps int, trackID string, posSec int) error {
+	_, err := m.simpleRun(ctx, musicJumpForwardScript, strconv.Itoa(steps), trackID, strconv.Itoa(posSec))
+	return err
+}

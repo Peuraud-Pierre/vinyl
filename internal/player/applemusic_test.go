@@ -318,3 +318,32 @@ func TestPlayAloneUsesOnceWithoutPlaylist(t *testing.T) {
 		t.Error("le morceau doit être joué une fois, sans playlist")
 	}
 }
+
+// Réécoute sans toucher à la file de Musique : « précédent » N fois, puis vérification du morceau.
+func TestReplayBackWalksThroughTheQueue(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"BACK"}}
+	ok, err := NewAppleMusic(r, t.TempDir()).ReplayBack(context.Background(), "T2", 3)
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	c := r.calls[0]
+	if strings.Join(c.args, "|") != "T2|3" || !strings.Contains(c.script, "previous track") || strings.Contains(c.script, "play (") {
+		t.Errorf("argv %v / script : seulement « précédent », jamais un nouveau play", c.args)
+	}
+	r = &fakeRunner{outputs: []string{"MISS"}}
+	if ok, _ := NewAppleMusic(r, t.TempDir()).ReplayBack(context.Background(), "T2", 3); ok {
+		t.Error("morceau absent de la file : ok=false attendu")
+	}
+}
+
+// Retour au morceau interrompu : « suivant » N fois puis position retrouvée.
+func TestJumpForwardBackToTheInterruptedTrack(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"OK"}}
+	if err := NewAppleMusic(r, t.TempDir()).JumpForward(context.Background(), 3, "T5", 61); err != nil {
+		t.Fatal(err)
+	}
+	c := r.calls[0]
+	if strings.Join(c.args, "|") != "3|T5|61" || !strings.Contains(c.script, "next track") || !strings.Contains(c.script, "player position") {
+		t.Errorf("argv %v", c.args)
+	}
+}
