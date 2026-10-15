@@ -63,9 +63,32 @@ test("pile vide : rien d'affiché", () => {
 test("pile tournée dans l'autre sens, chaque disque un peu de travers au hasard (mais toujours pareil)", () => {
   const root = document.createElement("div");
   mountRecentPile(root, { play: vi.fn() }).update(["a", "b", "c", "d", "e", "f", "g"].map(e));
-  expect(root.querySelector<HTMLElement>(".vy-recent-3d")!.style.transform).toBe(`rotateY(${PILE_TURN}deg)`);
   expect(PILE_TURN).toBeLessThan(0);
+  // Rotation de chaque disque = rotation de la pile + son propre écart (±9°).
   const yaws = Array.from(root.querySelectorAll<HTMLElement>(".vy-recent-disc")).map((d) => Number(/rotateY\((-?[\d.]+)deg\)/.exec(d.style.transform)![1]));
-  expect(yaws.every((y) => Math.abs(y) <= 10)).toBe(true);
+  expect(yaws.every((y) => Math.abs(y - PILE_TURN) <= 9)).toBe(true);
   expect(new Set(yaws).size).toBeGreaterThan(2); // pas tous pareils
+});
+
+// Même montage que l'étagère (dont la 3D s'affiche bien dans l'app) : conteneur en perspective non
+// transformé, un seul niveau en preserve-3d portant l'échelle, puis les disques.
+test("montage 3D comme l'étagère : l'échelle est portée par le niveau 3D, pas par un parent", () => {
+  const root = document.createElement("div");
+  const pile = mountRecentPile(root, { play: vi.fn() });
+  pile.setScale(0.8);
+  pile.update(["b", "a"].map(e));
+  const zoom = root.querySelector<HTMLElement>(".vy-recent-3d")!;
+  expect(zoom.parentElement).toBe(root);
+  expect(zoom.style.scale).toBe("0.8");
+  expect(zoom.querySelector(".vy-recent-disc")!.parentElement).toBe(zoom);
+  pile.setScale(1.1); // redimensionnement de la fenêtre
+  expect(root.querySelector<HTMLElement>(".vy-recent-3d")!.style.scale).toBe("1.1");
+});
+
+test("côtés des disques assombris par la couleur, sans filtre (un filtre aplatit la 3D dans WebKit)", () => {
+  const root = document.createElement("div");
+  mountRecentPile(root, { play: vi.fn() }).update(["a"].map(e));
+  const side = root.querySelector<HTMLElement>(".vy-recent-side")!;
+  expect(side.style.background).toContain("color-mix");
+  expect(side.style.filter).toBe("");
 });

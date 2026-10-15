@@ -23,16 +23,27 @@ const key = (e: HistoryEntry) => `${e.source}:${e.trackId}`;
 const cssUrl = (u: string) => `url("${u.replace(/["\\]/g, "\\$&")}")`;
 const tints = new Map<string, string | null>(); // teinte de chaque pochette, calculée une fois
 
-export interface RecentPile { update(list: HistoryEntry[]): void; }
+export interface RecentPile { update(list: HistoryEntry[]): void; setScale(k: number): void; }
+
+const PERSPECTIVE = 1800; // px de scène ; vue un peu d'en haut (perspective-origin dans styles.css)
 
 export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry): void }): RecentPile {
   let top = "";
+  let scale = 1;
+  let zoom: HTMLElement | null = null;
+  // Même montage que l'étagère, dont la 3D s'affiche bien dans WebKit : la perspective est sur un
+  // conteneur non transformé (root), l'échelle sur le niveau en preserve-3d juste en dessous.
+  const applyScale = () => {
+    root.style.perspective = `${PERSPECTIVE * scale}px`;
+    if (zoom) zoom.style.scale = String(scale);
+  };
   const paint = (slab: HTMLElement, it: HistoryEntry) => {
     const c = spineColors(it.title, tints.get(key(it)) ?? undefined);
     slab.style.background = c.bg;
     slab.style.color = c.ink;
   };
   return {
+    setScale(k) { scale = k; applyScale(); },
     update(list) {
       const shown = list.slice(0, RECENT_MAX);
       const n = shown.length;
@@ -41,11 +52,11 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
       top = newTop;
       root.innerHTML = "";
       root.classList.add("vy-recent-scene");
-      // Volume en 3D : la pile pivote sur la table autour de son centre.
       const pile = document.createElement("div");
       pile.className = "vy-recent-3d";
-      pile.style.transform = `rotateY(${PILE_TURN}deg)`;
       root.appendChild(pile);
+      zoom = pile;
+      applyScale();
       let topDisc: HTMLElement | null = null;
       // Du plus ancien (en bas) au plus récent (en haut). Chaque disque est un petit volume :
       // tranche de face, côté droit (visible puisque la pile a pivoté) et pochette posée à plat dessus
@@ -56,7 +67,8 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         const d = document.createElement("div");
         d.className = "vy-recent-disc";
         d.style.bottom = `${level * SLAB}px`;
-        d.style.transform = `translateX(${dx}px) rotateY(${yaw}deg)`;
+        // La pile a pivoté sur la table (PILE_TURN) ; chaque disque y ajoute son propre écart.
+        d.style.transform = `translateX(${dx}px) rotateY(${PILE_TURN + yaw}deg)`;
         const b = document.createElement("button");
         b.className = "vy-recent";
         b.dataset.track = it.trackId;
@@ -66,7 +78,11 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         b.onclick = () => deps.play(it);
         const side = document.createElement("div");
         side.className = "vy-recent-side";
-        const paintAll = () => { paint(b, it); side.style.background = b.style.background; };
+        // Côté plus sombre par la couleur : un filtre aplatirait la 3D dans WebKit.
+        const paintAll = () => {
+          paint(b, it);
+          side.style.background = `color-mix(in srgb, ${spineColors(it.title, tints.get(key(it)) ?? undefined).bg} 62%, #000)`;
+        };
         paintAll();
         const lid = document.createElement("button");
         lid.className = "vy-recent-lid";

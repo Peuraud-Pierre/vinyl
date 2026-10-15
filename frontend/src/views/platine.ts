@@ -4,7 +4,7 @@ import { openShareCard } from "../share/sharecard";
 import { STAGE_H, STAGE_W, Turntable } from "../turntable/turntable";
 import { mountDeck } from "../ui/deck";
 import { icons } from "../ui/icons";
-import { mountRecentPile } from "../ui/recentpile";
+import { mountRecentPile, type RecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
@@ -12,6 +12,9 @@ const CONTROLS_W = 140;
 // Scène de la page : platine, plus la pile des derniers écoutés à sa droite (au-delà du bras au repos).
 // La pile déborde un peu sous la colonne de commandes (libre en bas) pour ne pas rapetisser la platine.
 const SCENE_W = STAGE_W + 450;
+// Place de la pile dans la scène (px de scène). Elle est hors de la scène mise à l'échelle (même montage
+// 3D que l'étagère) : sa position et sa taille sont recalculées à chaque redimensionnement.
+const RECENT = { x: STAGE_W + 60, y: 150, w: 500, h: 460 };
 
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
@@ -21,8 +24,8 @@ export function mount(el: HTMLElement): () => void {
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:179px;top:610px"></div>
-          <div id="pl-recent" class="absolute" style="left:${STAGE_W + 60}px;top:150px;width:500px;height:460px" aria-label="Derniers morceaux écoutés"></div>
         </div>
+        <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
       <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
@@ -62,7 +65,14 @@ export function mount(el: HTMLElement): () => void {
     s.style.transform = `scale(${k})`;
     s.style.left = `${(wrap.width - SCENE_W * k) / 2}px`;
     s.style.top = `${(wrap.height - STAGE_H * k) / 2}px`;
+    const r = $("pl-recent");
+    r.style.left = `${(wrap.width - SCENE_W * k) / 2 + RECENT.x * k}px`;
+    r.style.top = `${(wrap.height - STAGE_H * k) / 2 + RECENT.y * k}px`;
+    r.style.width = `${RECENT.w * k}px`;
+    r.style.height = `${RECENT.h * k}px`;
+    recent?.setScale(k);
   };
+  let recent: RecentPile | null = null;
   const ro = new ResizeObserver(fit);
   ro.observe($("pl-wrap"));
 
@@ -74,9 +84,10 @@ export function mount(el: HTMLElement): () => void {
   let deckTrack = "";
 
   // Pile des derniers morceaux écoutés : un clic relance le morceau.
-  const recent = mountRecentPile($("pl-recent"), { play: (e) => { api.PlayItem(e.source, e.trackId).catch(() => {}); } });
-  const offHistory = onHistory((l) => recent.update(l));
-  api.History().then((l) => recent.update(l ?? [])).catch(() => {});
+  recent = mountRecentPile($("pl-recent"), { play: (e) => { api.PlayItem(e.source, e.trackId).catch(() => {}); } });
+  const offHistory = onHistory((l) => recent?.update(l));
+  api.History().then((l) => recent?.update(l ?? [])).catch(() => {});
+  fit();
   const onFocus = () => { if (!snap?.problem) deck.refresh(); };
   window.addEventListener("focus", onFocus);
 
