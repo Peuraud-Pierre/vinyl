@@ -7,15 +7,15 @@ import { spineColors } from "../views/shelf";
 import { imageTint } from "./theme";
 
 export const RECENT_MAX = 7;
-export const PILE_W = 240; // largeur d'une pochette (px de scène)
-export const SLAB = 24; // épaisseur d'une tranche
+export const PILE_W = 290; // largeur d'une pochette (px de scène)
+export const SLAB = 14; // épaisseur d'une tranche
 
 // Décalage et légère inclinaison propres à chaque morceau (toujours les mêmes) : une pile naturelle
 // qui ne bouge pas quand un nouveau disque est posé dessus.
 function jitter(id: string): { dx: number; rot: number } {
   let h = 2166136261;
   for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619) >>> 0;
-  return { dx: (h % 15) - 7, rot: (((h >>> 6) % 25) - 12) / 10 };
+  return { dx: (h % 33) - 16, rot: (((h >>> 6) % 81) - 40) / 10 }; // ±16 px, ±4°
 }
 
 const key = (e: HistoryEntry) => `${e.source}:${e.trackId}`;
@@ -67,7 +67,9 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
       lid.setAttribute("aria-label", `${last.title} — ${last.artist}`);
       lid.title = `${last.title} — ${last.artist}`;
       lid.style.bottom = `${n * SLAB}px`;
-      lid.style.left = `${jitter(newTop).dx}px`;
+      const j = jitter(newTop);
+      lid.style.left = `${j.dx}px`;
+      lid.style.transform = `rotate(${j.rot}deg) perspective(900px) rotateX(74deg)`; // même inclinaison que sa tranche
       if (last.artworkUrl) lid.style.backgroundImage = cssUrl(last.artworkUrl);
       lid.onclick = () => deps.play(last);
       root.appendChild(lid);
