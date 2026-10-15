@@ -41,6 +41,8 @@ export function mount(el: HTMLElement): () => void {
 
   // Version et mises à jour ; section « Contributeur » : code d'accès aux bêtas.
   const vSection = el.querySelector<HTMLElement>("#version-section")!;
+  // Le bandeau (main.ts) suit le résultat : nouvelle version affichée, ou masqué si rien de nouveau.
+  const announce = (detail: unknown) => window.dispatchEvent(new CustomEvent("vinyl:update", { detail }));
   const renderVersion = async () => {
     const [v, who] = await Promise.all([api.Version(), api.BetaAccess()]);
     vSection.innerHTML = `
@@ -61,13 +63,14 @@ export function mount(el: HTMLElement): () => void {
       msg.textContent = "Recherche…";
       const info = await api.CheckForUpdate();
       msg.textContent = info.available ? `Vinyl ${info.version} est disponible.` : "Vinyl est à jour.";
-      if (info.available) window.dispatchEvent(new CustomEvent("vinyl:update", { detail: info }));
+      announce(info);
     });
     vSection.querySelector<HTMLButtonElement>("#beta-on")?.addEventListener("click", async () => {
       const code = vSection.querySelector<HTMLInputElement>("#beta-code")!.value;
       try {
         await api.SetBetaCode(code);
         renderVersion();
+        api.CheckForUpdate().then(announce).catch(() => {});
       } catch {
         vSection.querySelector<HTMLElement>("#beta-msg")!.textContent = "Code invalide";
       }
@@ -75,6 +78,7 @@ export function mount(el: HTMLElement): () => void {
     vSection.querySelector<HTMLButtonElement>("#beta-off")?.addEventListener("click", async () => {
       await api.SetBetaCode("");
       renderVersion();
+      api.CheckForUpdate().then(announce).catch(() => {}); // une bêta déjà proposée ne l'est plus
     });
   };
   renderVersion();

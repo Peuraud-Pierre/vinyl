@@ -54,7 +54,14 @@ func (c *Channel) Check(ctx context.Context, req updater.CheckRequest) (*updater
 	c.mu.Lock()
 	c.last = p
 	c.mu.Unlock()
-	return p.Check(ctx, req)
+	r, err := p.Check(ctx, req)
+	if err != nil || r == nil {
+		return r, err
+	}
+	if r.Verification == nil {
+		return nil, nil // pas d'empreinte (SHA256SUMS absent ou pas encore envoyé) : rien d'invérifié
+	}
+	return r, nil
 }
 
 func (c *Channel) Download(ctx context.Context, r *updater.Release, dst io.Writer, onProgress func(int64, int64)) error {

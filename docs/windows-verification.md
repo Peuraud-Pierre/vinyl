@@ -18,8 +18,11 @@ Pour chaque point qui échoue : noter ce qui s'affiche, et joindre une capture d
 
 ## Mises à jour (Mac et Windows)
 
+0. **Avant de publier `vA`** : créer la clé des codes contributeur (`./beta-code.sh "Prénom"`) et commiter
+   `internal/beta/pubkey.go`. Sans elle, tout code est refusé (« Code invalide ») dans cette version.
 1. Installer à la main la release `vA` (la première qui contient les mises à jour) : `Vinyl-darwin-arm64.zip`
-   sur Mac, `Vinyl-Setup.exe` sur Windows (installée dans `%LOCALAPPDATA%\Programs\Vinyl`, sans droits
+   sur Mac (glisser Vinyl dans Applications : lancée depuis Téléchargements, elle ne peut pas se remplacer),
+   `Vinyl-Setup.exe` sur Windows (installée dans `%LOCALAPPDATA%\Programs\Vinyl`, sans droits
    d'administrateur ; désinstaller d'abord une ancienne version 1.0.x).
 2. Réglages : la section Version affiche « Vinyl A ».
 3. Publier `vB` (`./release.sh`) ; relancer Vinyl : le bandeau « Vinyl B est disponible » apparaît en haut.
@@ -28,3 +31,5 @@ Pour chaque point qui échoue : noter ce qui s'affiche, et joindre une capture d
    Coller un code (`./beta-code.sh "Prénom"`) dans Réglages > Contributeur : « Bêtas activées pour Prénom »,
    et la bêta est proposée. « Retirer » : elle ne l'est plus.
 6. Couper le réseau et relancer : aucun message, l'app démarre normalement.
+7. Bêta proposée puis « Retirer » dans Réglages : le bandeau disparaît ; « Mettre à jour » n'installe pas la bêta.
+8. Mac : après une mise à jour, macOS peut redemander l'autorisation de piloter Musique (app non signée).

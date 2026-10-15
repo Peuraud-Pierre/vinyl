@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { mountUpdateBanner } from "./updatebanner";
 
-const deps = () => ({ install: vi.fn(() => Promise.resolve()), openRelease: vi.fn() });
+const deps = () => ({ install: vi.fn(() => Promise.resolve(true)), openRelease: vi.fn() });
 const info = (version: string) => ({ available: true, version, notes: "", dev: false });
 
 test("nouvelle version : bandeau et bouton Mettre à jour", () => {
@@ -52,5 +52,26 @@ test("erreur hors installation : pas de bandeau", () => {
   const b = mountUpdateBanner(el, deps());
   b.installFailed();
   b.progress(10, 100);
+  expect(el.hidden).toBe(true);
+});
+
+// Version retirée entre-temps (code contributeur retiré) : le bandeau disparaît.
+test("plus rien à installer : bandeau masqué", async () => {
+  const el = document.createElement("div");
+  const b = mountUpdateBanner(el, { install: () => Promise.resolve(false), openRelease: vi.fn() });
+  b.show(info("1.1.0-beta.1"));
+  el.querySelector<HTMLButtonElement>("[data-update]")!.click();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(el.hidden).toBe(true);
+  b.show(info("1.0.4")); // nouvelle annonce acceptée ensuite
+  expect(el.textContent).toContain("Vinyl 1.0.4 est disponible");
+});
+
+test("à jour après une annonce : bandeau masqué", () => {
+  const el = document.createElement("div");
+  const b = mountUpdateBanner(el, deps());
+  b.show(info("1.1.0-beta.1"));
+  b.show({ available: false, version: "", notes: "", dev: false });
   expect(el.hidden).toBe(true);
 });

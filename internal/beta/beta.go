@@ -21,7 +21,7 @@ func Sign(priv ed25519.PrivateKey, name string) string {
 
 // Verify vérifie un code et renvoie le nom du contributeur.
 func Verify(pub ed25519.PublicKey, code string) (string, bool) {
-	code = strings.TrimSpace(code)
+	code = strings.Join(strings.Fields(code), "") // espaces et retours à la ligne collés avec le code
 	if !strings.HasPrefix(code, prefix) || len(pub) != ed25519.PublicKeySize {
 		return "", false
 	}

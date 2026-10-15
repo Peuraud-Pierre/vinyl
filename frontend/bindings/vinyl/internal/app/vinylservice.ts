@@ -69,9 +69,10 @@ export function History(): $CancellablePromise<history$0.Entry[] | null> {
 }
 
 /**
- * InstallUpdate télécharge et vérifie la version proposée, la met en place et redémarre Vinyl.
+ * InstallUpdate revérifie la version proposée (le code contributeur a pu être retiré entre-temps), la
+ * télécharge et la vérifie, la met en place et redémarre Vinyl. false : plus rien à installer.
  */
-export function InstallUpdate(): $CancellablePromise<void> {
+export function InstallUpdate(): $CancellablePromise<boolean> {
     return $Call.ByID(1346529934);
 }
 

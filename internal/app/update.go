@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -45,20 +47,64 @@ func (s *VinylService) CheckForUpdate() (UpdateInfo, error) {
 	return UpdateInfo{Available: true, Version: rel.Version, Notes: rel.Notes}, nil
 }
 
-// InstallUpdate télécharge et vérifie la version proposée, la met en place et redémarre Vinyl.
-func (s *VinylService) InstallUpdate() error {
+var errReadOnlyApp = errors.New("Vinyl ne peut pas se remplacer à cet endroit (droits insuffisants)")
+
+// InstallUpdate revérifie la version proposée (le code contributeur a pu être retiré entre-temps), la
+// télécharge et la vérifie, la met en place et redémarre Vinyl. false : plus rien à installer.
+func (s *VinylService) InstallUpdate() (bool, error) {
 	if s.upd == nil {
-		return errors.New("mise à jour indisponible")
+		return false, errors.New("mise à jour indisponible")
+	}
+	if err := s.checkReplaceable(); err != nil {
+		return false, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
+	switch st := s.upd.State(); st {
+	case updater.StateDownloading, updater.StateVerifying, updater.StateInstalling:
+		return true, nil // déjà en cours
+	}
+	rel, err := s.upd.Check(ctx)
+	if err != nil {
+		return false, err
+	}
+	if rel == nil {
+		return false, nil
+	}
 	if err := s.upd.DownloadAndInstall(ctx); err != nil {
 		if errors.Is(err, updater.ErrDownloadInProgress) {
-			return nil // déjà en cours
+			return true, nil // déjà en cours
 		}
+		return false, err
+	}
+	return true, s.upd.Restart(ctx)
+}
+
+// replaceTarget : ce que la mise à jour remplace (le .app sur Mac, l'exécutable ailleurs).
+func replaceTarget(exe string) string {
+	if i := strings.Index(exe, ".app"+string(os.PathSeparator)); i >= 0 {
+		return exe[:i+len(".app")]
+	}
+	return exe
+}
+
+// checkReplaceable vérifie, avant de télécharger, que le dossier de l'app est modifiable : sinon le
+// remplacement échouerait après la fermeture de Vinyl, sans message.
+func (s *VinylService) checkReplaceable() error {
+	exe, err := s.exePath()
+	if err != nil {
 		return err
 	}
-	return s.upd.Restart(ctx)
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	f, err := os.CreateTemp(filepath.Dir(replaceTarget(exe)), ".vinyl-update-*")
+	if err != nil {
+		return errReadOnlyApp
+	}
+	f.Close()
+	os.Remove(f.Name())
+	return nil
 }
 
 // ReleaseURL : page GitHub d'une version (repli si l'installation échoue).

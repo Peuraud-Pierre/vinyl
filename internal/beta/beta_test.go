@@ -23,9 +23,11 @@ func TestSignedCodeIsAccepted(t *testing.T) {
 	if name, ok := Verify(pub, code); !ok || name != "Léa" {
 		t.Errorf("name=%q ok=%v", name, ok)
 	}
-	// Collé avec des espaces ou un retour à la ligne : toujours valide.
-	if name, ok := Verify(pub, "  "+code+"\n"); !ok || name != "Léa" {
-		t.Errorf("avec espaces : name=%q ok=%v", name, ok)
+	// Collé avec des espaces ou des retours à la ligne (même au milieu, coupé par un mail) : toujours valide.
+	for _, pasted := range []string{"  " + code + "\n", code[:40] + " " + code[40:], code[:30] + "\r\n" + code[30:]} {
+		if name, ok := Verify(pub, pasted); !ok || name != "Léa" {
+			t.Errorf("%q : name=%q ok=%v", pasted, name, ok)
+		}
 	}
 }
 

@@ -44,10 +44,11 @@ type VinylService struct {
 	back        *backReplay // réécoute par « précédent » dans la file de Musique
 	version     string      // numéro de la release, « dev » pour une fabrication à la main
 	upd         Updater     // système de mise à jour (nil en « dev »)
+	exePath     func() (string, error)
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
-	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}, openLink: openURL, version: "dev"}
+	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}, openLink: openURL, version: "dev", exePath: os.Executable}
 	if music != nil { // bibliothèque Apple Music : Mac seulement
 		s.catalogs["applemusic"] = music
 	}

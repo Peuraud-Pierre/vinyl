@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -77,8 +78,9 @@ func TestUpdateAvailableThenInstalled(t *testing.T) {
 	if err != nil || !info.Available || info.Version != "1.0.3" || info.Notes != "Nouveautés" {
 		t.Fatalf("%+v %v", info, err)
 	}
-	if err := s.InstallUpdate(); err != nil || u.installs != 1 || u.restarts != 1 {
-		t.Errorf("installs=%d restarts=%d err=%v", u.installs, u.restarts, err)
+	s.exePath = func() (string, error) { return filepath.Join(t.TempDir(), "vinyl"), nil }
+	if ok, err := s.InstallUpdate(); err != nil || !ok || u.installs != 1 || u.restarts != 1 {
+		t.Errorf("ok=%v installs=%d restarts=%d err=%v", ok, u.installs, u.restarts, err)
 	}
 }
 
@@ -106,9 +108,10 @@ func TestCheckWithoutNetworkIsQuiet(t *testing.T) {
 func TestInstallWhileDownloadingIsIgnored(t *testing.T) {
 	s := newBare()
 	s.SetVersion("1.0.2")
-	u := &fakeUpdater{busy: true}
+	u := &fakeUpdater{busy: true, rel: &updater.Release{Version: "1.0.3"}}
 	s.SetUpdater(u)
-	if err := s.InstallUpdate(); err != nil || u.restarts != 0 {
+	s.exePath = func() (string, error) { return filepath.Join(t.TempDir(), "vinyl"), nil }
+	if _, err := s.InstallUpdate(); err != nil || u.restarts != 0 {
 		t.Errorf("err = %v, restarts = %d", err, u.restarts)
 	}
 }
@@ -184,5 +187,55 @@ func TestPeriodicCheckSkipsWhenBusyOrDev(t *testing.T) {
 	stop()
 	if u.checks != 0 {
 		t.Errorf("occupé : %d vérifications", u.checks)
+	}
+}
+
+// Version proposée puis plus d'actualité (code contributeur retiré) : « Mettre à jour » n'installe rien.
+func TestInstallRechecksFirst(t *testing.T) {
+	s := newBare()
+	s.SetVersion("1.0.3")
+	u := &fakeUpdater{rel: &updater.Release{Version: "1.1.0-beta.1"}}
+	s.SetUpdater(u)
+	s.exePath = func() (string, error) { return filepath.Join(t.TempDir(), "vinyl"), nil }
+	if info, _ := s.CheckForUpdate(); !info.Available {
+		t.Fatal("bêta non proposée")
+	}
+	u.rel = nil // code retiré : plus rien de nouveau
+	ok, err := s.InstallUpdate()
+	if err != nil || ok || u.installs != 0 {
+		t.Errorf("ok=%v err=%v installs=%d", ok, err, u.installs)
+	}
+}
+
+// Dossier de l'app non modifiable (autre compte, app lancée depuis une image disque…) : erreur avant
+// tout téléchargement, pour que le bandeau propose la page de la release.
+func TestInstallRefusedWhenAppFolderReadOnly(t *testing.T) {
+	dir := t.TempDir()
+	app := filepath.Join(dir, "Vinyl.app", "Contents", "MacOS")
+	if err := os.MkdirAll(app, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(dir, 0o755)
+	s := newBare()
+	s.SetVersion("1.0.2")
+	u := &fakeUpdater{rel: &updater.Release{Version: "1.0.3"}}
+	s.SetUpdater(u)
+	s.exePath = func() (string, error) { return filepath.Join(app, "vinyl"), nil }
+	if _, err := s.InstallUpdate(); err == nil || u.installs != 0 {
+		t.Errorf("err=%v installs=%d", err, u.installs)
+	}
+}
+
+func TestReplaceTarget(t *testing.T) {
+	for exe, want := range map[string]string{
+		"/Applications/Vinyl.app/Contents/MacOS/vinyl":      "/Applications/Vinyl.app",
+		`C:\Users\l\AppData\Local\Programs\Vinyl\vinyl.exe`: `C:\Users\l\AppData\Local\Programs\Vinyl\vinyl.exe`,
+	} {
+		if got := replaceTarget(exe); got != want {
+			t.Errorf("%s → %s", exe, got)
+		}
 	}
 }

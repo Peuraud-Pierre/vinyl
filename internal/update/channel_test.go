@@ -10,14 +10,18 @@ import (
 )
 
 type fakeProvider struct {
-	name      string
-	version   string
-	downloads int
+	name       string
+	version    string
+	downloads  int
+	unverified bool
 }
 
 func (f *fakeProvider) Name() string { return f.name }
 func (f *fakeProvider) Check(context.Context, updater.CheckRequest) (*updater.Release, error) {
-	return &updater.Release{Version: f.version}, nil
+	if f.unverified {
+		return &updater.Release{Version: f.version}, nil
+	}
+	return &updater.Release{Version: f.version, Verification: &updater.Verification{DigestAlgo: "sha256", Digest: []byte{1}}}, nil
 }
 func (f *fakeProvider) Download(context.Context, *updater.Release, io.Writer, func(int64, int64)) error {
 	f.downloads++
@@ -66,5 +70,14 @@ func TestAssetNamesMatchWailsMatcher(t *testing.T) {
 func TestNewGitHub(t *testing.T) {
 	if _, err := NewGitHub(func() bool { return false }); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Release sans empreinte (SHA256SUMS absent ou pas encore envoyé) : pas proposée, rien d'invérifié.
+func TestUnverifiedReleaseIsIgnored(t *testing.T) {
+	p := &fakeProvider{name: "s", version: "1.0.3", unverified: true}
+	c := NewChannel(p, p, func() bool { return false })
+	if r, err := c.Check(context.Background(), updater.CheckRequest{}); r != nil || err != nil {
+		t.Errorf("r=%+v err=%v", r, err)
 	}
 }

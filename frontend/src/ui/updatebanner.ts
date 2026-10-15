@@ -1,7 +1,10 @@
 // Bandeau de mise à jour de Vinyl : « Vinyl 1.0.3 est disponible » → téléchargement → redémarrage ; en
 // cas d'échec, lien vers la page de la release.
 export interface UpdateInfo { available: boolean; version: string; notes: string; dev: boolean; }
-export interface BannerDeps { install(): Promise<unknown>; openRelease(version: string): void; }
+export interface BannerDeps {
+  install(): Promise<boolean>; // false : plus rien à installer
+  openRelease(version: string): void;
+}
 
 export function mountUpdateBanner(el: HTMLElement, deps: BannerDeps) {
   let version = "";
@@ -25,7 +28,9 @@ export function mountUpdateBanner(el: HTMLElement, deps: BannerDeps) {
       el.querySelector<HTMLButtonElement>("[data-update]")!.onclick = () => {
         installing = true;
         render(`<span>Téléchargement…</span>`);
-        deps.install().catch(fail);
+        deps.install().then((started) => {
+          if (!started) { installing = false; el.hidden = true; }
+        }, fail);
       };
     },
     progress(written: number, total: number) {
