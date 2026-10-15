@@ -3,7 +3,7 @@ import { api } from "../api";
 import { ARM_GEOMETRY, ARM_LIFT, ARM_REST, CLICK_TOLERANCE, angleForProgress, armRelease, dragAngleFromPointer } from "./arm";
 import { estimatePosition } from "./clock";
 import { playCrackle } from "./crackle";
-import { Spinner } from "./spin";
+import { FULL_SPEED, Spinner } from "./spin";
 import { discBackground, type Texture } from "./textures";
 import { labelColorFor, labelMarkup } from "./label";
 import { imageTint } from "../ui/theme";
@@ -77,6 +77,11 @@ export class Turntable {
   private raf = 0;
   private last = performance.now();
   private armWasDown = false;
+  // Économie d'énergie : la rotation est une animation du compositeur (aucun calcul par image) ; une
+  // boucle d'images ne tourne que pendant le démarrage / l'arrêt du plateau. Le bras, qui avance de
+  // quelques degrés par minute, est mis à jour une fois par seconde avec une transition linéaire.
+  private spin: Animation | null = null;
+  private armTimer = 0;
 
   private variant: Variant;
   private labelTint: string | null = null;
@@ -103,14 +108,24 @@ export class Turntable {
       sleeve.addEventListener("animationend", () => sleeve.classList.remove("vy-bounce"));
     }
     this.paint();
-    this.raf = requestAnimationFrame(this.frame);
+    this.spin = this.disc.animate?.([{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], { duration: 360 / FULL_SPEED, iterations: Infinity }) ?? null;
+    this.spin?.pause(); // plateau à l'arrêt : l'animation ne tourne pas du tout
+    if (this.arm) {
+      this.applyArm("none");
+      this.armTimer = window.setInterval(() => this.applyArm(), 1000);
+    }
   }
 
   update(s: Snapshot): void {
     const prevTrack = this.snap?.nowPlaying.trackId;
     const prevArt = this.snap?.nowPlaying.artworkUrl;
+    const wasPlaying = this.playing;
     this.snap = s;
     this.receivedAt = performance.now();
+    if (this.playing !== wasPlaying) {
+      this.kick();
+      this.applyArm("transform .6s ease");
+    } else this.applyArm();
     if (s.nowPlaying.trackId !== prevTrack || s.nowPlaying.artworkUrl !== prevArt) this.paint();
     if (this.variant === "stage" && s.nowPlaying.artworkUrl !== this.tintFor) this.loadLabelColor(s.nowPlaying.artworkUrl);
   }
@@ -122,6 +137,8 @@ export class Turntable {
 
   destroy(): void {
     cancelAnimationFrame(this.raf);
+    clearInterval(this.armTimer);
+    this.spin?.cancel();
   }
 
   private get playing(): boolean {
@@ -165,25 +182,42 @@ export class Turntable {
     this.label.style.opacity = tex === "picture" && art ? "0" : "1";
   }
 
+  // Démarrage / arrêt du plateau : la vitesse suit l'accélération du Spinner, puis la boucle s'arrête.
+  private kick(): void {
+    if (this.playing && this.spin?.playState !== "running") {
+      if (this.spin) this.spin.playbackRate = Math.max(0.001, this.spinner.speed / FULL_SPEED);
+      this.spin?.play();
+    }
+    if (this.raf) return;
+    this.last = performance.now();
+    this.raf = requestAnimationFrame(this.frame);
+  }
+
   private frame = (now: number) => {
     const dt = Math.min(100, now - this.last);
     this.last = now;
-    this.disc.style.transform = `rotate(${this.spinner.step(dt, this.playing)}deg)`;
-    if (this.arm) {
-      let angle = ARM_REST;
-      if (this.dragAngle !== null) angle = this.dragAngle;
-      else if (this.playing && this.snap) {
-        const np = this.snap.nowPlaying;
-        angle = angleForProgress(estimatePosition(np.positionMs, np.durationMs, true, this.receivedAt, now), np.durationMs);
-      }
-      const down = angle >= ARM_LIFT;
-      if (down && !this.armWasDown && this.dragAngle === null && this.appearance?.crackle) playCrackle();
-      this.armWasDown = down;
-      this.arm.style.transform = `rotate(${angle}deg)`;
-      this.arm.style.transition = this.dragAngle === null ? "transform .6s ease" : "none";
-    }
-    this.raf = requestAnimationFrame(this.frame);
+    this.spinner.step(dt, this.playing);
+    if (this.spin) this.spin.playbackRate = this.spinner.speed / FULL_SPEED;
+    const settled = this.playing ? this.spinner.speed >= FULL_SPEED : this.spinner.speed <= 0;
+    if (settled && !this.playing) this.spin?.pause(); // arrêté : plus rien ne tourne
+    this.raf = settled ? 0 : requestAnimationFrame(this.frame);
   };
+
+  // Position du bras : suit la progression du morceau ; pendant un glissé, suit le doigt sans transition.
+  private applyArm(transition = "transform 1s linear"): void {
+    if (!this.arm) return;
+    let angle = ARM_REST;
+    if (this.dragAngle !== null) angle = this.dragAngle;
+    else if (this.playing && this.snap) {
+      const np = this.snap.nowPlaying;
+      angle = angleForProgress(estimatePosition(np.positionMs, np.durationMs, true, this.receivedAt, performance.now()), np.durationMs);
+    }
+    const down = angle >= ARM_LIFT;
+    if (down && !this.armWasDown && this.dragAngle === null && this.appearance?.crackle) playCrackle();
+    this.armWasDown = down;
+    this.arm.style.transition = this.dragAngle === null ? transition : "none";
+    this.arm.style.transform = `rotate(${angle}deg)`;
+  }
 
   private bindArm(arm: HTMLElement): void {
     // La scène peut être mise à l'échelle (transform) : on convertit ses coordonnées en pixels écran.
@@ -196,6 +230,7 @@ export class Turntable {
     let moved = 0;
     const end = () => {
       this.dragAngle = null;
+      this.applyArm("transform .6s ease");
     };
     arm.addEventListener("pointerdown", (e) => {
       const angle = dragAngleFromPointer(pivot(), { x: e.clientX, y: e.clientY });
@@ -205,6 +240,7 @@ export class Turntable {
       moved = 0;
       // Un clic simple ne doit pas faire sauter le bras : on part de sa position affichée.
       this.dragAngle = this.playing ? angle : ARM_REST;
+      this.applyArm();
     });
     arm.addEventListener("pointermove", (e) => {
       if (this.dragAngle === null) return;
@@ -212,6 +248,7 @@ export class Turntable {
       if (moved < CLICK_TOLERANCE) return;
       const angle = dragAngleFromPointer(pivot(), { x: e.clientX, y: e.clientY });
       if (angle !== null) this.dragAngle = angle;
+      this.applyArm();
     });
     arm.addEventListener("pointercancel", end);
     arm.addEventListener("pointerup", async () => {
