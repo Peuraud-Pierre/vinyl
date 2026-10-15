@@ -13,7 +13,11 @@ export function shelfTransform(i: number, offset: number, halfWidth: number): { 
   const base = i * SHELF_GAP - offset - halfWidth + SHELF_MARGIN;
   const onRight = base > 0;
   const x = onRight ? base + CENTER_GAP : base;
-  return { x, rotateY: onRight ? -SHELF_ANGLE : SHELF_ANGLE, zIndex: 1000 - Math.round(Math.abs(x)), spineRight: onRight };
+  // Près du centre, l'angle monte en continu jusqu'à 90° : à gauche comme à droite, on ne voit plus
+  // que la tranche, de face, au même endroit. Le changement de côté est donc invisible (aucun saut).
+  const ramp = Math.min(1, Math.abs(base) / SHELF_GAP);
+  const angle = 90 - (90 - SHELF_ANGLE) * ramp;
+  return { x, rotateY: onRight ? -angle : angle, zIndex: 1000 - Math.round(Math.abs(x)), spineRight: onRight };
 }
 
 /** Décalage borné : 0 au début, la fin de la rangée calée sur le bord droit. */
@@ -22,11 +26,13 @@ export function clampOffset(offset: number, count: number, halfWidth: number): n
   return Math.min(max, Math.max(0, offset));
 }
 
-/** Indices à rendre : ceux dans la scène, plus une tranche de marge de chaque côté. */
+/** Indices à rendre : ceux dans la scène, plus trois boîtiers de marge de chaque côté. */
 export function visibleIndices(offset: number, count: number, halfWidth: number): [number, number] {
   if (count <= 0) return [0, -1];
-  const first = Math.floor((offset - SHELF_GAP) / SHELF_GAP);
-  const last = Math.ceil((offset + 2 * halfWidth - SHELF_MARGIN - CENTER_GAP + SHELF_GAP) / SHELF_GAP);
+  // Trois boîtiers de marge de chaque côté : leurs pochettes sont décodées avant d'entrer à l'écran.
+  const margin = 3 * SHELF_GAP;
+  const first = Math.floor((offset - margin) / SHELF_GAP);
+  const last = Math.ceil((offset + 2 * halfWidth - SHELF_MARGIN - CENTER_GAP + margin) / SHELF_GAP);
   return [Math.max(0, first), Math.min(count - 1, last)];
 }
 
