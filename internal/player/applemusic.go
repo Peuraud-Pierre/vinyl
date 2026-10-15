@@ -57,26 +57,6 @@ const musicPlayTrackScript = `on run argv
 	tell application id "com.apple.Music" to play (first track of library playlist 1 whose persistent ID is (item 1 of argv))
 end run`
 
-// TempPlaylistName est la playlist que Vinyl remplit pour lire un album ou une liste de titres
-// dans l'ordre ; ce n'est pas une playlist de l'utilisateur (masquée de l'étagère).
-const TempPlaylistName = "Vinyl — Album"
-
-const musicPlayAlbumScript = `on run argv
-	set albumName to item 1 of argv
-	set albumArtist to item 2 of argv
-	tell application id "com.apple.Music"
-		if not (exists user playlist "` + TempPlaylistName + `") then make new user playlist with properties {name:"` + TempPlaylistName + `"}
-		set p to user playlist "` + TempPlaylistName + `"
-		delete every track of p
-		set ts to (every track of library playlist 1 whose album is albumName and album artist is albumArtist)
-		if (count of ts) is 0 then set ts to (every track of library playlist 1 whose album is albumName)
-		repeat with t in ts
-			duplicate t to p
-		end repeat
-		play p
-	end tell
-end run`
-
 const musicPlayLibraryTrackScript = `on run argv
 	tell application id "com.apple.Music"
 		set ts to (every track of library playlist 1 whose name is (item 1 of argv) and artist is (item 2 of argv))
@@ -181,9 +161,6 @@ func (m *AppleMusic) PlayItem(ctx context.Context, id string) error {
 		_, err = m.run.Run(ctx, musicPlayPlaylistScript, rest)
 	case "track":
 		_, err = m.run.Run(ctx, musicPlayTrackScript, rest)
-	case "album":
-		album, artist, _ := strings.Cut(rest, Sep)
-		_, err = m.run.Run(ctx, musicPlayAlbumScript, album, artist)
 	default:
 		return fmt.Errorf("applemusic: type d'ID inconnu %q", kind)
 	}
@@ -198,28 +175,6 @@ func (m *AppleMusic) PlayLibraryTrack(ctx context.Context, title, artist string)
 	}
 	return out == "OK", nil
 }
-
-// argv : titre de départ (vide = début), aléatoire (1/0), puis les persistent ID dans l'ordre.
-const musicPlayListScript = `on run argv
-	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	set startID to item 1 of argv
-	tell application id "com.apple.Music"
-		if not (exists user playlist "` + TempPlaylistName + `") then make new user playlist with properties {name:"` + TempPlaylistName + `"}
-		set p to user playlist "` + TempPlaylistName + `"
-		delete every track of p
-		repeat with i from 3 to count of argv
-			try
-				duplicate (first track of library playlist 1 whose persistent ID is (item i of argv)) to p
-			end try
-		end repeat
-		set shuffle enabled to ((item 2 of argv) is "1")
-		if startID is "" then
-			play p
-		else
-			play (first track of p whose persistent ID is startID)
-		end if
-	end tell
-end run`
 
 // argv : playlist, titre de départ (vide = début), aléatoire (1/0).
 const musicPlayInPlaylistScript = `on run argv
@@ -240,15 +195,6 @@ func flag(b bool) string {
 		return "1"
 	}
 	return "0"
-}
-
-// PlayList remplit la playlist temporaire « Vinyl — Album » avec ids (dans l'ordre) puis joue à partir de startID.
-func (m *AppleMusic) PlayList(ctx context.Context, ids []string, startID string, shuffle bool) error {
-	out, err := m.run.Run(ctx, musicPlayListScript, append([]string{startID, flag(shuffle)}, ids...)...)
-	if err == nil && out == "NOTRUNNING" {
-		return ErrNotRunning
-	}
-	return err
 }
 
 // PlayInPlaylist joue une playlist de la bibliothèque à partir d'un titre ; la suite continue dans la playlist.
@@ -405,10 +351,6 @@ func (m *AppleMusic) UpcomingFrom(ctx context.Context, playlistID, trackID strin
 	return parseUpcoming(out)
 }
 
-// ReplayPlaylistName est la playlist interne où Vinyl joue seul un morceau repris de la pile (rien ne
-// s'enchaîne derrière lui) ; distincte de TempPlaylistName pour ne pas écraser un album en cours.
-const ReplayPlaylistName = "Vinyl — Réécoute"
-
 // Où en est la lecture : playlist en cours, morceau, position. Lu avant une réécoute pour reprendre
 // ensuite là où on en était.
 const musicSaveContextScript = `if application id "com.apple.Music" is not running then return "NOTRUNNING"
@@ -421,15 +363,12 @@ tell application id "com.apple.Music"
 	return pl & us & (persistent ID of current track) & us & ((player position) as string)
 end tell`
 
-// argv : persistent ID. Joue le morceau seul, dans sa playlist interne (sans toucher à l'aléatoire).
+// argv : persistent ID. Joue le morceau une seule fois puis s'arrête (« with once ») : aucune playlist
+// n'est créée, Vinyl enchaîne lui-même la suite.
 const musicPlayAloneScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
 	tell application id "com.apple.Music"
-		if not (exists user playlist "` + ReplayPlaylistName + `") then make new user playlist with properties {name:"` + ReplayPlaylistName + `"}
-		set p to user playlist "` + ReplayPlaylistName + `"
-		delete every track of p
-		duplicate (first track of library playlist 1 whose persistent ID is (item 1 of argv)) to p
-		play (first track of p)
+		play (first track of library playlist 1 whose persistent ID is (item 1 of argv)) with once
 	end tell
 	return "OK"
 end run`
@@ -471,7 +410,7 @@ func (m *AppleMusic) SaveContext(ctx context.Context) (PlaybackContext, error) {
 	return PlaybackContext{PlaylistID: f[0], TrackID: f[1], PositionSec: int(parseSeconds(f[2]) / 1000)}, nil
 }
 
-// PlayAlone joue un morceau seul : à sa fin, rien ne s'enchaîne (la reprise est faite par Vinyl).
+// PlayAlone joue un morceau une seule fois : à sa fin, Musique s'arrête et Vinyl enchaîne la suite.
 func (m *AppleMusic) PlayAlone(ctx context.Context, trackID string) error {
 	_, err := m.simpleRun(ctx, musicPlayAloneScript, trackID)
 	return err

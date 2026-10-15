@@ -114,7 +114,6 @@ func TestAppleMusicPlayItemRouting(t *testing.T) {
 	}{
 		{"playlist:P1", []string{"P1"}, "first playlist whose persistent ID"},
 		{"track:T1", []string{"T1"}, "persistent ID"},
-		{"album:Mon \"Album\"" + Sep + "Artiste", []string{`Mon "Album"`, "Artiste"}, "Vinyl — Album"},
 	}
 	for _, c := range cases {
 		r := &fakeRunner{}
@@ -126,8 +125,10 @@ func TestAppleMusicPlayItemRouting(t *testing.T) {
 			t.Errorf("%s: args=%q script contient %q ? %v", c.id, got.args, c.wantIn, strings.Contains(got.script, c.wantIn))
 		}
 	}
-	if err := NewAppleMusic(&fakeRunner{}, t.TempDir()).PlayItem(context.Background(), "inconnu:1"); err == nil {
-		t.Error("un ID inconnu doit renvoyer une erreur")
+	for _, id := range []string{"inconnu:1", "album:X" + Sep + "Y"} { // album : joué titre par titre par Vinyl
+		if err := NewAppleMusic(&fakeRunner{}, t.TempDir()).PlayItem(context.Background(), id); err == nil {
+			t.Errorf("%s : erreur attendue", id)
+		}
 	}
 }
 
@@ -175,18 +176,6 @@ func TestEmptyArtworkFileIsReexported(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(filepath.Join(dir, ArtworkFileName("X"))); string(data) != "\x89PNG" {
 		t.Errorf("contenu final = %q", data)
-	}
-}
-
-func TestPlayListPassesIDsInOrderThroughArgv(t *testing.T) {
-	r := &fakeRunner{}
-	err := NewAppleMusic(r, t.TempDir()).PlayList(context.Background(), []string{"-e", "B", "C"}, "B", true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := r.calls[0]
-	if strings.Join(got.args, "|") != "B|1|-e|B|C" || !strings.Contains(got.script, "Vinyl — Album") {
-		t.Errorf("args = %q", got.args)
 	}
 }
 
@@ -274,24 +263,6 @@ func TestSaveContext(t *testing.T) {
 	}
 }
 
-func TestPlayAloneUsesItsOwnPlaylist(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"OK"}}
-	if err := NewAppleMusic(r, t.TempDir()).PlayAlone(context.Background(), "ABC"); err != nil {
-		t.Fatal(err)
-	}
-	c := r.calls[0]
-	if len(c.args) != 1 || c.args[0] != "ABC" {
-		t.Errorf("argv : %v", c.args)
-	}
-	// Une playlist à part : celle des albums lancés depuis Vinyl n'est pas touchée.
-	if !strings.Contains(c.script, ReplayPlaylistName) || strings.Contains(c.script, TempPlaylistName) {
-		t.Error("le morceau doit être joué seul dans sa propre playlist interne")
-	}
-	if strings.Contains(c.script, "shuffle") {
-		t.Error("l'aléatoire de l'utilisateur ne doit pas être modifié")
-	}
-}
-
 func TestResumePlaysTheSavedTrackAtItsPosition(t *testing.T) {
 	r := &fakeRunner{outputs: []string{"OK"}}
 	err := NewAppleMusic(r, t.TempDir()).Resume(context.Background(), PlaybackContext{PlaylistID: "PL1", TrackID: "TR9", PositionSec: 83})
@@ -324,5 +295,26 @@ func TestUpcomingFromSavedPlaylist(t *testing.T) {
 	}
 	if strings.Join(r.calls[0].args, "|") != "PL|T5|30|0" {
 		t.Errorf("argv %v", r.calls[0].args)
+	}
+}
+
+// Vinyl ne crée aucune playlist dans la bibliothèque de l'utilisateur.
+func TestNoScriptCreatesAPlaylist(t *testing.T) {
+	for _, f := range []string{"applemusic.go", "spotify.go"} {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "make new") {
+			t.Errorf("%s crée quelque chose dans la bibliothèque (« make new »)", f)
+		}
+	}
+}
+
+func TestPlayAloneUsesOnceWithoutPlaylist(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"OK"}}
+	NewAppleMusic(r, t.TempDir()).PlayAlone(context.Background(), "ABC")
+	if c := r.calls[0].script; !strings.Contains(c, "with once") || strings.Contains(c, "user playlist") {
+		t.Error("le morceau doit être joué une fois, sans playlist")
 	}
 }

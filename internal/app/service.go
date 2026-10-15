@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"strings"
@@ -34,8 +35,8 @@ type VinylService struct {
 	stats       *stats.Store
 	history     *history.Store
 	onHistory   func([]history.Entry) // diffusion de la pile au frontend
-	replayMu    sync.Mutex
-	replay      *pendingReplay // réécoute en cours depuis la pile
+	queueMu     sync.Mutex
+	queue       *vinylQueue // morceaux enchaînés par Vinyl (album, réécoute depuis la pile)
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
@@ -67,10 +68,20 @@ func (s *VinylService) PlayPause() error {
 }
 
 func (s *VinylService) Next() error {
+	if q := s.activeQueue(); q != nil {
+		return s.step(q, +1, false)
+	}
 	return s.withActive(func(ctx context.Context, p player.Player) error { return p.Next(ctx) })
 }
 
 func (s *VinylService) Previous() error {
+	if q := s.activeQueue(); q != nil {
+		// Comme un lecteur : au-delà de 3 s, retour au début du morceau ; sinon, morceau précédent.
+		if s.watcher.Current().NowPlaying.PositionMs > 3000 || q.idx == 0 {
+			return s.withActive(func(ctx context.Context, p player.Player) error { return p.Seek(ctx, 0) })
+		}
+		return s.step(q, -1, false)
+	}
 	return s.withActive(func(ctx context.Context, p player.Player) error { return p.Previous(ctx) })
 }
 
@@ -86,6 +97,10 @@ func (s *VinylService) PlayItem(source, id string) error {
 	if p == nil {
 		return errors.New("source inconnue")
 	}
+	if _, ok := p.(player.ReplayResumer); ok && strings.HasPrefix(id, "album:") {
+		return s.PlayFrom(source, id, "", false) // album : joué titre par titre par Vinyl
+	}
+	s.setQueue(nil) // l'utilisateur lance autre chose : Vinyl ne pilote plus la suite
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err := p.PlayItem(ctx, id)
@@ -241,8 +256,8 @@ func (s *VinylService) SetHistory(h *history.Store, notify func([]history.Entry)
 }
 
 // PlayFromHistory réécoute un morceau de la pile comme Apple Music : la pile n'est pas touchée, le
-// morceau est joué seul, puis la playlist reprend là où elle en était (voir ObservePlayback).
-// Lecteur sans cette possibilité (Spotify) : le morceau est simplement lancé.
+// morceau est joué une fois, puis la lecture reprend là où elle en était (playlist de l'utilisateur ou
+// album joué par Vinyl). Lecteur sans cette possibilité (Spotify) : le morceau est simplement lancé.
 func (s *VinylService) PlayFromHistory(source, trackID string) error {
 	p := s.watcher.Player(source)
 	if p == nil {
@@ -256,80 +271,153 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 		}
 		return s.PlayItem(source, id)
 	}
+	q := &vinylQueue{source: source, tracks: []player.Track{{ID: trackID}}}
+	if prev := s.activeQueue(); prev != nil && prev.source == source {
+		// Déjà en train d'enchaîner : on reprendra là où on en était (morceau interrompu compris).
+		s.queueMu.Lock()
+		q.tracks = append(q.tracks, prev.tracks[prev.idx:]...)
+		q.resume = prev.resume
+		s.queueMu.Unlock()
+	} else {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		saved, err := r.SaveContext(ctx)
+		cancel()
+		if err == nil && saved.TrackID != "" && saved.TrackID != trackID {
+			q.resume = &saved
+		}
+	}
+	return s.startQueue(r, q)
+}
+
+// vinylQueue : morceaux que Vinyl enchaîne lui-même, chacun joué « une fois » dans Musique (aucune
+// playlist créée) : un album, ou un morceau réécouté depuis la pile, puis éventuellement la playlist
+// de l'utilisateur à reprendre là où elle en était.
+type vinylQueue struct {
+	source       string
+	tracks       []player.Track
+	idx          int
+	resume       *player.PlaybackContext // à reprendre après le dernier morceau
+	started      time.Time
+	seen         bool  // le morceau en cours a bien démarré
+	lastPos, dur int64 // dernière position vue (ms) et durée
+}
+
+// nearEnd : le morceau était dans ses dernières secondes au dernier sondage.
+func (q *vinylQueue) nearEnd() bool { return q.seen && q.dur > 0 && q.lastPos >= q.dur-4000 }
+
+func (s *VinylService) setQueue(q *vinylQueue) {
+	s.queueMu.Lock()
+	s.queue = q
+	s.queueMu.Unlock()
+}
+
+// activeQueue renvoie les morceaux enchaînés par Vinyl s'ils concernent le lecteur actif.
+func (s *VinylService) activeQueue() *vinylQueue {
+	s.queueMu.Lock()
+	defer s.queueMu.Unlock()
+	if s.queue == nil {
+		return nil
+	}
+	if a := s.watcher.Active(); a != nil && a.Name() != s.queue.source {
+		return nil
+	}
+	return s.queue
+}
+
+// startQueue lance le morceau courant de q.
+func (s *VinylService) startQueue(r player.ReplayResumer, q *vinylQueue) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	s.replayMu.Lock()
-	prev := s.replay
-	s.replayMu.Unlock()
-	saved, saveErr := r.SaveContext(ctx)
-	if prev != nil && prev.source == source {
-		saved, saveErr = prev.saved, nil // réécoute pendant une réécoute : on reprendra la playlist d'origine
-	}
-	if err := r.PlayAlone(ctx, trackID); err != nil {
+	s.queueMu.Lock()
+	q.started, q.seen, q.lastPos, q.dur = time.Now(), false, 0, 0
+	id := q.tracks[q.idx].ID
+	s.queueMu.Unlock()
+	if err := r.PlayAlone(ctx, id); err != nil {
 		return err
 	}
+	s.setQueue(q)
 	s.watcher.Wake()
-	s.replayMu.Lock()
-	defer s.replayMu.Unlock()
-	if saveErr == nil && saved.TrackID != "" && saved.TrackID != trackID {
-		s.replay = &pendingReplay{source: source, trackID: trackID, saved: saved, started: time.Now()}
-	} else {
-		s.replay = nil // rien à reprendre (lecture arrêtée, ou même morceau)
-	}
 	return nil
 }
 
-// pendingReplay : morceau réécouté depuis la pile, et playlist à reprendre après lui.
-type pendingReplay struct {
-	source, trackID string
-	saved           player.PlaybackContext
-	started         time.Time
-	seen            bool  // le morceau a bien démarré
-	lastPos, dur    int64 // dernière position vue (ms) et durée
+// step passe au morceau suivant (+1) ou précédent (-1). natural : fin du morceau (la répétition du
+// lecteur s'applique). Après le dernier : bouclage si « tout répéter », reprise de la playlist d'origine
+// s'il y en a une, sinon fin.
+func (s *VinylService) step(q *vinylQueue, delta int, natural bool) error {
+	p := s.watcher.Player(q.source)
+	r, ok := p.(player.ReplayResumer)
+	if !ok {
+		s.setQueue(nil)
+		return nil
+	}
+	rep := player.RepeatOff
+	if m, ok := p.(player.Modes); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+		_, rep, _ = m.PlaybackModes(ctx)
+		cancel()
+	}
+	s.queueMu.Lock()
+	next := q.idx + delta
+	if natural && rep == player.RepeatOne {
+		next = q.idx
+	}
+	if next < 0 {
+		next = 0
+	}
+	if next >= len(q.tracks) {
+		if q.resume == nil && rep == player.RepeatAll {
+			next = 0
+		} else {
+			resume := q.resume
+			s.queue = nil
+			s.queueMu.Unlock()
+			if resume == nil {
+				return nil
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			defer s.watcher.Wake()
+			return r.Resume(ctx, *resume)
+		}
+	}
+	q.idx = next
+	s.queueMu.Unlock()
+	return s.startQueue(r, q)
 }
 
-// nearEnd : le morceau réécouté était dans ses dernières secondes au dernier sondage.
-func (r *pendingReplay) nearEnd() bool { return r.seen && r.dur > 0 && r.lastPos >= r.dur-4000 }
-
-// ObservePlayback est appelé à chaque sondage du lecteur. Quand le morceau réécouté se termine (arrêt,
-// morceau suivant ou répétition), la playlist reprend là où elle en était. Si l'utilisateur change
-// lui-même de morceau, la reprise est abandonnée.
+// ObservePlayback est appelé à chaque sondage du lecteur. Quand le morceau joué par Vinyl se termine
+// (arrêt, morceau suivant ou répétition), la suite est lancée. Si l'utilisateur choisit lui-même autre
+// chose, Vinyl arrête de piloter la suite.
 func (s *VinylService) ObservePlayback(snap player.Snapshot) {
-	s.replayMu.Lock()
-	r := s.replay
-	if r == nil || snap.Problem != "" {
-		s.replayMu.Unlock()
+	s.queueMu.Lock()
+	q := s.queue
+	if q == nil || snap.Problem != "" {
+		s.queueMu.Unlock()
 		return
 	}
 	np := snap.NowPlaying
-	resume, drop := false, false
+	cur := q.tracks[q.idx].ID
+	advance, drop := false, false
 	switch {
-	case np.Source != "" && np.Source != r.source:
-		drop = r.seen
-	case np.TrackID == r.trackID:
-		if r.nearEnd() && np.PositionMs < 3000 {
-			resume = true // revenu au début : fini puis relancé (répétition)
+	case np.Source != "" && np.Source != q.source:
+		drop = q.seen
+	case np.TrackID == cur:
+		if q.nearEnd() && np.PositionMs < 3000 {
+			advance = true // revenu au début : fini puis relancé
 		} else {
-			r.seen, r.lastPos, r.dur = true, np.PositionMs, np.DurationMs
+			q.seen, q.lastPos, q.dur = true, np.PositionMs, np.DurationMs
 		}
-	case !r.seen:
-		drop = time.Since(r.started) > 15*time.Second // n'a jamais démarré
+	case !q.seen:
+		drop = time.Since(q.started) > 15*time.Second // n'a jamais démarré
 	default:
-		// Autre morceau, ou lecture arrêtée : fin naturelle → reprise ; sinon, choix de l'utilisateur.
-		resume, drop = r.nearEnd(), !r.nearEnd()
+		advance, drop = q.nearEnd(), !q.nearEnd()
 	}
-	if resume || drop {
-		s.replay = nil
+	if drop {
+		s.queue = nil
 	}
-	s.replayMu.Unlock()
-	if !resume {
-		return
-	}
-	if rr, ok := s.watcher.Player(r.source).(player.ReplayResumer); ok {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		rr.Resume(ctx, r.saved)
-		s.watcher.Wake()
+	s.queueMu.Unlock()
+	if advance {
+		s.step(q, +1, true)
 	}
 }
 
@@ -361,28 +449,51 @@ func (s *VinylService) Tracks(source, id string) (catalog.Collection, error) {
 }
 
 // PlayFrom lance un album ou une playlist à partir d'un titre (vide = début), avec ou sans aléatoire.
+// Musique : une playlist de l'utilisateur est jouée telle quelle ; un album est joué titre par titre
+// par Vinyl (aucune playlist créée dans la bibliothèque).
 func (s *VinylService) PlayFrom(source, collectionID, trackID string, shuffle bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	defer s.watcher.Wake()
-	switch p := s.watcher.Player(source).(type) {
-	case *player.AppleMusic:
-		if pid, ok := strings.CutPrefix(collectionID, "playlist:"); ok {
-			return p.PlayInPlaylist(ctx, pid, trackID, shuffle)
-		}
-		col, err := s.Tracks(source, collectionID)
-		if err != nil {
-			return err
-		}
-		ids := make([]string, len(col.Tracks))
-		for i, t := range col.Tracks {
-			ids[i] = t.ID
-		}
-		return p.PlayList(ctx, ids, trackID, shuffle)
-	case *player.Spotify:
-		return p.PlayInContext(ctx, collectionID, trackID, shuffle)
+	p := s.watcher.Player(source)
+	if sp, ok := p.(*player.Spotify); ok {
+		return sp.PlayInContext(ctx, collectionID, trackID, shuffle)
 	}
-	return errors.New("source inconnue")
+	if pid, ok := strings.CutPrefix(collectionID, "playlist:"); ok {
+		if am, ok := p.(*player.AppleMusic); ok {
+			s.setQueue(nil)
+			return am.PlayInPlaylist(ctx, pid, trackID, shuffle)
+		}
+	}
+	r, ok := p.(player.ReplayResumer)
+	if !ok {
+		return errors.New("source inconnue")
+	}
+	col, err := s.Tracks(source, collectionID)
+	if err != nil {
+		return err
+	}
+	if len(col.Tracks) == 0 {
+		return errors.New("album vide")
+	}
+	tracks := append([]player.Track{}, col.Tracks...)
+	start := 0
+	for i, t := range tracks {
+		if t.ID == trackID {
+			start = i
+		}
+	}
+	if shuffle {
+		first := tracks[start]
+		rand.Shuffle(len(tracks), func(i, j int) { tracks[i], tracks[j] = tracks[j], tracks[i] })
+		for i, t := range tracks { // le titre choisi d'abord
+			if t.ID == first.ID {
+				tracks[0], tracks[i] = tracks[i], tracks[0]
+			}
+		}
+		start = 0
+	}
+	return s.startQueue(r, &vinylQueue{source: source, tracks: tracks, idx: start})
 }
 
 type QueueState struct {
@@ -446,16 +557,19 @@ func (s *VinylService) Queue() (QueueState, error) {
 		return QueueState{Upcoming: []player.Track{}}, err
 	}
 	q := QueueState{Shuffle: sh, Repeat: string(rep), Upcoming: []player.Track{}}
-	// Réécoute depuis la pile : la suite est celle de la playlist qui reprendra ensuite (comme Apple Music),
-	// pas la playlist interne qui ne contient que le morceau réécouté.
-	s.replayMu.Lock()
-	pending := s.replay
-	s.replayMu.Unlock()
-	if u, ok := m.(interface {
-		UpcomingFrom(ctx context.Context, playlistID, trackID string, limit int, wrap bool) ([]player.Track, error)
-	}); ok && pending != nil && sourceOf(m) == pending.source {
-		if ts, err := u.UpcomingFrom(ctx, pending.saved.PlaylistID, pending.saved.TrackID, 30, rep == player.RepeatAll); err == nil && ts != nil {
-			q.Upcoming = ts
+	// Morceaux enchaînés par Vinyl (album, réécoute depuis la pile) : la suite est la sienne, puis la
+	// playlist qui reprendra ensuite (comme Apple Music).
+	if vq := s.activeQueue(); vq != nil {
+		s.queueMu.Lock()
+		q.Upcoming = append(q.Upcoming, vq.tracks[vq.idx+1:]...)
+		resume := vq.resume
+		s.queueMu.Unlock()
+		if u, ok := m.(interface {
+			UpcomingFrom(ctx context.Context, playlistID, trackID string, limit int, wrap bool) ([]player.Track, error)
+		}); ok && resume != nil {
+			if ts, err := u.UpcomingFrom(ctx, resume.PlaylistID, resume.TrackID, 30, rep == player.RepeatAll); err == nil {
+				q.Upcoming = append(q.Upcoming, ts...)
+			}
 		}
 		return q, nil
 	}

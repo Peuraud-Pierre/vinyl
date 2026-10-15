@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,10 @@ import (
 )
 
 const recordSep = "\x1e"
+
+// OldVinylPlaylists : playlists que d'anciennes versions de Vinyl créaient dans Musique (il n'en crée
+// plus aucune) ; masquées de l'étagère tant qu'elles existent.
+var OldVinylPlaylists = []string{"Vinyl — Album", "Vinyl — Réécoute"}
 
 const musicGuard = `if application id "com.apple.Music" is not running then return "NOTRUNNING"
 `
@@ -142,7 +147,7 @@ func (m *MusicLibrary) Library(ctx context.Context, kind string, offset int) (Pa
 			return Page{}, err
 		}
 		for _, r := range recs {
-			if len(r) == 3 && r[0] != player.TempPlaylistName && r[0] != player.ReplayPlaylistName { // playlists internes de Vinyl : masquées
+			if len(r) == 3 && !slices.Contains(OldVinylPlaylists, r[0]) {
 				items = append(items, Item{ID: "playlist:" + r[1], Kind: "playlist", Title: r[0], Subtitle: r[2] + " titres"})
 			}
 		}
