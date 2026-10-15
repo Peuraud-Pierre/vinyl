@@ -53,7 +53,7 @@ func song(title string) Info {
 }
 
 func TestNotRunningWithoutSession(t *testing.T) {
-	p := NewPlayer(SpotifySource, fakeSessions{&fakeSession{id: "Chrome", info: song("x")}}, func() time.Time { return t0 })
+	p := NewPlayer(SpotifySource, fakeSessions{&fakeSession{id: "Chrome", info: song("x")}}, func() time.Time { return t0 }, "")
 	if _, err := p.NowPlaying(context.Background()); !errors.Is(err, player.ErrNotRunning) {
 		t.Errorf("err = %v", err)
 	}
@@ -77,7 +77,7 @@ func TestSourcesAreRecognised(t *testing.T) {
 
 func TestNowPlaying(t *testing.T) {
 	s := &fakeSession{id: "Spotify.exe", info: song("Creep")}
-	p := NewPlayer(SpotifySource, fakeSessions{s}, func() time.Time { return t0.Add(3 * time.Second) })
+	p := NewPlayer(SpotifySource, fakeSessions{s}, func() time.Time { return t0.Add(3 * time.Second) }, "")
 	np, err := p.NowPlaying(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestNowPlaying(t *testing.T) {
 
 func TestPositionNeverExceedsDuration(t *testing.T) {
 	s := &fakeSession{id: "Spotify.exe", info: song("Creep")}
-	p := NewPlayer(SpotifySource, fakeSessions{s}, func() time.Time { return t0.Add(time.Hour) })
+	p := NewPlayer(SpotifySource, fakeSessions{s}, func() time.Time { return t0.Add(time.Hour) }, "")
 	if np, _ := p.NowPlaying(context.Background()); np.PositionMs != 200000 {
 		t.Errorf("position = %d", np.PositionMs)
 	}
@@ -108,7 +108,7 @@ func TestPositionNeverExceedsDuration(t *testing.T) {
 // Publicité, changement de morceau : pas de titre → ni pile ni compteur.
 func TestUntitledSessionIsStopped(t *testing.T) {
 	s := &fakeSession{id: "Spotify.exe", info: Info{Status: player.StatePlaying}}
-	np, err := NewPlayer(SpotifySource, fakeSessions{s}, time.Now).NowPlaying(context.Background())
+	np, err := NewPlayer(SpotifySource, fakeSessions{s}, time.Now, "").NowPlaying(context.Background())
 	if err != nil || np.TrackID != "" || np.State != player.StateStopped {
 		t.Errorf("np = %+v err = %v", np, err)
 	}
@@ -116,7 +116,7 @@ func TestUntitledSessionIsStopped(t *testing.T) {
 
 func TestCommandsAndModes(t *testing.T) {
 	s := &fakeSession{id: "AppleInc.AppleMusicWin_x!App", info: song("x")}
-	p := NewPlayer(AppleMusicSource, fakeSessions{s}, time.Now)
+	p := NewPlayer(AppleMusicSource, fakeSessions{s}, time.Now, "")
 	ctx := context.Background()
 	p.PlayPause(ctx)
 	p.Next(ctx)

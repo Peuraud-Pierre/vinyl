@@ -30,7 +30,7 @@ func (q *queueSession) Next() error {
 }
 
 func replayPlayer(q *queueSession) *Player {
-	p := NewPlayer(SpotifySource, fakeSessions{q}, time.Now)
+	p := NewPlayer(SpotifySource, fakeSessions{q}, time.Now, "")
 	p.sleep = func(time.Duration) {}
 	return p
 }

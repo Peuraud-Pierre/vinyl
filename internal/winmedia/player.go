@@ -41,10 +41,13 @@ type Player struct {
 	sessions Sessions
 	now      func() time.Time
 	sleep    func(time.Duration) // attente entre deux commandes (remplacée dans les tests)
+	art      *artwork
 }
 
-func NewPlayer(src Source, s Sessions, now func() time.Time) *Player {
-	return &Player{src: src, sessions: s, now: now, sleep: time.Sleep}
+// NewPlayer : artworkDir est le dossier des pochettes servi sous /artwork/ ("" : pas de pochette).
+func NewPlayer(src Source, s Sessions, now func() time.Time, artworkDir string) *Player {
+	return &Player{src: src, sessions: s, now: now, sleep: time.Sleep,
+		art: &artwork{dir: artworkDir, done: map[string]string{}}}
 }
 
 func (p *Player) Name() string { return p.src.Name }
@@ -82,10 +85,12 @@ func (p *Player) NowPlaying(context.Context) (player.NowPlaying, error) {
 	if in.Duration > 0 && pos > in.Duration {
 		pos = in.Duration
 	}
+	id := TrackID(in.Title, in.Artist, in.Album)
 	return player.NowPlaying{
-		Source: p.src.Name, State: in.Status, TrackID: TrackID(in.Title, in.Artist, in.Album),
+		Source: p.src.Name, State: in.Status, TrackID: id,
 		Title: in.Title, Artist: in.Artist, Album: in.Album,
 		DurationMs: in.Duration.Milliseconds(), PositionMs: pos.Milliseconds(),
+		ArtworkURL: p.art.url(id, s),
 	}, nil
 }
 

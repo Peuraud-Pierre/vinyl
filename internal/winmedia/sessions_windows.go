@@ -162,5 +162,5 @@ func (x *systemSession) SetRepeat(m player.RepeatMode) error {
 	return x.try(func() (*foundation.IAsyncOperation, error) { return x.s.TryChangeAutoRepeatModeAsync(mode) })
 }
 
-// Thumbnail : Task 6.
-func (x *systemSession) Thumbnail() ([]byte, error) { return nil, nil }
+// Thumbnail : miniature de la pochette (thumbnail_windows.go).
+func (x *systemSession) Thumbnail() ([]byte, error) { return x.readThumbnail() }
