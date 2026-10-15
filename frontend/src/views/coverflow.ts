@@ -20,9 +20,12 @@ export function shelfTransform(i: number, offset: number, halfWidth: number): { 
   return { x, rotateY: onRight ? -angle : angle, zIndex: 1000 - Math.round(Math.abs(x)), spineRight: onRight };
 }
 
-/** Décalage borné : 0 au début, la fin de la rangée calée sur le bord droit. */
-export function clampOffset(offset: number, count: number, halfWidth: number): number {
-  const max = Math.max(0, (count - 1) * SHELF_GAP + CENTER_GAP - 2 * (halfWidth - SHELF_MARGIN));
+/**
+ * Décalage borné : 0 au début ; à la fin, le dernier boîtier s'arrête avant la zone réservée à
+ * droite (barre de commandes et fondu), pour qu'il ne reste jamais caché dessous.
+ */
+export function clampOffset(offset: number, count: number, halfWidth: number, rightReserve = 0): number {
+  const max = Math.max(0, (count - 1) * SHELF_GAP + CENTER_GAP - 2 * (halfWidth - SHELF_MARGIN) + rightReserve);
   return Math.min(max, Math.max(0, offset));
 }
 

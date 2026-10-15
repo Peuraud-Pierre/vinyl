@@ -92,3 +92,11 @@ test("les pochettes sont préparées bien avant d'entrer à l'écran (3 boîtier
   const [, b] = visibleIndices(0, 100, HALF);
   expect(shelfTransform(b, 0, HALF).x).toBeGreaterThan(HALF + 2 * SHELF_GAP);
 });
+
+test("le dernier boîtier ne reste jamais caché sous la barre de droite (10 playlists)", () => {
+  const half = 333, reserve = 85; // fenêtre 1280 px à l'échelle 1,92 ; barre + fondu ≈ 160 px à l'écran
+  const n = 10;
+  const max = clampOffset(1e9, n, half, reserve);
+  expect(shelfTransform(n - 1, max, half).x).toBeLessThanOrEqual(half - SHELF_MARGIN - reserve + 0.001);
+  expect(max).toBeGreaterThan(0); // on peut donc défiler jusqu'à lui
+});
