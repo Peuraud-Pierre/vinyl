@@ -21,8 +21,14 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $V" -c "Set :CFBundleVersion $V" build/darwin/Info.plist
       - run: CGO_ENABLED=1 wails3 package
       - run: ditto -c -k --keepParent bin/vinyl.app Vinyl-darwin-arm64.zip
+      # Image disque d'installation : fenêtre « glisse Vinyl sur Applications ».
+      - run: wails3 task darwin:create:dmg && mv bin/vinyl.dmg Vinyl.dmg
       - uses: actions/upload-artifact@v4
-        with: { name: mac, path: Vinyl-darwin-arm64.zip }
+        with:
+          name: mac
+          path: |
+            Vinyl.dmg
+            Vinyl-darwin-arm64.zip
   windows:
     runs-on: windows-latest
     steps:
@@ -69,17 +75,18 @@ jobs:
       - name: Empreintes (vérifiées par la mise à jour dans l'app)
         run: |
           cp mac/* windows/* .
-          sha256sum Vinyl-darwin-arm64.zip Vinyl-windows-amd64.zip Vinyl-Setup.exe > SHA256SUMS
+          sha256sum Vinyl.dmg Vinyl-darwin-arm64.zip Vinyl-windows-amd64.zip Vinyl-Setup.exe > SHA256SUMS
           cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           prerelease: ${{ contains(github.ref_name, '-') }} # v1.0.0-beta.1 : pré-version
           files: |
+            Vinyl.dmg
             Vinyl-darwin-arm64.zip
             Vinyl-windows-amd64.zip
             Vinyl-Setup.exe
             SHA256SUMS
           body: |
-            **Mac (Apple Silicon)** : `Vinyl-darwin-arm64.zip` — glisse Vinyl dans le dossier Applications (sinon il ne peut pas se mettre à jour), puis clic droit → Ouvrir au premier lancement (app non signée).
+            **Mac (Apple Silicon)** : `Vinyl.dmg` — ouvre-le et glisse Vinyl sur le dossier Applications, puis clic droit → Ouvrir au premier lancement (app non signée). (`Vinyl-darwin-arm64.zip` sert aux mises à jour dans l'app.)
             **Windows 10/11** : `Vinyl-Setup.exe` — non signé : « Informations complémentaires » → « Exécuter quand même ».
             Ensuite, Vinyl propose lui-même les nouvelles versions (`Vinyl-windows-amd64.zip` et `SHA256SUMS` servent à ces mises à jour).
