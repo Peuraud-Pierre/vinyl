@@ -359,41 +359,80 @@ func (m *AppleMusic) Upcoming(ctx context.Context, limit int, wrap bool) ([]Trac
 	return tracks, nil
 }
 
-// argv : persistent ID, nombre de morceaux en arrière. Comme le bouton « précédent » d'Apple Music :
-// on remonte ce qui a vraiment été joué, puis la playlist continue normalement. Si le morceau obtenu
-// n'est pas le bon (playlist changée entre-temps), on le rejoue dans la playlist en cours, sinon depuis
-// la bibliothèque.
-const musicReplayScript = `on run argv
+// ReplayPlaylistName est la playlist interne où Vinyl joue seul un morceau repris de la pile (rien ne
+// s'enchaîne derrière lui) ; distincte de TempPlaylistName pour ne pas écraser un album en cours.
+const ReplayPlaylistName = "Vinyl — Réécoute"
+
+// Où en est la lecture : playlist en cours, morceau, position. Lu avant une réécoute pour reprendre
+// ensuite là où on en était.
+const musicSaveContextScript = `if application id "com.apple.Music" is not running then return "NOTRUNNING"
+tell application id "com.apple.Music"
+	set us to character id 31
+	set pl to ""
+	try
+		set pl to persistent ID of current playlist
+	end try
+	return pl & us & (persistent ID of current track) & us & ((player position) as string)
+end tell`
+
+// argv : persistent ID. Joue le morceau seul, dans sa playlist interne (sans toucher à l'aléatoire).
+const musicPlayAloneScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	set target to item 1 of argv
 	tell application id "com.apple.Music"
-		repeat ((item 2 of argv) as integer) times
-			previous track
-			delay 0.15
-		end repeat
-		try
-			if (persistent ID of current track) is target then
-				if player state is not playing then play
-				return "BACK"
-			end if
-		end try
-		try
-			set ts to (every track of current playlist whose persistent ID is target)
-			if (count of ts) > 0 then
-				play (item 1 of ts)
-				return "PLAYLIST"
-			end if
-		end try
-		play (first track of library playlist 1 whose persistent ID is target)
-		return "LIBRARY"
+		if not (exists user playlist "` + ReplayPlaylistName + `") then make new user playlist with properties {name:"` + ReplayPlaylistName + `"}
+		set p to user playlist "` + ReplayPlaylistName + `"
+		delete every track of p
+		duplicate (first track of library playlist 1 whose persistent ID is (item 1 of argv)) to p
+		play (first track of p)
 	end tell
+	return "OK"
 end run`
 
-// ReplayInContext revient steps morceaux en arrière pour réécouter trackID (pile des derniers écoutés).
-func (m *AppleMusic) ReplayInContext(ctx context.Context, trackID string, steps int) error {
-	out, err := m.run.Run(ctx, musicReplayScript, trackID, strconv.Itoa(steps))
+// argv : playlist, morceau, position (s). Reprend la playlist là où elle en était ; si elle n'existe
+// plus, le morceau est lancé depuis la bibliothèque.
+const musicResumeScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	tell application id "com.apple.Music"
+		try
+			set p to (first playlist whose persistent ID is (item 1 of argv))
+			play (first track of p whose persistent ID is (item 2 of argv))
+		on error
+			play (first track of library playlist 1 whose persistent ID is (item 2 of argv))
+		end try
+		set player position to ((item 3 of argv) as integer)
+	end tell
+	return "OK"
+end run`
+
+func (m *AppleMusic) simpleRun(ctx context.Context, script string, args ...string) (string, error) {
+	out, err := m.run.Run(ctx, script, args...)
 	if err == nil && out == "NOTRUNNING" {
-		return ErrNotRunning
+		return "", ErrNotRunning
 	}
+	return out, err
+}
+
+// SaveContext lit où en est la lecture (playlist, morceau, position).
+func (m *AppleMusic) SaveContext(ctx context.Context) (PlaybackContext, error) {
+	out, err := m.simpleRun(ctx, musicSaveContextScript)
+	if err != nil {
+		return PlaybackContext{}, err
+	}
+	f := strings.Split(out, Sep)
+	if len(f) != 3 {
+		return PlaybackContext{}, fmt.Errorf("applemusic: sortie inattendue (%d champs)", len(f))
+	}
+	return PlaybackContext{PlaylistID: f[0], TrackID: f[1], PositionSec: int(parseSeconds(f[2]) / 1000)}, nil
+}
+
+// PlayAlone joue un morceau seul : à sa fin, rien ne s'enchaîne (la reprise est faite par Vinyl).
+func (m *AppleMusic) PlayAlone(ctx context.Context, trackID string) error {
+	_, err := m.simpleRun(ctx, musicPlayAloneScript, trackID)
+	return err
+}
+
+// Resume reprend la playlist là où elle en était.
+func (m *AppleMusic) Resume(ctx context.Context, c PlaybackContext) error {
+	_, err := m.simpleRun(ctx, musicResumeScript, c.PlaylistID, c.TrackID, strconv.Itoa(c.PositionSec))
 	return err
 }

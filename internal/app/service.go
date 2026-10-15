@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -33,6 +34,8 @@ type VinylService struct {
 	stats       *stats.Store
 	history     *history.Store
 	onHistory   func([]history.Entry) // diffusion de la pile au frontend
+	replayMu    sync.Mutex
+	replay      *pendingReplay // réécoute en cours depuis la pile
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
@@ -237,34 +240,97 @@ func (s *VinylService) SetHistory(h *history.Store, notify func([]history.Entry)
 	s.history, s.onHistory = h, notify
 }
 
-// PlayFromHistory relance un morceau de la pile ; les disques posés au-dessus sont retirés.
-// Si la lecture échoue, la pile est remise comme avant.
+// PlayFromHistory réécoute un morceau de la pile comme Apple Music : la pile n'est pas touchée, le
+// morceau est joué seul, puis la playlist reprend là où elle en était (voir ObservePlayback).
+// Lecteur sans cette possibilité (Spotify) : le morceau est simplement lancé.
 func (s *VinylService) PlayFromHistory(source, trackID string) error {
-	if s.history == nil {
-		return errors.New("historique indisponible")
+	p := s.watcher.Player(source)
+	if p == nil {
+		return errors.New("source inconnue")
 	}
-	undo, steps := s.history.TakeFrom(source, trackID)
-	var err error
-	if r, ok := s.watcher.Player(source).(player.ContextReplayer); ok && steps > 0 {
-		// Comme « précédent » : on revient de steps morceaux en arrière, la playlist continue ensuite.
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		err = r.ReplayInContext(ctx, trackID, steps)
-		cancel()
-		s.watcher.Wake()
-	} else {
+	r, ok := p.(player.ReplayResumer)
+	if !ok {
 		id := trackID
 		if source == "applemusic" {
 			id = "track:" + trackID // Musique attend un identifiant typé
 		}
-		err = s.PlayItem(source, id)
+		return s.PlayItem(source, id)
 	}
-	if err != nil {
-		undo()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	s.replayMu.Lock()
+	prev := s.replay
+	s.replayMu.Unlock()
+	saved, saveErr := r.SaveContext(ctx)
+	if prev != nil && prev.source == source {
+		saved, saveErr = prev.saved, nil // réécoute pendant une réécoute : on reprendra la playlist d'origine
 	}
-	if s.onHistory != nil {
-		s.onHistory(s.history.List())
+	if err := r.PlayAlone(ctx, trackID); err != nil {
+		return err
 	}
-	return err
+	s.watcher.Wake()
+	s.replayMu.Lock()
+	defer s.replayMu.Unlock()
+	if saveErr == nil && saved.TrackID != "" && saved.TrackID != trackID {
+		s.replay = &pendingReplay{source: source, trackID: trackID, saved: saved, started: time.Now()}
+	} else {
+		s.replay = nil // rien à reprendre (lecture arrêtée, ou même morceau)
+	}
+	return nil
+}
+
+// pendingReplay : morceau réécouté depuis la pile, et playlist à reprendre après lui.
+type pendingReplay struct {
+	source, trackID string
+	saved           player.PlaybackContext
+	started         time.Time
+	seen            bool  // le morceau a bien démarré
+	lastPos, dur    int64 // dernière position vue (ms) et durée
+}
+
+// nearEnd : le morceau réécouté était dans ses dernières secondes au dernier sondage.
+func (r *pendingReplay) nearEnd() bool { return r.seen && r.dur > 0 && r.lastPos >= r.dur-4000 }
+
+// ObservePlayback est appelé à chaque sondage du lecteur. Quand le morceau réécouté se termine (arrêt,
+// morceau suivant ou répétition), la playlist reprend là où elle en était. Si l'utilisateur change
+// lui-même de morceau, la reprise est abandonnée.
+func (s *VinylService) ObservePlayback(snap player.Snapshot) {
+	s.replayMu.Lock()
+	r := s.replay
+	if r == nil || snap.Problem != "" {
+		s.replayMu.Unlock()
+		return
+	}
+	np := snap.NowPlaying
+	resume, drop := false, false
+	switch {
+	case np.Source != "" && np.Source != r.source:
+		drop = r.seen
+	case np.TrackID == r.trackID:
+		if r.nearEnd() && np.PositionMs < 3000 {
+			resume = true // revenu au début : fini puis relancé (répétition)
+		} else {
+			r.seen, r.lastPos, r.dur = true, np.PositionMs, np.DurationMs
+		}
+	case !r.seen:
+		drop = time.Since(r.started) > 15*time.Second // n'a jamais démarré
+	default:
+		// Autre morceau, ou lecture arrêtée : fin naturelle → reprise ; sinon, choix de l'utilisateur.
+		resume, drop = r.nearEnd(), !r.nearEnd()
+	}
+	if resume || drop {
+		s.replay = nil
+	}
+	s.replayMu.Unlock()
+	if !resume {
+		return
+	}
+	if rr, ok := s.watcher.Player(r.source).(player.ReplayResumer); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		rr.Resume(ctx, r.saved)
+		s.watcher.Wake()
+	}
 }
 
 // History renvoie les derniers morceaux écoutés (le plus récent en premier), pour la pile de la platine.

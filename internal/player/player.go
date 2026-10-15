@@ -76,10 +76,19 @@ const (
 	RepeatOne RepeatMode = "one"
 )
 
-// ContextReplayer est implémentée par les lecteurs qui savent revenir en arrière vers un titre déjà
-// écouté (steps morceaux plus tôt), comme le bouton « précédent » : la playlist continue ensuite.
-type ContextReplayer interface {
-	ReplayInContext(ctx context.Context, trackID string, steps int) error
+// PlaybackContext dit où en est la lecture : playlist en cours, morceau, position (s).
+type PlaybackContext struct {
+	PlaylistID  string
+	TrackID     string
+	PositionSec int
+}
+
+// ReplayResumer est implémentée par les lecteurs qui savent réécouter un morceau comme Apple Music :
+// retenir où en est la playlist, jouer le morceau seul, puis reprendre la playlist là où elle en était.
+type ReplayResumer interface {
+	SaveContext(ctx context.Context) (PlaybackContext, error)
+	PlayAlone(ctx context.Context, trackID string) error
+	Resume(ctx context.Context, c PlaybackContext) error
 }
 
 // Modes est implémentée par les lecteurs qui savent lire et régler l'aléatoire et la répétition.

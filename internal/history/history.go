@@ -124,27 +124,3 @@ func (s *Store) writeLocked() {
 		os.Rename(tmp, s.path)
 	}
 }
-
-// TakeFrom reprend un disque de la pile pour l'écouter : ceux posés au-dessus sont retirés et il
-// devient le morceau en cours (le morceau qui jouait n'est pas reposé). Renvoie de quoi annuler, si
-// la lecture échoue, et à combien de morceaux en arrière il se trouve (1 = juste avant le morceau en
-// cours). Disque absent : rien ne change, 0.
-func (s *Store) TakeFrom(source, trackID string) (undo func(), steps int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i, x := range s.f.Recent {
-		if x.Source == source && x.TrackID == trackID {
-			saved := file{Current: s.f.Current, Recent: append([]Entry{}, s.f.Recent...)}
-			s.f.Current = x
-			s.f.Recent = append([]Entry{}, s.f.Recent[i+1:]...)
-			s.writeLocked()
-			return func() {
-				s.mu.Lock()
-				defer s.mu.Unlock()
-				s.f = saved
-				s.writeLocked()
-			}, i + 1
-		}
-	}
-	return func() {}, 0
-}

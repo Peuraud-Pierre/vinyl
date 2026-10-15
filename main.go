@@ -54,9 +54,13 @@ func main() {
 	players := []player.Player{player.NewAppleMusic(runner, artworkDir), player.NewSpotify(runner)}
 
 	var wailsApp *application.App
+	var observe func(player.Snapshot) // réécoute depuis la pile : reprise de la playlist à la fin du morceau
 	watcher := player.NewWatcher(players,
 		func() string { return store.Get().Source },
-		func(s player.Snapshot) { wailsApp.Event.Emit("nowplaying", s) },
+		func(s player.Snapshot) {
+			wailsApp.Event.Emit("nowplaying", s)
+			observe(s) // changements d'état (arrêt, morceau suivant…)
+		},
 		time.Now)
 	music := catalog.NewMusicLibrary(runner, catalog.NewITunes(), artworkDir)
 	service := app.New(store, watcher, music)
@@ -78,7 +82,9 @@ func main() {
 	histStore := history.NewStore(histPath)
 	histStore.Load()
 	service.SetHistory(histStore, func(l []history.Entry) { wailsApp.Event.Emit("history", l) })
+	observe = service.ObservePlayback
 	watcher.SetOnPlaying(func(np player.NowPlaying) {
+		service.ObservePlayback(player.Snapshot{NowPlaying: np}) // position, à chaque sondage
 		if np.TrackID == "" {
 			return // radio ou flux sans identifiant : pas compté
 		}

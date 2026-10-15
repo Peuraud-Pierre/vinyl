@@ -258,35 +258,55 @@ func TestPlaylistScriptsFindSubscriptionPlaylists(t *testing.T) {
 	}
 }
 
-// Pile des derniers écoutés : comme le bouton « précédent » d'Apple Music, on revient en arrière du
-// bon nombre de morceaux (la playlist continue ensuite) ; on vérifie le morceau obtenu, sinon on le
-// rejoue dans la playlist en cours, et en dernier recours depuis la bibliothèque.
-func TestReplayGoesBackLikePrevious(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"BACK"}}
-	if err := NewAppleMusic(r, t.TempDir()).ReplayInContext(context.Background(), "ABC123", 3); err != nil {
+// Réécoute depuis la pile, comme dans Apple Music : on retient où en est la playlist, on joue le
+// morceau seul (rien ne s'enchaîne derrière), puis on reprend la playlist là où elle en était.
+func TestSaveContext(t *testing.T) {
+	r := &fakeRunner{outputs: []string{join("PL1", "TR9", "83,6")}}
+	c, err := NewAppleMusic(r, t.TempDir()).SaveContext(context.Background())
+	if err != nil {
 		t.Fatal(err)
 	}
-	c := r.calls[0]
-	if len(c.args) != 2 || c.args[0] != "ABC123" || c.args[1] != "3" {
-		t.Errorf("argv : %v", c.args)
+	if c != (PlaybackContext{PlaylistID: "PL1", TrackID: "TR9", PositionSec: 83}) {
+		t.Errorf("contexte = %+v", c)
 	}
-	order := []string{"previous track", "persistent ID of current track", "current playlist", "library playlist 1"}
-	last := -1
-	for _, want := range order {
-		i := strings.Index(c.script, want)
-		if i < 0 || i < last {
-			t.Errorf("script : %q absent ou mal placé", want)
-		}
-		last = i
-	}
-	if !strings.Contains(c.script, "is not running") {
-		t.Error("garde « non lancé » attendue")
+	if !strings.Contains(r.calls[0].script, "current playlist") {
+		t.Error("la playlist en cours doit être lue")
 	}
 }
 
-func TestReplayInContextNotRunning(t *testing.T) {
+func TestPlayAloneUsesItsOwnPlaylist(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"OK"}}
+	if err := NewAppleMusic(r, t.TempDir()).PlayAlone(context.Background(), "ABC"); err != nil {
+		t.Fatal(err)
+	}
+	c := r.calls[0]
+	if len(c.args) != 1 || c.args[0] != "ABC" {
+		t.Errorf("argv : %v", c.args)
+	}
+	// Une playlist à part : celle des albums lancés depuis Vinyl n'est pas touchée.
+	if !strings.Contains(c.script, ReplayPlaylistName) || strings.Contains(c.script, TempPlaylistName) {
+		t.Error("le morceau doit être joué seul dans sa propre playlist interne")
+	}
+	if strings.Contains(c.script, "shuffle") {
+		t.Error("l'aléatoire de l'utilisateur ne doit pas être modifié")
+	}
+}
+
+func TestResumePlaysTheSavedTrackAtItsPosition(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"OK"}}
+	err := NewAppleMusic(r, t.TempDir()).Resume(context.Background(), PlaybackContext{PlaylistID: "PL1", TrackID: "TR9", PositionSec: 83})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := r.calls[0]
+	if strings.Join(c.args, "|") != "PL1|TR9|83" || !strings.Contains(c.script, "player position") {
+		t.Errorf("argv %v", c.args)
+	}
+}
+
+func TestPlayAloneNotRunning(t *testing.T) {
 	r := &fakeRunner{outputs: []string{"NOTRUNNING"}}
-	if err := NewAppleMusic(r, t.TempDir()).ReplayInContext(context.Background(), "X", 1); err != ErrNotRunning {
+	if err := NewAppleMusic(r, t.TempDir()).PlayAlone(context.Background(), "X"); err != ErrNotRunning {
 		t.Errorf("err = %v", err)
 	}
 }

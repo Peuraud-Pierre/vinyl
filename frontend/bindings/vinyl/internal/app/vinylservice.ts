@@ -73,6 +73,15 @@ export function Next(): $CancellablePromise<void> {
 }
 
 /**
+ * ObservePlayback est appelé à chaque sondage du lecteur. Quand le morceau réécouté se termine (arrêt,
+ * morceau suivant ou répétition), la playlist reprend là où elle en était. Si l'utilisateur change
+ * lui-même de morceau, la reprise est abandonnée.
+ */
+export function ObservePlayback(snap: player$0.Snapshot): $CancellablePromise<void> {
+    return $Call.ByID(756165017, snap);
+}
+
+/**
  * OpenAutomationSettings ouvre Réglages Système > Confidentialité et sécurité > Automatisation.
  */
 export function OpenAutomationSettings(): $CancellablePromise<void> {
@@ -105,8 +114,9 @@ export function PlayFrom(source: string, collectionID: string, trackID: string, 
 }
 
 /**
- * PlayFromHistory relance un morceau de la pile ; les disques posés au-dessus sont retirés.
- * Si la lecture échoue, la pile est remise comme avant.
+ * PlayFromHistory réécoute un morceau de la pile comme Apple Music : la pile n'est pas touchée, le
+ * morceau est joué seul, puis la playlist reprend là où elle en était (voir ObservePlayback).
+ * Lecteur sans cette possibilité (Spotify) : le morceau est simplement lancé.
  */
 export function PlayFromHistory(source: string, trackID: string): $CancellablePromise<void> {
     return $Call.ByID(1509244506, source, trackID);

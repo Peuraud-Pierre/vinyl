@@ -159,32 +159,3 @@ func (s *Spotify) SetRepeat(ctx context.Context, mode RepeatMode) error {
 end run`, v)
 	return err
 }
-
-// argv : URI du titre, nombre de morceaux en arrière. « Précédent » autant de fois (après un retour au
-// début du morceau en cours, sinon le premier appui ne fait que le relancer), puis vérification ;
-// sinon le titre est lancé seul (Spotify ne dit pas quelle playlist joue).
-const spotifyReplayScript = `on run argv
-	if application id "com.spotify.client" is not running then return "NOTRUNNING"
-	tell application id "com.spotify.client"
-		set player position to 0
-		repeat ((item 2 of argv) as integer) times
-			previous track
-			delay 0.2
-		end repeat
-		if (id of current track) is (item 1 of argv) then return "BACK"
-		play track (item 1 of argv)
-		return "TRACK"
-	end tell
-end run`
-
-// ReplayInContext revient steps morceaux en arrière pour réécouter trackURI.
-func (s *Spotify) ReplayInContext(ctx context.Context, trackURI string, steps int) error {
-	if !strings.HasPrefix(trackURI, "spotify:") {
-		return fmt.Errorf("spotify: URI invalide %q", trackURI)
-	}
-	out, err := s.run.Run(ctx, spotifyReplayScript, trackURI, strconv.Itoa(steps))
-	if err == nil && out == "NOTRUNNING" {
-		return ErrNotRunning
-	}
-	return err
-}

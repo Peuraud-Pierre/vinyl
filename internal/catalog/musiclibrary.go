@@ -142,7 +142,7 @@ func (m *MusicLibrary) Library(ctx context.Context, kind string, offset int) (Pa
 			return Page{}, err
 		}
 		for _, r := range recs {
-			if len(r) == 3 && r[0] != player.TempPlaylistName { // playlist interne de Vinyl : masquée
+			if len(r) == 3 && r[0] != player.TempPlaylistName && r[0] != player.ReplayPlaylistName { // playlists internes de Vinyl : masquées
 				items = append(items, Item{ID: "playlist:" + r[1], Kind: "playlist", Title: r[0], Subtitle: r[2] + " titres"})
 			}
 		}

@@ -80,72 +80,119 @@ func TestHistoryListsThePile(t *testing.T) {
 	}
 }
 
-// Clic sur un ancien titre de la pile : il est relancé (identifiant « track: » pour Musique) et les
-// disques posés au-dessus sont retirés ; la pile mise à jour est diffusée.
-func TestPlayFromHistory(t *testing.T) {
-	p := &fakeModesPlayer{}
-	s := serviceWith(p)
-	h := history.NewStore(t.TempDir() + "/h.json")
-	for _, id := range []string{"1", "2", "3", "4"} {
-		h.Playing(history.Entry{Source: "applemusic", TrackID: id})
-	} // pile 321
-	var sent []history.Entry
-	s.SetHistory(h, func(l []history.Entry) { sent = l })
-	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
-		t.Fatal(err)
-	}
-	if len(p.played) != 1 || p.played[0] != "track:2" {
-		t.Errorf("lancé : %v", p.played)
-	}
-	if l := s.History(); len(l) != 1 || l[0].TrackID != "1" || len(sent) != 1 {
-		t.Errorf("pile = %v, diffusée = %v", l, sent)
-	}
-}
-
-func TestPlayFromHistoryFailureKeepsThePile(t *testing.T) {
-	p := &fakeModesPlayer{playErr: errors.New("Musique ne répond pas")}
-	s := serviceWith(p)
-	h := history.NewStore(t.TempDir() + "/h.json")
-	for _, id := range []string{"1", "2", "3"} {
-		h.Playing(history.Entry{Source: "applemusic", TrackID: id})
-	}
-	s.SetHistory(h, nil)
-	if err := s.PlayFromHistory("applemusic", "1"); err == nil {
-		t.Fatal("erreur attendue")
-	}
-	if l := s.History(); len(l) != 2 {
-		t.Errorf("pile remise comme avant : %v", l)
-	}
-}
-
-// Lecteur qui sait rejouer un titre dans la playlist en cours : c'est ce chemin qui est pris.
-type fakeReplayer struct {
+// Lecteur qui sait retenir sa playlist, jouer un morceau seul puis reprendre.
+type fakeResumer struct {
 	fakeModesPlayer
-	replayed []string
-	steps    []int
+	saved   player.PlaybackContext
+	alone   []string
+	resumed []player.PlaybackContext
 }
 
-func (f *fakeReplayer) ReplayInContext(_ context.Context, id string, steps int) error {
-	f.replayed = append(f.replayed, id)
-	f.steps = append(f.steps, steps)
+func (f *fakeResumer) SaveContext(context.Context) (player.PlaybackContext, error) {
+	return f.saved, nil
+}
+func (f *fakeResumer) PlayAlone(_ context.Context, id string) error {
+	f.alone = append(f.alone, id)
+	return f.playErr
+}
+func (f *fakeResumer) Resume(_ context.Context, c player.PlaybackContext) error {
+	f.resumed = append(f.resumed, c)
 	return nil
 }
 
-func TestPlayFromHistoryReplaysInCurrentPlaylist(t *testing.T) {
-	p := &fakeReplayer{}
-	s := serviceWith(p)
+func pileOf(t *testing.T, ids ...string) *history.Store {
 	h := history.NewStore(t.TempDir() + "/h.json")
-	for _, id := range []string{"1", "2", "3"} {
+	for _, id := range ids {
 		h.Playing(history.Entry{Source: "applemusic", TrackID: id})
 	}
-	s.SetHistory(h, nil)
-	if err := s.PlayFromHistory("applemusic", "1"); err != nil {
+	return h
+}
+
+func playing(id string, pos, dur int64) player.Snapshot {
+	return player.Snapshot{NowPlaying: player.NowPlaying{Source: "applemusic", TrackID: id, State: player.StatePlaying, PositionMs: pos, DurationMs: dur}}
+}
+
+// Comme Apple Music : le morceau repris de la pile est joué seul, la pile n'est pas vidée, et à la fin
+// du morceau la playlist reprend là où elle en était.
+func TestReplayThenResumeWhereThePlaylistWas(t *testing.T) {
+	p := &fakeResumer{saved: player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil) // pile 321, en cours 4
+	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
 		t.Fatal(err)
 	}
-	if len(p.replayed) != 1 || p.replayed[0] != "1" || len(p.played) != 0 {
-		t.Errorf("rejoué %v, lancé seul %v", p.replayed, p.played)
+	if len(p.alone) != 1 || p.alone[0] != "2" {
+		t.Fatalf("joué seul : %v", p.alone)
 	}
-	if p.steps[0] != 2 { // pile 21 : 1 est deux morceaux en arrière
-		t.Errorf("pas en arrière : %v", p.steps)
+	if l := s.History(); len(l) != 3 {
+		t.Errorf("la pile n'est pas vidée : %v", l)
+	}
+	s.ObservePlayback(playing("2", 1000, 200000))
+	s.ObservePlayback(playing("2", 198500, 200000)) // presque fini
+	if len(p.resumed) != 0 {
+		t.Fatal("pas de reprise avant la fin")
+	}
+	s.ObservePlayback(player.Snapshot{NowPlaying: player.NowPlaying{Source: "applemusic", State: player.StateStopped}})
+	if len(p.resumed) != 1 || p.resumed[0] != p.saved {
+		t.Fatalf("reprise : %v", p.resumed)
+	}
+	s.ObservePlayback(playing("4", 61000, 300000))
+	if len(p.resumed) != 1 {
+		t.Error("une seule reprise")
+	}
+}
+
+func TestResumeWhenTheReplayedSongLoopsOrMusicMovesOn(t *testing.T) {
+	for name, after := range map[string]player.Snapshot{
+		"répétition":      playing("2", 400, 200000),
+		"morceau suivant": playing("99", 300, 180000),
+	} {
+		p := &fakeResumer{saved: player.PlaybackContext{PlaylistID: "PL", TrackID: "4"}}
+		s := serviceWith(p)
+		s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+		s.PlayFromHistory("applemusic", "2")
+		s.ObservePlayback(playing("2", 199000, 200000))
+		s.ObservePlayback(after)
+		if len(p.resumed) != 1 {
+			t.Errorf("%s : reprise attendue", name)
+		}
+	}
+}
+
+// Si l'utilisateur change lui-même de morceau en cours de route, on ne lui impose pas la reprise.
+func TestNoResumeWhenTheUserPicksSomethingElse(t *testing.T) {
+	p := &fakeResumer{saved: player.PlaybackContext{PlaylistID: "PL", TrackID: "4"}}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+	s.PlayFromHistory("applemusic", "2")
+	s.ObservePlayback(playing("2", 30000, 200000))
+	s.ObservePlayback(playing("77", 500, 200000))
+	s.ObservePlayback(player.Snapshot{NowPlaying: player.NowPlaying{Source: "applemusic", State: player.StateStopped}})
+	if len(p.resumed) != 0 {
+		t.Errorf("aucune reprise attendue : %v", p.resumed)
+	}
+}
+
+func TestReplayFailureReported(t *testing.T) {
+	p := &fakeResumer{}
+	p.playErr = errors.New("Musique ne répond pas")
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2"), nil)
+	if err := s.PlayFromHistory("applemusic", "1"); err == nil {
+		t.Error("erreur attendue")
+	}
+	s.ObservePlayback(player.Snapshot{NowPlaying: player.NowPlaying{Source: "applemusic", State: player.StateStopped}})
+	if len(p.resumed) != 0 {
+		t.Error("pas de reprise après un échec")
+	}
+}
+
+// Lecteur sans reprise (Spotify) : le morceau est lancé directement.
+func TestReplayWithoutResumeSupport(t *testing.T) {
+	p := &fakeModesPlayer{}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2"), nil)
+	if err := s.PlayFromHistory("applemusic", "1"); err != nil || len(p.played) != 1 || p.played[0] != "track:1" {
+		t.Errorf("lancé : %v (%v)", p.played, err)
 	}
 }
