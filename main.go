@@ -14,6 +14,7 @@ import (
 	"vinyl/internal/app"
 	"vinyl/internal/auth"
 	"vinyl/internal/catalog"
+	"vinyl/internal/fluid"
 	"vinyl/internal/player"
 	"vinyl/internal/settings"
 	"vinyl/internal/stats"
@@ -135,6 +136,15 @@ func main() {
 			TitleBar:                application.MacTitleBarHiddenInsetUnified,
 			InvisibleTitleBarHeight: 50,
 		},
+	})
+	// Écrans ProMotion (120 Hz) : WebKit bride la page à 60 images/s, ce qui rend l'étagère saccadée
+	// au trackpad à côté du reste de macOS. On lève ce bridage dès que la page est prête.
+	mainWin.OnWindowEvent(events.Common.WindowRuntimeReady, func(*application.WindowEvent) {
+		application.InvokeSync(func() {
+			if !fluid.Unlock120Hz(mainWin.NativeWindow()) {
+				log.Print("affichage : bridage à 60 images/s non levé (réglage WebKit indisponible)")
+			}
+		})
 	})
 	// Fermer la fenêtre principale la cache ; ⌘Q quitte.
 	mainWin.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
