@@ -126,17 +126,18 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-key[aria-pressed="true"] .vy-led { background: #ff3b30; box-shadow: 0 0 6px 2px rgba(255,59,48,.75), inset 0 -1px 1px rgba(0,0,0,.25); }
 /* Pile des derniers écoutés (à droite du disque) : pochettes couchées vues de face, tranches du bas
    vers le haut ; la pochette du dessus est posée à plat (vue en perspective). */
-.vy-recent { position: absolute; left: 0; width: 590px; height: 22px; display: flex; align-items: center; gap: 10px; padding: 0 20px; border: 0; border-radius: 2px; cursor: pointer;
+.vy-recent { position: absolute; left: 0; bottom: 0; width: 590px; height: 22px; display: flex; align-items: center; gap: 10px; padding: 0 20px; border: 0; border-radius: 2px; cursor: pointer;
   font-size: 14px; line-height: 1; white-space: nowrap; overflow: hidden; text-align: left;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -2px 3px rgba(0,0,0,.28), 0 1px 0 rgba(0,0,0,.35), 0 6px 12px rgba(20,8,6,.25); }
 .vy-recent b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
 .vy-recent span { opacity: .75; overflow: hidden; text-overflow: ellipsis; }
 .vy-recent:hover { filter: brightness(1.12); }
-.vy-recent-lid { position: absolute; width: 590px; height: 590px; border: 0; padding: 0; border-radius: 3px; cursor: pointer; background: #2a2220 center / cover;
-  transform-origin: 50% 100%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.vy-recent-lid { position: absolute; left: 0; bottom: 22px; width: 590px; height: 590px; border: 0; padding: 0; border-radius: 3px; cursor: pointer; background: #2a2220 center / cover;
+  transform-origin: 50% 100%; transform: rotateX(90deg); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
 .vy-recent-lid:hover { filter: brightness(1.08); }
 /* Scène 3D de la pile : vue un peu d'en haut ; la pile pivote autour de son centre. */
 .vy-recent-scene { perspective: 1800px; perspective-origin: 40% -15%; }
 .vy-recent-3d { position: absolute; inset: 0; transform-style: preserve-3d; transform-origin: 295px 100% -295px; }
-.vy-recent-side { position: absolute; width: 590px; height: 22px; transform-origin: 0 50%; transform: rotateY(90deg); filter: brightness(.62);
+.vy-recent-disc { position: absolute; left: 0; width: 590px; height: 22px; transform-style: preserve-3d; transform-origin: 295px 50% -295px; }
+.vy-recent-side { position: absolute; left: 590px; bottom: 0; width: 590px; height: 22px; transform-origin: 0 50%; transform: rotateY(90deg); filter: brightness(.62);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 2px rgba(0,0,0,.35); }
