@@ -54,7 +54,7 @@ func TestChannelFollowsBetaAccess(t *testing.T) {
 
 // Les noms des fichiers publiés sont bien ceux que Wails choisit pour chaque système.
 func TestAssetNamesMatchWailsMatcher(t *testing.T) {
-	assets := []github.ReleaseAsset{{Name: "Vinyl-Setup.exe"}, {Name: "SHA256SUMS"}, {Name: AssetMac}, {Name: AssetWindows}}
+	assets := []github.ReleaseAsset{{Name: "Vinyl.dmg"}, {Name: "Vinyl-Setup.exe"}, {Name: "SHA256SUMS"}, {Name: AssetMac}, {Name: AssetWindows}}
 	for req, want := range map[updater.CheckRequest]string{
 		{Platform: "darwin", Arch: "arm64"}:  AssetMac,
 		{Platform: "windows", Arch: "amd64"}: AssetWindows,
