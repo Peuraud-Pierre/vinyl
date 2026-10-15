@@ -28,6 +28,9 @@ var assets embed.FS
 // projectDir est la racine du dépôt, inscrite à la compilation (-ldflags "-X 'main.projectDir=…'").
 var projectDir string
 
+// version est le numéro de la release, inscrit à la fabrication (-ldflags "-X main.version=1.0.3").
+var version = "dev"
+
 func init() {
 	application.RegisterEvent[player.Snapshot]("nowplaying")
 	application.RegisterEvent[settings.Settings]("settings")
@@ -63,6 +66,7 @@ func main() {
 		},
 		time.Now)
 	service := app.New(store, watcher, plat.music)
+	service.SetVersion(version)
 	spAuth := auth.NewSpotifyAuth(func() string { return store.Get().SpotifyClientID }, auth.KeychainStore{})
 	service.SetSpotifyAuth(spAuth)
 	service.SetCatalog("spotify", catalog.NewSpotifyWeb(spAuth.AccessToken))

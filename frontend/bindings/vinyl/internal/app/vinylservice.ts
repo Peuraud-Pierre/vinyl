@@ -206,6 +206,13 @@ export function SetStats(st: stats$0.Store | null): $CancellablePromise<void> {
 }
 
 /**
+ * SetVersion : numéro de la release (sans « v »), « dev » pour une fabrication à la main.
+ */
+export function SetVersion(v: string): $CancellablePromise<void> {
+    return $Call.ByID(1710665952, v);
+}
+
+/**
  * SetWidgetUpdates branche le gestionnaire de mise à jour du widget de bureau.
  */
 export function SetWidgetUpdates(m: widgetupdate$0.Manager | null): $CancellablePromise<void> {
@@ -257,6 +264,13 @@ export function UpdateSettings(p: settings$0.Patch): $CancellablePromise<setting
  */
 export function UpdateWidget(): $CancellablePromise<void> {
     return $Call.ByID(2835288261);
+}
+
+/**
+ * Version : numéro de version de l'app (affiché dans Réglages).
+ */
+export function Version(): $CancellablePromise<string> {
+    return $Call.ByID(3934402648);
 }
 
 /**

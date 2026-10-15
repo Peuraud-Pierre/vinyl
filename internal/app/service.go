@@ -42,10 +42,11 @@ type VinylService struct {
 	queueMu     sync.Mutex
 	queue       *vinylQueue // morceaux enchaînés par Vinyl (album, réécoute depuis la pile)
 	back        *backReplay // réécoute par « précédent » dans la file de Musique
+	version     string      // numéro de la release, « dev » pour une fabrication à la main
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
-	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}, openLink: openURL}
+	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}, openLink: openURL, version: "dev"}
 	if music != nil { // bibliothèque Apple Music : Mac seulement
 		s.catalogs["applemusic"] = music
 	}
@@ -59,6 +60,16 @@ func (s *VinylService) SetCatalog(source string, c catalog.Catalog) {
 		s.spotifyPlay = w.Play
 	}
 }
+
+// SetVersion : numéro de la release (sans « v »), « dev » pour une fabrication à la main.
+func (s *VinylService) SetVersion(v string) {
+	if v != "" {
+		s.version = v
+	}
+}
+
+// Version : numéro de version de l'app (affiché dans Réglages).
+func (s *VinylService) Version() string { return s.version }
 
 var errNoPlayer = errors.New("aucun lecteur actif")
 
