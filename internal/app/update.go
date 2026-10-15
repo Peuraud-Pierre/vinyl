@@ -47,7 +47,9 @@ func (s *VinylService) CheckForUpdate() (UpdateInfo, error) {
 	return UpdateInfo{Available: true, Version: rel.Version, Notes: rel.Notes}, nil
 }
 
-var errReadOnlyApp = errors.New("Vinyl ne peut pas se remplacer à cet endroit (droits insuffisants)")
+// Message montré tel quel dans le bandeau. Cas courant sur Mac : app lancée depuis Téléchargements, que
+// macOS fait tourner depuis une copie en lecture seule (App Translocation, app non signée).
+var errReadOnlyApp = errors.New("Vinyl ne peut pas se mettre à jour depuis cet emplacement : glisse-le dans le dossier Applications, puis relance-le.")
 
 // InstallUpdate revérifie la version proposée (le code contributeur a pu être retiré entre-temps), la
 // télécharge et la vérifie, la met en place et redémarre Vinyl. false : plus rien à installer.

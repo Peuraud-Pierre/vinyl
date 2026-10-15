@@ -14,9 +14,11 @@ export function mountUpdateBanner(el: HTMLElement, deps: BannerDeps) {
     el.innerHTML = `<div class="glass flex items-center gap-3 rounded-full px-4 py-2 text-[13px]">${html}</div>`;
     el.hidden = false;
   };
-  const fail = () => {
+  // Les erreurs rédigées par Vinyl (« Vinyl ne peut pas… ») sont montrées ; les techniques, non.
+  const fail = (e?: unknown) => {
     installing = false;
-    render(`<span>La mise à jour a échoué.</span><button data-release class="cursor-pointer font-semibold underline">Voir la release</button>`);
+    const why = e instanceof Error && e.message.startsWith("Vinyl ") ? ` ${e.message.replace(/[<>&"]/g, "")}` : "";
+    render(`<span>La mise à jour a échoué.${why}</span><button data-release class="cursor-pointer font-semibold underline">Voir la release</button>`);
     el.querySelector<HTMLButtonElement>("[data-release]")!.onclick = () => deps.openRelease(version);
   };
   return {

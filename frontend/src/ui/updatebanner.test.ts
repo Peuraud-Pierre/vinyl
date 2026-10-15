@@ -75,3 +75,24 @@ test("à jour après une annonce : bandeau masqué", () => {
   b.show({ available: false, version: "", notes: "", dev: false });
   expect(el.hidden).toBe(true);
 });
+
+// Vinyl lancé depuis Téléchargements (macOS le lance en lecture seule) : dire quoi faire.
+test("échec expliqué par Vinyl : la raison est affichée", async () => {
+  const el = document.createElement("div");
+  const reason = "Vinyl ne peut pas se mettre à jour depuis cet emplacement : glisse-le dans le dossier Applications, puis relance-le.";
+  const b = mountUpdateBanner(el, { install: () => Promise.reject(new Error(reason)), openRelease: vi.fn() });
+  b.show(info("1.0.5"));
+  el.querySelector<HTMLButtonElement>("[data-update]")!.click();
+  await new Promise((r) => setTimeout(r, 0));
+  expect(el.textContent).toContain("glisse-le dans le dossier Applications");
+});
+
+test("échec technique : pas de jargon, seulement le lien", async () => {
+  const el = document.createElement("div");
+  const b = mountUpdateBanner(el, { install: () => Promise.reject(new Error("updater: download: EOF")), openRelease: vi.fn() });
+  b.show(info("1.0.5"));
+  el.querySelector<HTMLButtonElement>("[data-update]")!.click();
+  await new Promise((r) => setTimeout(r, 0));
+  expect(el.textContent).not.toContain("EOF");
+  expect(el.textContent).toContain("Voir la release");
+});

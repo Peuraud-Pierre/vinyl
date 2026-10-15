@@ -80,6 +80,6 @@ jobs:
             Vinyl-Setup.exe
             SHA256SUMS
           body: |
-            **Mac (Apple Silicon)** : `Vinyl-darwin-arm64.zip` — app non signée : clic droit → Ouvrir au premier lancement.
+            **Mac (Apple Silicon)** : `Vinyl-darwin-arm64.zip` — glisse Vinyl dans le dossier Applications (sinon il ne peut pas se mettre à jour), puis clic droit → Ouvrir au premier lancement (app non signée).
             **Windows 10/11** : `Vinyl-Setup.exe` — non signé : « Informations complémentaires » → « Exécuter quand même ».
             Ensuite, Vinyl propose lui-même les nouvelles versions (`Vinyl-windows-amd64.zip` et `SHA256SUMS` servent à ces mises à jour).
