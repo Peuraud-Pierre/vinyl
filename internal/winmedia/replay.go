@@ -3,6 +3,8 @@ package winmedia
 import (
 	"context"
 	"time"
+
+	"vinyl/internal/player"
 )
 
 // current : identifiant du morceau en cours ("" si aucun).
@@ -81,4 +83,13 @@ func (p *Player) JumpForward(_ context.Context, steps int, trackID string, posSe
 		return s.Seek(time.Duration(posSec) * time.Second)
 	}
 	return nil
+}
+
+// SaveContext : où en est la lecture (morceau, position), pour y revenir après une réécoute.
+func (p *Player) SaveContext(ctx context.Context) (player.PlaybackContext, error) {
+	np, err := p.NowPlaying(ctx)
+	if err != nil {
+		return player.PlaybackContext{}, err
+	}
+	return player.PlaybackContext{TrackID: np.TrackID, PositionSec: int(np.PositionMs / 1000)}, nil
 }

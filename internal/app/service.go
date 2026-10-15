@@ -36,13 +36,16 @@ type VinylService struct {
 	stats       *stats.Store
 	history     *history.Store
 	onHistory   func([]history.Entry) // diffusion de la pile au frontend
+	openLink    func(string) error    // ouverture d'un lien (remplacée dans les tests)
+	// spotifyPlay : lecture Spotify par l'API web (hors Mac) ; nil sans catalogue Spotify.
+	spotifyPlay func(ctx context.Context, contextURI, trackURI string, shuffle bool) error
 	queueMu     sync.Mutex
 	queue       *vinylQueue // morceaux enchaînés par Vinyl (album, réécoute depuis la pile)
 	back        *backReplay // réécoute par « précédent » dans la file de Musique
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
-	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}}
+	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}, openLink: openURL}
 	if music != nil { // bibliothèque Apple Music : Mac seulement
 		s.catalogs["applemusic"] = music
 	}
@@ -50,7 +53,12 @@ func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLib
 }
 
 // SetCatalog enregistre le catalogue d'une source (utilisé pour Spotify).
-func (s *VinylService) SetCatalog(source string, c catalog.Catalog) { s.catalogs[source] = c }
+func (s *VinylService) SetCatalog(source string, c catalog.Catalog) {
+	s.catalogs[source] = c
+	if w, ok := c.(*catalog.SpotifyWeb); ok && source == "spotify" {
+		s.spotifyPlay = w.Play
+	}
+}
 
 var errNoPlayer = errors.New("aucun lecteur actif")
 
@@ -104,6 +112,9 @@ func (s *VinylService) PlayItem(source, id string) error {
 	}
 	if _, ok := p.(player.ReplayResumer); ok && strings.HasPrefix(id, "album:") {
 		return s.PlayFrom(source, id, "", false) // album : joué titre par titre par Vinyl
+	}
+	if _, mac := p.(*player.Spotify); source == "spotify" && !mac && s.spotifyPlay != nil {
+		return s.playSpotifyWeb(id) // hors Mac : API web, repli sur le lien
 	}
 	s.setQueue(nil) // l'utilisateur lance autre chose : Vinyl ne pilote plus la suite
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -271,21 +282,15 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 	if p == nil {
 		return errors.New("source inconnue")
 	}
-	r, ok := p.(player.ReplayResumer)
-	if !ok {
-		id := trackID
-		if source == "applemusic" {
-			id = "track:" + trackID // Musique attend un identifiant typé
-		}
-		return s.PlayItem(source, id)
-	}
-	// D'abord sans toucher à la file de Musique : « précédent » jusqu'au morceau, puis retour par
-	// « suivant » au morceau interrompu juste avant la fin (voir ObservePlayback).
-	if b, ok := p.(player.BackReplayer); ok && s.activeQueue() == nil {
+	// D'abord sans toucher à la file du lecteur : « précédent » jusqu'au morceau, puis retour par
+	// « suivant » au morceau interrompu juste avant la fin (voir ObservePlayback). Mac et Windows.
+	b, back := p.(player.BackReplayer)
+	cs, saves := p.(player.ContextSaver)
+	if back && saves && s.activeQueue() == nil {
 		if steps := s.stepsBack(source, trackID); steps > 0 {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			saved, err := r.SaveContext(ctx)
+			saved, err := cs.SaveContext(ctx)
 			if err == nil && saved.TrackID != "" {
 				taken, err := b.ReplayBack(ctx, trackID, steps, saved.PositionSec)
 				s.watcher.Wake()
@@ -293,8 +298,8 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 					return err
 				}
 				if taken == 0 {
-					// Surtout pas de nouveau « play » : la file de Musique serait remplacée.
-					return errors.New("ce morceau n'est plus dans la file de Musique")
+					// Surtout pas de nouveau « play » : la file du lecteur serait remplacée.
+					return errors.New("ce morceau n'est plus dans la file de lecture")
 				}
 				s.queueMu.Lock()
 				s.back = &backReplay{source: source, trackID: trackID, steps: taken, saved: saved, started: time.Now()}
@@ -302,6 +307,14 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 				return nil
 			}
 		}
+	}
+	r, ok := p.(player.ReplayResumer)
+	if !ok {
+		id := trackID
+		if source == "applemusic" && runtime.GOOS == "darwin" {
+			id = "track:" + trackID // Musique attend un identifiant typé
+		}
+		return s.PlayItem(source, id)
 	}
 	q := &vinylQueue{source: source, tracks: []player.Track{{ID: trackID}}}
 	if prev := s.activeQueue(); prev != nil && prev.source == source {
@@ -557,6 +570,14 @@ func (s *VinylService) PlayFrom(source, collectionID, trackID string, shuffle bo
 	if sp, ok := p.(*player.Spotify); ok {
 		return sp.PlayInContext(ctx, collectionID, trackID, shuffle)
 	}
+	if source == "spotify" && s.spotifyPlay != nil {
+		// Hors Mac : lecture par l'API web ; refusée (pas Premium, aucun appareil) → l'album s'ouvre dans Spotify.
+		err := s.spotifyPlay(ctx, collectionID, trackID, shuffle)
+		if errors.Is(err, catalog.ErrPlaybackRefused) {
+			return s.openLink(collectionID)
+		}
+		return err
+	}
 	if pid, ok := strings.CutPrefix(collectionID, "playlist:"); ok {
 		if am, ok := p.(*player.AppleMusic); ok {
 			s.setQueue(nil)
@@ -671,6 +692,10 @@ func (s *VinylService) Queue() (QueueState, error) {
 		}
 		return q, nil
 	}
+	if _, mac := m.(*player.Spotify); !mac && sourceOf(m) == "spotify" {
+		s.spotifyQueue(ctx, &q) // hors Mac : même file que sur Mac, par l'API web
+		return q, nil
+	}
 	switch p := m.(type) {
 	case *player.AppleMusic:
 		if sh {
@@ -681,18 +706,47 @@ func (s *VinylService) Queue() (QueueState, error) {
 			q.Upcoming = ts
 		}
 	case *player.Spotify:
-		web, ok := s.catalogs["spotify"].(*catalog.SpotifyWeb)
-		if !ok || s.spotifyAuth == nil || !s.spotifyAuth.LoggedIn() {
-			q.Note = "Connecte Spotify pour voir la suite"
-			break
-		}
-		if ts, err := web.Queue(ctx); err == nil {
-			q.Upcoming = ts
-		} else {
-			q.Note = "File Spotify indisponible"
-		}
+		s.spotifyQueue(ctx, &q)
+	default:
+		q.Note = "File indisponible" // Apple Music sous Windows
 	}
 	return q, nil
+}
+
+// spotifyQueue : file d'attente Spotify par l'API web.
+func (s *VinylService) spotifyQueue(ctx context.Context, q *QueueState) {
+	web, ok := s.catalogs["spotify"].(*catalog.SpotifyWeb)
+	if !ok || s.spotifyAuth == nil || !s.spotifyAuth.LoggedIn() {
+		q.Note = "Connecte Spotify pour voir la suite"
+		return
+	}
+	if ts, err := web.Queue(ctx); err == nil {
+		q.Upcoming = ts
+	} else {
+		q.Note = "File Spotify indisponible"
+	}
+}
+
+// playSpotifyWeb lance un titre, un album ou une playlist Spotify par l'API web (hors Mac) ; refusé
+// (pas Premium, aucun appareil actif) → le lien s'ouvre dans Spotify.
+func (s *VinylService) playSpotifyWeb(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	defer s.watcher.Wake()
+	var err error
+	if strings.HasPrefix(id, "spotify:track:") {
+		web, _ := s.catalogs["spotify"].(*catalog.SpotifyWeb)
+		if web == nil {
+			return s.openLink(id)
+		}
+		err = web.PlayTrack(ctx, id)
+	} else {
+		err = s.spotifyPlay(ctx, id, "", false)
+	}
+	if errors.Is(err, catalog.ErrPlaybackRefused) {
+		return s.openLink(id)
+	}
+	return err
 }
 
 func (s *VinylService) SetShuffle(on bool) error {

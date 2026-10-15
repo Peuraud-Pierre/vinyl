@@ -76,3 +76,13 @@ func TestJumpForward(t *testing.T) {
 }
 
 var _ player.BackReplayer = (*Player)(nil)
+
+// Où en est la lecture, pour y revenir après une réécoute.
+func TestSaveContext(t *testing.T) {
+	q := &queueSession{fakeSession: fakeSession{id: "Spotify.exe"}, queue: []string{"1", "2"}, idx: 1}
+	p := NewPlayer(SpotifySource, fakeSessions{q}, func() time.Time { return t0 }, "") // relevé à l'instant même
+	c, err := p.SaveContext(context.Background())
+	if err != nil || c.TrackID != id("2") || c.PositionSec != 10 {
+		t.Errorf("contexte %+v err %v", c, err)
+	}
+}

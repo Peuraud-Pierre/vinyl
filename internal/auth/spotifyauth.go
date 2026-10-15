@@ -18,7 +18,7 @@ import (
 
 const (
 	RedirectURI = "http://127.0.0.1:43821/callback"
-	scopes      = "user-library-read playlist-read-private user-follow-read user-read-playback-state"
+	scopes      = "user-library-read playlist-read-private user-follow-read user-read-playback-state user-modify-playback-state"
 )
 
 var ErrNotLoggedIn = errors.New("Spotify non connecté")

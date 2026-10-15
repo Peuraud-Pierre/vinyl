@@ -249,3 +249,73 @@ func TestPollInterval(t *testing.T) {
 		t.Errorf("fin d'un morceau ordinaire : %v", d)
 	}
 }
+
+// Sous Windows, lancer un album Spotify passe par l'API web ; refusé → ouverture du lien spotify:.
+func TestSpotifyPlayFromFallsBackToOpeningTheLink(t *testing.T) {
+	p := &fakeModesPlayer{}
+	s := serviceWith(p)
+	var opened []string
+	s.openLink = func(u string) error { opened = append(opened, u); return nil }
+	s.spotifyPlay = func(context.Context, string, string, bool) error { return catalog.ErrPlaybackRefused }
+	if err := s.PlayFrom("spotify", "spotify:album:A", "spotify:track:T", false); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 1 || opened[0] != "spotify:album:A" {
+		t.Errorf("ouvert : %v", opened)
+	}
+}
+
+// Lecteur « spotify » qui n'est pas le lecteur AppleScript (Windows) : la file vient de l'API web.
+type namedModes struct {
+	fakeModesPlayer
+	name string
+}
+
+func (n *namedModes) Name() string { return n.name }
+
+func TestQueueForSpotifyWithoutAppleScript(t *testing.T) {
+	s := serviceWith(&namedModes{name: "spotify"})
+	q, err := s.Queue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Note != "Connecte Spotify pour voir la suite" {
+		t.Errorf("note = %q", q.Note)
+	}
+}
+
+// Lecteur qui sait reculer / avancer dans sa file mais pas jouer « une fois » (Windows) : la réécoute
+// depuis la pile passe quand même par précédent / suivant, puis revient au morceau interrompu.
+type backOnly struct {
+	fakeModesPlayer
+	saved player.PlaybackContext
+	backs []string
+	jumps []string
+}
+
+func (b *backOnly) SaveContext(context.Context) (player.PlaybackContext, error) { return b.saved, nil }
+func (b *backOnly) ReplayBack(_ context.Context, id string, steps, _ int) (int, error) {
+	b.backs = append(b.backs, id)
+	return steps, nil
+}
+func (b *backOnly) JumpForward(_ context.Context, _ int, id string, _ int) error {
+	b.jumps = append(b.jumps, id)
+	return nil
+}
+
+func TestReplayFromPileWithBackOnlyPlayer(t *testing.T) {
+	p := &backOnly{saved: player.PlaybackContext{TrackID: "4", PositionSec: 12}}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.backs) != 1 || p.backs[0] != "2" || len(p.played) != 0 {
+		t.Fatalf("recul : %v, lancé seul : %v", p.backs, p.played)
+	}
+	s.ObservePlayback(playing("2", 1000, 200000))
+	s.ObservePlayback(playing("2", 199000, 200000))
+	if len(p.jumps) != 1 || p.jumps[0] != "4" {
+		t.Errorf("retour : %v", p.jumps)
+	}
+}

@@ -102,7 +102,7 @@ export function mount(el: HTMLElement): () => void {
     // Puis la pile est relue : elle reste juste même si un événement s'est perdu.
     play: (e) => {
       api.PlayFromHistory(e.source, e.trackId)
-        .catch((err) => showRecentMsg(String(err).includes("plus dans la file") ? "Ce morceau n'est plus dans la file de Musique" : "Lecture impossible"))
+        .catch((err) => showRecentMsg(String(err).includes("plus dans la file") ? "Ce morceau n'est plus dans la file de lecture" : "Lecture impossible"))
         .finally(() => api.History().then((l) => recent?.update(l ?? [])).catch(() => {}));
     },
   });

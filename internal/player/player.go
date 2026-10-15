@@ -83,6 +83,12 @@ type PlaybackContext struct {
 	PositionSec int
 }
 
+// ContextSaver est implémentée par les lecteurs qui savent dire où en est la lecture (morceau,
+// position), pour y revenir après une réécoute depuis la pile.
+type ContextSaver interface {
+	SaveContext(ctx context.Context) (PlaybackContext, error)
+}
+
 // ReplayResumer est implémentée par les lecteurs qui savent réécouter un morceau comme Apple Music :
 // retenir où en est la playlist, jouer le morceau seul, puis reprendre la playlist là où elle en était.
 type ReplayResumer interface {
