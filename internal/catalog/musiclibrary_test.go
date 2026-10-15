@@ -261,7 +261,7 @@ func TestThumbnailFallsBackToFullArtworkIfResizeFails(t *testing.T) {
 	dir := t.TempDir()
 	m := NewMusicLibrary(&slowRunner{out: "OK"}, nil, dir)
 	m.resize = func(string, string, int) error { return os.ErrPermission }
-	id := "playlist:P"
+	id := "album:A" + player.Sep + "X"
 	os.WriteFile(filepath.Join(dir, player.ArtworkFileName("item:"+id)), []byte("big"), 0o644)
 	u, err := m.Thumbnail(context.Background(), id)
 	if err != nil || strings.HasSuffix(u, ".thumb.jpg") || u == "" {

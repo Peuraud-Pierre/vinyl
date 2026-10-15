@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"vinyl/internal/player"
 )
@@ -52,5 +53,29 @@ func TestLiveMusicTracksScriptsCompile(t *testing.T) {
 			!strings.Contains(err.Error(), "(-1728)") && !strings.Contains(err.Error(), "(-1719)") {
 			t.Errorf("%s : %v", id, err)
 		}
+	}
+}
+
+// Images des playlists (mosaïque comme dans Musique) : VINYL_LIVE=1 VINYL_ART_DIR=… pour les garder.
+func TestLivePlaylistArtwork(t *testing.T) {
+	if os.Getenv("VINYL_LIVE") == "" {
+		t.Skip("définir VINYL_LIVE=1")
+	}
+	dir := os.Getenv("VINYL_ART_DIR")
+	if dir == "" {
+		dir = t.TempDir()
+	}
+	m := NewMusicLibrary(player.OSAScript{}, NewITunes(), dir)
+	p, err := m.Library(context.Background(), "playlists", 0)
+	if err != nil {
+		t.Skip(err)
+	}
+	for _, it := range p.Items {
+		start := time.Now()
+		u, err := m.Artwork(context.Background(), it.ID)
+		if err != nil {
+			t.Errorf("%s : %v", it.Title, err)
+		}
+		t.Logf("%-22s %-60s %v", it.Title, u, time.Since(start).Round(time.Millisecond))
 	}
 }

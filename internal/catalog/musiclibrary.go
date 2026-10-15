@@ -192,7 +192,12 @@ func (m *MusicLibrary) Artwork(ctx context.Context, id string) (string, error) {
 	if _, missing := m.noArtwork.Load(id); missing {
 		return "", nil
 	}
-	file := player.ArtworkFileName("item:" + id)
+	kind, rest, _ := strings.Cut(id, ":")
+	key := "item:" + id
+	if kind == "playlist" {
+		key = "mosaic:" + id // nouvelle image (mosaïque) : l'ancienne, pochette du 1er titre, est ignorée
+	}
+	file := player.ArtworkFileName(key)
 	path := filepath.Join(m.artworkDir, file)
 	if _, err := os.Stat(path); err == nil {
 		return "/artwork/" + file, nil
@@ -203,11 +208,21 @@ func (m *MusicLibrary) Artwork(ctx context.Context, id string) (string, error) {
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
-	kind, rest, _ := strings.Cut(id, ":")
-	key1, key2, _ := strings.Cut(rest, player.Sep)
 	if err := os.MkdirAll(m.artworkDir, 0o755); err != nil {
 		return "", err
 	}
+	if kind == "playlist" {
+		ok, err := m.playlistArtwork(ctx, rest, path)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			m.noArtwork.Store(id, struct{}{})
+			return "", nil
+		}
+		return "/artwork/" + file, nil
+	}
+	key1, key2, _ := strings.Cut(rest, player.Sep)
 	out, err := m.run.Run(ctx, itemArtworkScript, kind, key1, key2, path)
 	if err != nil {
 		return "", err
