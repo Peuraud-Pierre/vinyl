@@ -17,3 +17,4 @@ widget/App/Info.plist
 widget/App/*.entitlements
 widget/Extension/Info.plist
 widget/Extension/*.entitlements
+/screen/

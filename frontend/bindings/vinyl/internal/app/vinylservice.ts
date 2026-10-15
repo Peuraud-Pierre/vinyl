@@ -73,9 +73,9 @@ export function Next(): $CancellablePromise<void> {
 }
 
 /**
- * ObservePlayback est appelé à chaque sondage du lecteur. Quand le morceau réécouté se termine (arrêt,
- * morceau suivant ou répétition), la playlist reprend là où elle en était. Si l'utilisateur change
- * lui-même de morceau, la reprise est abandonnée.
+ * ObservePlayback est appelé à chaque sondage du lecteur. Quand le morceau joué par Vinyl se termine
+ * (arrêt, morceau suivant ou répétition), la suite est lancée. Si l'utilisateur choisit lui-même autre
+ * chose, Vinyl arrête de piloter la suite.
  */
 export function ObservePlayback(snap: player$0.Snapshot): $CancellablePromise<void> {
     return $Call.ByID(756165017, snap);
@@ -108,6 +108,8 @@ export function PlayCatalogTrack(source: string, item: catalog$0.Item, artist: s
 
 /**
  * PlayFrom lance un album ou une playlist à partir d'un titre (vide = début), avec ou sans aléatoire.
+ * Musique : une playlist de l'utilisateur est jouée telle quelle ; un album est joué titre par titre
+ * par Vinyl (aucune playlist créée dans la bibliothèque).
  */
 export function PlayFrom(source: string, collectionID: string, trackID: string, shuffle: boolean): $CancellablePromise<void> {
     return $Call.ByID(1604581322, source, collectionID, trackID, shuffle);
@@ -115,8 +117,8 @@ export function PlayFrom(source: string, collectionID: string, trackID: string, 
 
 /**
  * PlayFromHistory réécoute un morceau de la pile comme Apple Music : la pile n'est pas touchée, le
- * morceau est joué seul, puis la playlist reprend là où elle en était (voir ObservePlayback).
- * Lecteur sans cette possibilité (Spotify) : le morceau est simplement lancé.
+ * morceau est joué une fois, puis la lecture reprend là où elle en était (playlist de l'utilisateur ou
+ * album joué par Vinyl). Lecteur sans cette possibilité (Spotify) : le morceau est simplement lancé.
  */
 export function PlayFromHistory(source: string, trackID: string): $CancellablePromise<void> {
     return $Call.ByID(1509244506, source, trackID);
