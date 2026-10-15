@@ -39,3 +39,19 @@ export function settleWithin(p: Promise<unknown>, ms: number): Promise<boolean> 
     p.then(done, done);
   });
 }
+
+// Vue pile : pochettes de PILE_SIZE px empilées, chacune dépassant de PILE_STEP px (cf. .vy-pile).
+export const PILE_SIZE = 300;
+export const PILE_STEP = 56;
+
+/** Marge haute et basse de la pile : de quoi amener le premier et le dernier élément au milieu. */
+export function pilePad(viewHeight: number): number {
+  return Math.max(0, viewHeight / 2 - PILE_SIZE / 2);
+}
+
+/** Élément dont la pochette est au milieu de l'écran (-1 si la liste est vide). */
+export function pileCurrent(scrollTop: number, viewHeight: number, pad: number, count: number): number {
+  if (count <= 0) return -1;
+  const i = Math.round((scrollTop + viewHeight / 2 - pad - PILE_SIZE / 2) / PILE_STEP);
+  return Math.min(count - 1, Math.max(0, i));
+}

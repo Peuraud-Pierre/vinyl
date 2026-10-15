@@ -71,16 +71,16 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-cf:hover .vy-face { filter: brightness(1.08); }
 /* Indicateur de chargement façon iOS. */
 .vy-spin { display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid color-mix(in srgb, var(--ink) 25%, transparent); border-top-color: var(--ink); animation: vy-spin .8s linear infinite; }
-/* Pile : pochettes carrées empilées de haut en bas, qu'on ressort vers la droite. */
+/* Pile : pochettes carrées empilées de haut en bas ; celle du milieu de l'écran ressort vers la droite. */
 .vy-pile { position: relative; width: 300px; height: 300px; flex: none; margin-top: -244px; cursor: pointer; border: 0; padding: 0; background: none; }
 .vy-pile:first-child { margin-top: 0; }
 .vy-pile .vy-cover { position: absolute; inset: 0; border-radius: 4px; background: #2a2220 center / cover; box-shadow: 0 -14px 24px rgba(20,8,6,.45), inset 0 0 0 1px rgba(255,255,255,.08); transition: transform .45s cubic-bezier(.25,.8,.25,1.15), box-shadow .45s; }
 .vy-pile .vy-edge { position: absolute; left: 0; right: 0; top: 0; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.2) 85%, transparent); color: #fff; font-size: 14px; white-space: nowrap; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,.6); transition: opacity .3s; }
 .vy-pile { transition: transform .45s cubic-bezier(.25,.8,.25,1); }
-.vy-pile:hover, .vy-pile:focus-visible { z-index: 50; }
-.vy-pile:hover ~ .vy-pile { transform: translateY(70px); }
-.vy-pile:hover .vy-cover, .vy-pile:focus-visible .vy-cover { transform: translateX(330px) rotate(-2deg) scale(1.04); box-shadow: 0 30px 50px rgba(20,8,6,.55); }
-.vy-pile:hover .vy-edge, .vy-pile:focus-visible .vy-edge { opacity: 0; }
+.vy-pile.pile-on, .vy-pile:focus-visible { z-index: 50; }
+.vy-pile.pile-on ~ .vy-pile { transform: translateY(70px); }
+.vy-pile.pile-on .vy-cover, .vy-pile:focus-visible .vy-cover { transform: translateX(330px) rotate(-2deg) scale(1.04); box-shadow: 0 30px 50px rgba(20,8,6,.55); }
+.vy-pile.pile-on .vy-edge, .vy-pile:focus-visible .vy-edge { opacity: 0; }
 
 /* Animations façon MD Vinyl : fondus flous, arrivées en cascade, ressort. */
 @keyframes vy-in { from { opacity: 0; filter: blur(14px); transform: scale(.985); } }

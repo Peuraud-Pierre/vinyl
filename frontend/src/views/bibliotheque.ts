@@ -7,7 +7,7 @@ import { imageTint } from "../ui/theme";
 import { clampOffset, SHELF_ANGLE, SHELF_START, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, springStep, wheelDelta, visibleIndices } from "./coverflow";
 import { albumCoverRect, flightFrames } from "../ui/flight";
 import { escapeHtml, initials } from "./grid";
-import { filterItems, settleWithin, spineColors } from "./shelf";
+import { filterItems, pileCurrent, pilePad, settleWithin, spineColors } from "./shelf";
 import { recall, remember } from "./shelfcache";
 
 const SEGMENTS: Tab[] = ["albums", "playlists"];
@@ -244,7 +244,29 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     (row.parentElement as HTMLElement).style.perspective = `${SHELF_PERSPECTIVE * scale}px`;
     layout();
   };
-  const ro = new ResizeObserver(fit);
+  // Vue pile : la pochette au milieu de l'écran sort à droite (comme au survol) ; marges haute et basse
+  // pour que le premier et le dernier élément puissent venir au milieu.
+  let pileRaf = 0;
+  let pileOn: HTMLElement | null = null;
+  const markPile = () => {
+    if (!scroller) return;
+    const piles = scroller.querySelectorAll<HTMLElement>(".vy-pile");
+    const pad = pilePad(scroller.clientHeight);
+    const cur = piles[pileCurrent(scroller.scrollTop, scroller.clientHeight, pad, piles.length)] ?? null;
+    if (cur === pileOn) return;
+    pileOn?.classList.remove("pile-on");
+    cur?.classList.add("pile-on");
+    pileOn = cur;
+  };
+  const fitPile = () => {
+    const pile = scroller?.querySelector<HTMLElement>("#sh-pile");
+    if (!scroller || !pile) return;
+    const pad = pilePad(scroller.clientHeight);
+    pile.style.paddingTop = pile.style.paddingBottom = `${pad}px`;
+    pileOn = null;
+    markPile();
+  };
+  const ro = new ResizeObserver(() => (mode === "side" ? fit() : fitPile()));
   ro.observe(area);
 
   const render = (animate = false) => {
@@ -267,10 +289,13 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
       return;
     }
     const html = shown().map((it, i) => pileHtml(it, i, animate)).join("");
-    area.innerHTML = `<div id="sh-scroll" class="shelf-scroll h-full overflow-y-auto"><div class="flex flex-col py-[80px]" style="padding-left:160px;padding-bottom:300px">${html}</div></div>`;
+    area.innerHTML = `<div id="sh-scroll" class="shelf-scroll h-full overflow-y-auto"><div id="sh-pile" class="flex flex-col" style="padding-left:160px">${html}</div></div>`;
     scroller = $("sh-scroll");
+    fitPile();
     scroller.addEventListener("scroll", () => {
-      if (!scroller || query) return;
+      if (!scroller) return;
+      if (!pileRaf) pileRaf = requestAnimationFrame(() => { pileRaf = 0; markPile(); });
+      if (query) return;
       if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 600) load();
     }, { passive: true });
   };

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { filterItems, settleWithin, spineColors } from "./shelf";
+import { filterItems, PILE_SIZE, PILE_STEP, pileCurrent, pilePad, settleWithin, spineColors } from "./shelf";
 
 const items = [
   { id: "1", kind: "album", title: "Lumen", subtitle: "Aurore Vale", artworkUrl: "", url: "" },
@@ -33,4 +33,26 @@ test("boîtier prêt (pochette + teinte) : on attend, mais jamais plus que le d�
   const t0 = Date.now();
   expect(await settleWithin(new Promise(() => {}), 50)).toBe(false); // jamais prêt : affiché après le délai
   expect(Date.now() - t0).toBeLessThan(500);
+});
+
+// Vue pile (demande utilisateur) : la pochette au milieu de l'écran sort à droite ; le premier et le
+// dernier élément peuvent venir au milieu.
+test("vue pile : marge pour amener le premier et le dernier au milieu", () => {
+  expect(pilePad(800)).toBe(400 - PILE_SIZE / 2);
+  expect(pilePad(200)).toBe(0); // fenêtre minuscule : pas de marge négative
+});
+test("vue pile : l'élément courant est celui dont la pochette est au milieu de l'écran", () => {
+  const h = 800, pad = pilePad(h);
+  expect(pileCurrent(0, h, pad, 50)).toBe(0); // au départ : le premier
+  expect(pileCurrent(PILE_STEP * 3, h, pad, 50)).toBe(3);
+  expect(pileCurrent(PILE_STEP * 3 + PILE_STEP * 0.4, h, pad, 50)).toBe(3); // arrondi au plus proche
+  expect(pileCurrent(PILE_STEP * 3 + PILE_STEP * 0.6, h, pad, 50)).toBe(4);
+  expect(pileCurrent(1e6, h, pad, 50)).toBe(49); // jamais au-delà du dernier
+  expect(pileCurrent(0, h, pad, 0)).toBe(-1); // liste vide
+});
+test("vue pile : tout en bas, le dernier élément est au milieu", () => {
+  const h = 800, pad = pilePad(h), n = 30;
+  // Hauteur totale : marges + pile (chaque élément ne dépasse que de PILE_STEP, sauf le dernier, entier).
+  const scrollHeight = pad + (n - 1) * PILE_STEP + PILE_SIZE + pad;
+  expect(pileCurrent(scrollHeight - h, h, pad, n)).toBe(n - 1);
 });
