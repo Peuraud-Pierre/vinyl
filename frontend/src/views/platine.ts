@@ -7,7 +7,7 @@ import { platform } from "../ui/platform";
 import { icons } from "../ui/icons";
 import { mountRecentPile, type RecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
-import { mountWallShelf, openPlaylistShelf } from "../ui/wallshelf";
+import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
 import { layoutScene } from "./scene";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
@@ -112,7 +112,9 @@ export function mount(el: HTMLElement): () => void {
     source: activeSource,
     library: (src) => api.Library(src, "playlists", 0).then((p) => (p.items ?? []) as Item[]),
     current: (src) => api.CurrentPlaylist(src),
+    artwork: (src, id) => (src === "applemusic" ? api.ItemArtwork(src, id) : Promise.resolve("")),
     onSettings,
+    onSnapshot,
   });
   const offHistory = onHistory((l) => recent?.update(l));
   api.History().then((l) => recent?.update(l ?? [])).catch(() => {});
@@ -164,26 +166,53 @@ export function mount(el: HTMLElement): () => void {
   };
 }
 
-// Étagère murale branchée sur la source active : rechargée quand la source change dans les réglages ;
-// un clic ouvre la vue Étagère des playlists de cette source.
+// Playlists de l'étagère murale, par source, gardées tant que l'app tourne (relire la bibliothèque Apple
+// Music prend du temps) : un nouvel affichage de la platine les montre tout de suite.
+const shelfCache = new Map<string, Item[]>();
+
+// Étagère murale branchée sur la source réellement utilisée (activeSource : réglage, ou lecteur actif en
+// mode « auto ») : rechargée quand elle change (réglages ou changement de lecteur) ; un clic ouvre la vue
+// Étagère des playlists de cette source.
 export function wireShelf(el: HTMLElement, deps: {
   source(): Promise<string>;
   library(source: string): Promise<Item[]>;
   current(source: string): Promise<string>;
+  artwork?(source: string, id: string): Promise<string>; // pochette absente de la liste (Apple Music)
   nav?: (route: Route, param: string) => void;
   onSettings(cb: (s: { source: string }) => void): () => void;
+  onSnapshot(cb: (s: { nowPlaying: { source: string } }) => void): () => void;
+  cache?: Map<string, Item[]>;
 }): { destroy(): void } {
+  const cache = deps.cache ?? shelfCache;
   let lastSource = "";
-  let prev: string | null = null; // source au dernier chargement (réglage « source » au dernier changement)
+  let source: Promise<string> = Promise.resolve(""); // source du chargement en cours (une seule lecture)
+  const playlists = async (src: string): Promise<Item[]> => {
+    const known = cache.get(src);
+    if (known) return known;
+    const items = (await deps.library(src)).slice(0, SHELF_MAX);
+    if (deps.artwork) {
+      await Promise.all(items.map(async (it) => {
+        if (!it.artworkUrl) it.artworkUrl = await deps.artwork!(src, it.id).catch(() => "");
+      }));
+    }
+    cache.set(src, items);
+    return items;
+  };
   const shelf = mountWallShelf(el, {
-    load: () => deps.source().then((s) => { lastSource = s; prev ??= s; return deps.library(s); }),
-    current: () => deps.source().then((s) => deps.current(s)),
+    load: () => {
+      source = deps.source();
+      return source.then((s) => { lastSource = s; return playlists(s); });
+    },
+    current: () => source.then((s) => deps.current(s)),
     open: () => void deps.source().then((s) => openPlaylistShelf(s, deps.nav)).catch(() => openPlaylistShelf(lastSource, deps.nav)),
   });
-  // Réglages modifiés : rechargement seulement si la source a changé (pas pour le craquement, etc.).
-  const off = deps.onSettings((s) => {
-    if (prev !== null && s.source !== prev) shelf.refresh();
-    prev = s.source;
+  // Rechargement seulement si la source réellement utilisée a changé.
+  const check = () => void deps.source().then((s) => { if (s !== lastSource) shelf.refresh(); }).catch(() => {});
+  const offSettings = deps.onSettings(() => check());
+  let player = "";
+  const offSnapshot = deps.onSnapshot((snap) => {
+    const s = snap.nowPlaying.source;
+    if (s && s !== player) { player = s; check(); }
   });
-  return { destroy() { off(); shelf.destroy(); } };
+  return { destroy() { offSettings(); offSnapshot(); shelf.destroy(); } };
 }
