@@ -13,7 +13,7 @@ export interface PileView {
   perspective: number; // distance de l'observateur
 }
 
-const mul = (a: Mat4, b: Mat4): Mat4 => {
+export const mul = (a: Mat4, b: Mat4): Mat4 => {
   const r = new Array<number>(16).fill(0);
   for (let c = 0; c < 4; c++) for (let row = 0; row < 4; row++) {
     let s = 0;
@@ -22,7 +22,8 @@ const mul = (a: Mat4, b: Mat4): Mat4 => {
   }
   return r;
 };
-const translate = (x: number, y: number, z: number): Mat4 => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
+export const translate = (x: number, y: number, z: number): Mat4 => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
+export const scaleXY = (k: number): Mat4 => [k, 0, 0, 0, 0, k, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 // Même sens que rotateY() en CSS.
 const rotateY = (deg: number): Mat4 => {
   const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);

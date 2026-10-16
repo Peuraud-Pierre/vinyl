@@ -8,9 +8,10 @@ import { icons } from "../ui/icons";
 import { mountRecentPile, type RecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
 import { mountRoomTable } from "../ui/roomtable";
-import { mountSleeveStand } from "../ui/sleevestand";
+import { toCss } from "../ui/pile3d";
+import { mountSleeveStand, SLEEVE_S, sleeveInStage, standGeometry } from "../ui/sleevestand";
 import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
-import { layoutScene, SLEEVE_PERSPECTIVE, SLEEVE_YAW, STAND_DEPTH } from "./scene";
+import { layoutScene } from "./scene";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
 const CONTROLS_W = 140;
@@ -24,7 +25,6 @@ export function mount(el: HTMLElement): () => void {
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:531px;top:610px"></div>
         </div>
-        <div id="pl-stand-side" class="vy-stand-side" aria-hidden="true"></div>
         <div id="pl-stand"></div>
         <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>
         <div id="pl-shelf"></div>
@@ -63,7 +63,7 @@ export function mount(el: HTMLElement): () => void {
 
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const roomTable = mountRoomTable($("pl-table"));
-  const stand = mountSleeveStand($("pl-stand"));
+  mountSleeveStand($("pl-stand"));
   const fit = () => {
     const wrap = $("pl-wrap").getBoundingClientRect();
     const L = layoutScene(wrap.width, wrap.height);
@@ -82,35 +82,16 @@ export function mount(el: HTMLElement): () => void {
     sh.style.top = `${L.shelf.y}px`;
     sh.style.transform = `scale(${L.shelf.scale})`;
     $("pl-table").style.top = `${L.tableTop}px`;
-    // Pochette : sortie de la platine, debout sur son support, tournée de trois quarts vers le tourne-disque
-    // (coordonnées de la platine, mise à l'échelle : on convertit depuis la zone). Pochette et support
-    // pivotent ensemble autour du bas de la pochette, avec la même perspective.
-    const P = SLEEVE_PERSPECTIVE * L.k;
+    // Pochette sur son support : vus avec la caméra de la pile (ui/sleevestand). Le support est placé et mis à
+    // l'échelle comme la pile ; la pochette reste dans la platine (image, clic), sa matrice est convertie.
+    Object.assign($("pl-stand").style, { left: `${L.pile.x}px`, top: `${L.pile.y}px`, scale: String(L.pile.scale) });
     const sl = $("tt").querySelector<HTMLElement>(".tt-sleeve");
     if (sl) {
-      const size = L.sleeve.size / L.stage.scale;
       Object.assign(sl.style, {
-        left: `${(L.sleeve.x - L.stage.x) / L.stage.scale}px`, top: `${(L.sleeve.y - L.stage.y) / L.stage.scale}px`,
-        width: `${size}px`, height: `${size}px`, transformOrigin: "50% 100%",
-        transform: `perspective(${P / L.stage.scale}px) rotateY(${SLEEVE_YAW}deg) rotateX(4deg)`,
+        left: "0px", top: "0px", width: `${SLEEVE_S}px`, height: `${SLEEVE_S}px`, transformOrigin: "0 0",
+        transform: toCss(sleeveInStage(standGeometry().sleeve, L.pile, L.stage)),
       });
     }
-    // Support « en écoute » sous la pochette (devant elle : son rebord cache le bas de la pochette).
-    const pivot = { x: L.sleeve.x + L.sleeve.size / 2, y: L.sleeve.y + L.sleeve.size };
-    Object.assign($("pl-stand").style, {
-      left: `${L.stand.x}px`, top: `${L.stand.y}px`, width: `${L.stand.w}px`, height: `${L.stand.h}px`,
-      transformOrigin: `${pivot.x - L.stand.x}px ${pivot.y - L.stand.y}px`,
-      transform: `perspective(${P}px) rotateY(${SLEEVE_YAW}deg)`,
-    });
-    // Côté droit du socle : part du bord droit vers l'arrière (rotateY 90° autour de ce bord), puis même
-    // rotation de trois quarts que la pochette, autour du même point.
-    const sideLeft = L.stand.x + L.stand.w, ox = pivot.x - sideLeft, oy = pivot.y - L.stand.y;
-    Object.assign($("pl-stand-side").style, {
-      left: `${sideLeft}px`, top: `${L.stand.y}px`, width: `${STAND_DEPTH * L.k}px`, height: `${L.stand.h}px`,
-      transformOrigin: `${ox}px ${oy}px`,
-      transform: `perspective(${P}px) rotateY(${SLEEVE_YAW}deg) translateX(${-ox}px) rotateY(90deg) translateX(${ox}px)`,
-    });
-    stand.setScale(L.k);
     roomTable.setScale(L.k);
   };
   let recent: RecentPile | null = null;

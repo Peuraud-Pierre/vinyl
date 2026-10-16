@@ -7,7 +7,6 @@ import { layoutScene, PILE_SCALE, TT_SCALE } from "./scene";
 const PILE = { w: 500, h: 460 };
 const CONTROLS_W = 140; // colonne de commandes : libre en bas, la pile peut y déborder un peu
 const DISC_L = ARM_GEOMETRY.discCenter.x - ARM_GEOMETRY.discRadius; // bord gauche du disque (px de platine)
-const TT_RIGHT = 930; // bord droit de la platine sans la pochette (cache du bras), px de platine
 // Tailles de #pl-wrap (fenêtre moins la colonne de commandes de 140 px), y compris les extrêmes.
 const SIZES: [number, number][] = [[1300, 900], [1780, 1080], [960, 700], [1780, 700], [960, 1000], [600, 400]];
 
@@ -15,29 +14,17 @@ test.each(SIZES)("%i×%i : tout tient dans la zone, posé sur la table", (w, h) 
   const L = layoutScene(w, h);
   // Tourne-disque à gauche (sa pochette est déplacée) : son disque est visible, rien ne déborde à gauche.
   expect(L.stage.x + DISC_L * L.stage.scale).toBeGreaterThanOrEqual(0);
-  expect(L.sleeve.x).toBeGreaterThanOrEqual(0);
   // L'étagère ne passe pas sous la colonne de commandes ; la pile peut y déborder un peu (bas libre).
   expect(L.shelf.x + SHELF_W * L.shelf.scale).toBeLessThanOrEqual(w + 0.5);
   expect(L.pile.x + PILE.w * L.pile.scale).toBeLessThanOrEqual(w + CONTROLS_W * 0.6);
   expect(L.stage.scale).toBeCloseTo(L.k * TT_SCALE, 6);
   expect(L.pile.scale).toBeCloseTo(L.k * PILE_SCALE, 6);
-  // Platine, pochette et pile reposent sur la table : leur bas passe sous la ligne de la table.
+  // Platine et pile reposent sur la table : leur bas passe sous la ligne de la table.
   expect(L.stage.y + STAGE_H * L.stage.scale).toBeGreaterThan(L.tableTop);
   expect(L.pile.y + PILE.h * L.pile.scale).toBeGreaterThan(L.tableTop);
-  expect(L.sleeve.y + L.sleeve.size).toBeGreaterThan(L.tableTop);
   expect(L.tableTop).toBeLessThan(h);
   // L'étagère est au mur : au-dessus de la table.
   expect(L.shelf.y + SHELF_H * L.shelf.scale).toBeLessThan(L.tableTop);
-});
-
-// De gauche à droite : tourne-disque, pochette sur son support, pile — la pochette ne passe jamais
-// derrière la pile.
-test.each(SIZES)("%i×%i : la pochette est entre le tourne-disque et la pile, sans passer derrière", (w, h) => {
-  const L = layoutScene(w, h);
-  const ttRight = L.stage.x + TT_RIGHT * L.stage.scale;
-  expect(L.stand.x).toBeGreaterThan(ttRight);
-  expect(L.sleeve.x + L.sleeve.size).toBeLessThan(L.pile.x);
-  expect(L.stand.x + L.stand.w).toBeLessThan(L.pile.x);
 });
 
 test("la scène est centrée et grandit avec la fenêtre", () => {
@@ -53,15 +40,4 @@ test("la pile est poussée vers la droite, sous l'étagère", () => {
     const L = layoutScene(w, h);
     expect(L.pile.x).toBeGreaterThan(L.shelf.x); // commence à droite du début de l'étagère
   }
-});
-
-// Support « en écoute » : la pochette est calée dans sa rainure, le support est posé sur la table.
-test.each(SIZES)("%i×%i : la pochette est posée sur son support, lui-même sur la table", (w, h) => {
-  const L = layoutScene(w, h);
-  const bottom = L.sleeve.y + L.sleeve.size;
-  expect(L.stand.y).toBeLessThan(bottom); // le rebord avant cache le bas de la pochette
-  expect(L.stand.y + L.stand.h).toBeGreaterThan(bottom);
-  expect(L.stand.x).toBeLessThan(L.sleeve.x); // un peu plus large que la pochette
-  expect(L.stand.x + L.stand.w).toBeGreaterThan(L.sleeve.x + L.sleeve.size);
-  expect(L.stand.y + L.stand.h).toBeGreaterThan(L.tableTop);
 });

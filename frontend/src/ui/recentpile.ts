@@ -27,7 +27,7 @@ const tints = new Map<string, string | null>(); // teinte de chaque pochette, ca
 export interface RecentPile { update(list: HistoryEntry[]): void; setScale(k: number): void; }
 
 // Vue de la pile : un peu d'en haut (point de fuite au-dessus, à 40 % de la largeur).
-const VIEW: PileView = { width: PILE_W, height: 460, depth: PILE_W, slab: SLAB, eye: { x: PILE_W * 0.4, y: -70 }, perspective: 1800 };
+export const PILE_VIEW: PileView = { width: PILE_W, height: 460, depth: PILE_W, slab: SLAB, eye: { x: PILE_W * 0.4, y: -70 }, perspective: 1800 };
 
 export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry): void }): RecentPile {
   let seen = new Set<string>(); // disques de l'affichage précédent
@@ -71,7 +71,7 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         d.dataset.level = String(level);
         d.dataset.yaw = String(PILE_TURN + yaw); // la pile a pivoté (PILE_TURN), chaque disque en plus
         d.dataset.dx = String(dx);
-        const m = faceMatrices(VIEW, level, dx, PILE_TURN + yaw);
+        const m = faceMatrices(PILE_VIEW, level, dx, PILE_TURN + yaw);
         const b = document.createElement("button");
         b.className = "vy-recent";
         b.dataset.track = it.trackId;
