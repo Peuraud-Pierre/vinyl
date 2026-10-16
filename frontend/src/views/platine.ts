@@ -8,6 +8,7 @@ import { icons } from "../ui/icons";
 import { mountRecentPile, type RecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
 import { mountRoomTable } from "../ui/roomtable";
+import { mountSleeveStand } from "../ui/sleevestand";
 import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
 import { layoutScene } from "./scene";
 
@@ -23,6 +24,7 @@ export function mount(el: HTMLElement): () => void {
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:531px;top:610px"></div>
         </div>
+        <div id="pl-stand"></div>
         <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>
         <div id="pl-shelf"></div>
         <p id="pl-recent-msg" class="glass pointer-events-none absolute hidden rounded-full px-5 py-2 text-[14px]" role="status"></p>
@@ -60,6 +62,7 @@ export function mount(el: HTMLElement): () => void {
 
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const roomTable = mountRoomTable($("pl-table"));
+  const stand = mountSleeveStand($("pl-stand"));
   const fit = () => {
     const wrap = $("pl-wrap").getBoundingClientRect();
     const L = layoutScene(wrap.width, wrap.height);
@@ -85,9 +88,12 @@ export function mount(el: HTMLElement): () => void {
       const size = L.sleeve.size / L.stage.scale;
       Object.assign(sl.style, {
         left: `${(L.sleeve.x - L.stage.x) / L.stage.scale}px`, top: `${(L.sleeve.y - L.stage.y) / L.stage.scale}px`,
-        width: `${size}px`, height: `${size}px`, transform: "rotate(-3.5deg)", transformOrigin: "50% 100%",
+        width: `${size}px`, height: `${size}px`, transform: "perspective(1600px) rotateX(5deg)", transformOrigin: "50% 100%",
       });
     }
+    // Support « en écoute » sous la pochette (devant elle : son rebord cache le bas de la pochette).
+    Object.assign($("pl-stand").style, { left: `${L.stand.x}px`, top: `${L.stand.y}px`, width: `${L.stand.w}px`, height: `${L.stand.h}px` });
+    stand.setScale(L.k);
     roomTable.setScale(L.k);
   };
   let recent: RecentPile | null = null;

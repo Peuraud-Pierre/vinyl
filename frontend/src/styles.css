@@ -152,6 +152,17 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-ws-bracket { position: absolute; bottom: 0; width: 7px; height: 14px; background: #3b2618; border-radius: 0 0 2px 2px; }
 .vy-ws-bracket-l { left: 40px; }
 .vy-ws-bracket-r { right: 40px; }
+/* Support de pochette « en écoute » : rebord avant en chêne, arête claire, inscription gravée (tailles × --k). */
+.vy-stand { --k: 1; position: absolute; pointer-events: none; }
+.vy-stand-front { position: absolute; inset: 0; border-radius: calc(5px * var(--k)); display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #dcbb90 0, #c9a376 20%, #b68d60 100%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 9px, rgba(0,0,0,.05) 9px 10px, transparent 10px 23px);
+  background-blend-mode: normal, overlay;
+  box-shadow: 0 calc(9px * var(--k)) calc(14px * var(--k)) rgba(0,0,0,.42), inset 0 calc(-2px * var(--k)) calc(3px * var(--k)) rgba(0,0,0,.22);
+  font: 700 calc(11px * var(--k))/1 -apple-system, "SF Pro Text", sans-serif; letter-spacing: .3em;
+  color: rgba(74,42,20,.72); text-shadow: 0 1px 0 rgba(255,236,205,.5); }
+.vy-stand-groove { position: absolute; left: 0; right: 0; top: 0; height: calc(4px * var(--k)); border-radius: calc(5px * var(--k)) calc(5px * var(--k)) 0 0;
+  background: linear-gradient(180deg, #f2d9b2, #caa277); box-shadow: 0 calc(1px * var(--k)) 0 rgba(60,32,14,.35); }
 /* Grande table de la platine : plateau, ceinture avec tiroir, ombre et pieds dessous (tailles × --k). */
 .vy-room-table { --k: 1; position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;
   background: linear-gradient(180deg, rgba(10,4,2,.55), rgba(10,4,2,.25) 45%, rgba(10,4,2,.12)); }

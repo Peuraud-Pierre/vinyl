@@ -53,3 +53,14 @@ test("la pile est poussée vers la droite, sous l'étagère", () => {
     expect(L.pile.x).toBeGreaterThan(L.shelf.x); // commence à droite du début de l'étagère
   }
 });
+
+// Support « en écoute » : la pochette est calée dans sa rainure, le support est posé sur la table.
+test.each(SIZES)("%i×%i : la pochette est posée sur son support, lui-même sur la table", (w, h) => {
+  const L = layoutScene(w, h);
+  const bottom = L.sleeve.y + L.sleeve.size;
+  expect(L.stand.y).toBeLessThan(bottom); // le rebord avant cache le bas de la pochette
+  expect(L.stand.y + L.stand.h).toBeGreaterThan(bottom);
+  expect(L.stand.x).toBeLessThan(L.sleeve.x); // un peu plus large que la pochette
+  expect(L.stand.x + L.stand.w).toBeGreaterThan(L.sleeve.x + L.sleeve.size);
+  expect(L.stand.y + L.stand.h).toBeGreaterThan(L.tableTop);
+});
