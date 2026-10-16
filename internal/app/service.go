@@ -386,6 +386,12 @@ type vinylQueue struct {
 // nearEnd : le morceau était dans ses dernières secondes au dernier sondage.
 func (q *vinylQueue) nearEnd() bool { return q.seen && q.dur > 0 && q.lastPos >= q.dur-4000 }
 
+// endedNaturally : le morceau a changé à sa fin. Lancé dans la playlist, Musique enchaîne lui-même, et
+// avec AutoMix le fondu commence bien avant la fin : les 20 dernières secondes comptent.
+func (q *vinylQueue) endedNaturally() bool {
+	return q.nearEnd() || (q.inContext && q.seen && q.dur > 0 && q.lastPos >= q.dur-20000)
+}
+
 func (s *VinylService) setQueue(q *vinylQueue) {
 	s.queueMu.Lock()
 	s.queue = q
@@ -568,7 +574,7 @@ func (s *VinylService) ObservePlayback(snap player.Snapshot) {
 	case !q.seen:
 		drop = time.Since(q.started) > 15*time.Second // n'a jamais démarré
 	default:
-		advance, drop = q.nearEnd(), !q.nearEnd()
+		advance, drop = q.endedNaturally(), !q.endedNaturally()
 	}
 	if drop {
 		s.queue = nil

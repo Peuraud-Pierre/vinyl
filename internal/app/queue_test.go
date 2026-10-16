@@ -385,3 +385,36 @@ func TestReplayGoesStraightToTheSong(t *testing.T) {
 		t.Errorf("reprise : %v, suivant : %v", p.resumed, p.jumps)
 	}
 }
+
+// AutoMix : Musique enchaîne en fondu bien avant la fin (ici 10 s) ; c'est quand même une fin naturelle,
+// la playlist doit reprendre.
+func TestReplayResumesAfterAutoMix(t *testing.T) {
+	p := &fakeBack{backOK: true}
+	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
+		t.Fatal(err)
+	}
+	s.ObservePlayback(playing("2", 1000, 200000))
+	s.ObservePlayback(playing("2", 190000, 200000))
+	s.ObservePlayback(playing("autre", 500, 180000)) // fondu AutoMix vers le morceau suivant
+	if len(p.resumed) != 1 {
+		t.Errorf("reprise : %v", p.resumed)
+	}
+}
+
+// En revanche, un autre morceau choisi en plein milieu : Vinyl n'intervient plus.
+func TestReplayDroppedWhenUserPicksMidSong(t *testing.T) {
+	p := &fakeBack{backOK: true}
+	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
+	s := serviceWith(p)
+	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
+	s.PlayFromHistory("applemusic", "2")
+	s.ObservePlayback(playing("2", 60000, 200000))
+	s.ObservePlayback(playing("autre", 500, 180000))
+	s.ObservePlayback(playing("autre", 179000, 180000))
+	if len(p.resumed) != 0 {
+		t.Errorf("reprise inattendue : %v", p.resumed)
+	}
+}
