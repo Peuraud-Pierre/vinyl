@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -151,18 +150,17 @@ func (f *fakeBack) JumpForward(_ context.Context, steps int, id string, pos int)
 	return nil
 }
 
-// Morceau impossible à lancer directement (écouté en streaming, absent de la bibliothèque) : repli sur
-// précédent ×N vers le morceau choisi, puis juste avant sa fin, suivant ×N vers le morceau interrompu.
+// Comme Apple Music : la file de Musique n'est jamais remplacée. Précédent ×N vers le morceau choisi,
+// puis juste avant sa fin, suivant ×N vers le morceau interrompu, à sa position.
 func TestReplayKeepsMusicQueueAndComesBack(t *testing.T) {
 	p := &fakeBack{backOK: true}
-	p.playErr = errNotInLibrary
 	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
 	s := serviceWith(p)
 	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil) // pile 3 2 1, en cours 4
 	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
 		t.Fatal(err)
 	}
-	if len(p.backs) != 1 || p.backs[0] != [2]any{"2", 2} {
+	if len(p.backs) != 1 || p.backs[0] != [2]any{"2", 2} || len(p.alone) != 0 {
 		t.Fatalf("précédent : %v, joué seul : %v", p.backs, p.alone)
 	}
 	s.ObservePlayback(playing("2", 1000, 200000))
@@ -182,7 +180,6 @@ func TestReplayKeepsMusicQueueAndComesBack(t *testing.T) {
 // Fin manquée (Musique est déjà passé au morceau suivant) : un « suivant » de moins.
 func TestReplayComesBackEvenIfTheEndWasMissed(t *testing.T) {
 	p := &fakeBack{backOK: true}
-	p.playErr = errNotInLibrary
 	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 10}
 	s := serviceWith(p)
 	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
@@ -198,22 +195,20 @@ func TestReplayComesBackEvenIfTheEndWasMissed(t *testing.T) {
 // vidée) ; une erreur explique pourquoi rien ne se passe.
 func TestReplayNeverReplacesMusicQueue(t *testing.T) {
 	p := &fakeBack{backOK: false}
-	p.playErr = errNotInLibrary
 	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
 	s := serviceWith(p)
 	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
 	if err := s.PlayFromHistory("applemusic", "2"); err == nil {
 		t.Error("erreur attendue (morceau plus dans la file)")
 	}
-	if len(p.played) != 0 {
-		t.Errorf("rien ne doit être lancé : %v", p.played)
+	if len(p.alone) != 0 || len(p.played) != 0 {
+		t.Errorf("rien ne doit être lancé : seul %v, lancé %v", p.alone, p.played)
 	}
 }
 
 // Pile décalée : le morceau est trouvé un cran plus loin ; le retour utilise le vrai nombre de pas.
 func TestReplayUsesTheStepsReallyTaken(t *testing.T) {
 	p := &fakeBack{backOK: true, extra: 1}
-	p.playErr = errNotInLibrary
 	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 5}
 	s := serviceWith(p)
 	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
@@ -227,7 +222,6 @@ func TestReplayUsesTheStepsReallyTaken(t *testing.T) {
 
 func TestReplayBackCancelledWhenTheUserPicksSomethingElse(t *testing.T) {
 	p := &fakeBack{backOK: true}
-	p.playErr = errNotInLibrary
 	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
 	s := serviceWith(p)
 	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
@@ -348,28 +342,5 @@ func TestPlaySpotifyWebRejectsNonSpotifyIDs(t *testing.T) {
 	s.spotifyPlay = func(context.Context, string, string, bool) error { return catalog.ErrPlaybackRefused }
 	if err := s.PlayItem("spotify", "w1234"); err == nil || len(opened) != 0 {
 		t.Errorf("err=%v ouvert=%v", err, opened)
-	}
-}
-
-var errNotInLibrary = errors.New("morceau absent de la bibliothèque")
-
-// Clic sur un disque de la pile : on va directement au morceau (pas de « précédent » en rafale), puis à sa
-// fin la playlist reprend au morceau interrompu, à sa position, et continue normalement.
-func TestReplayGoesStraightToTheSong(t *testing.T) {
-	p := &fakeBack{backOK: true}
-	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
-	s := serviceWith(p)
-	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
-	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
-		t.Fatal(err)
-	}
-	if len(p.alone) != 1 || p.alone[0] != "2" || len(p.backs) != 0 {
-		t.Fatalf("joué : %v, précédent : %v", p.alone, p.backs)
-	}
-	s.ObservePlayback(playing("2", 1000, 200000))
-	s.ObservePlayback(playing("2", 198500, 200000)) // fin du morceau
-	s.ObservePlayback(player.Snapshot{NowPlaying: player.NowPlaying{Source: "applemusic", State: player.StateStopped}})
-	if len(p.resumed) != 1 || p.resumed[0] != p.saved || len(p.jumps) != 0 {
-		t.Errorf("reprise : %v, suivant : %v", p.resumed, p.jumps)
 	}
 }
