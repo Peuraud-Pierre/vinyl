@@ -18,7 +18,7 @@ const CONTROLS_W = 140;
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
     <div id="pl-scroll" class="shelf-scroll h-screen overflow-y-auto">
-    <section class="relative h-screen">
+    <section class="vy-wall relative h-screen">
       <h1 id="pl-title" class="sr-only"></h1>
       <div id="pl-table" aria-hidden="true"></div>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
