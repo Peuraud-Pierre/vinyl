@@ -21,7 +21,7 @@ export function mount(el: HTMLElement): () => void {
       <div id="pl-table" aria-hidden="true"></div>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
-          <div id="pl-deck" class="absolute" style="left:179px;top:610px"></div>
+          <div id="pl-deck" class="absolute" style="left:531px;top:610px"></div>
         </div>
         <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>
         <div id="pl-shelf"></div>
@@ -78,6 +78,16 @@ export function mount(el: HTMLElement): () => void {
     sh.style.top = `${L.shelf.y}px`;
     sh.style.transform = `scale(${L.shelf.scale})`;
     $("pl-table").style.top = `${L.tableTop}px`;
+    // Pochette : sortie de la platine, posée debout contre la pile (coordonnées de la platine, qui est
+    // mise à l'échelle : on convertit depuis la zone).
+    const sl = $("tt").querySelector<HTMLElement>(".tt-sleeve");
+    if (sl) {
+      const size = L.sleeve.size / L.stage.scale;
+      Object.assign(sl.style, {
+        left: `${(L.sleeve.x - L.stage.x) / L.stage.scale}px`, top: `${(L.sleeve.y - L.stage.y) / L.stage.scale}px`,
+        width: `${size}px`, height: `${size}px`, transform: "rotate(-3.5deg)", transformOrigin: "50% 100%",
+      });
+    }
     roomTable.setScale(L.k);
   };
   let recent: RecentPile | null = null;

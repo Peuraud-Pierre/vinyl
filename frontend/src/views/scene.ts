@@ -1,6 +1,8 @@
 // Disposition de la platine : une « pièce » de taille fixe (ROOM, px de scène) mise à l'échelle dans la
-// zone disponible, centrée. La table occupe le bas (à partir de TABLE_Y) ; platine et pile, réduites, y
-// reposent ; l'étagère est au mur, au-dessus de la pile.
+// zone disponible, centrée. La table occupe le bas (à partir de TABLE_Y). Sur la table, de gauche à droite :
+// le tourne-disque (disque et bras), la pochette posée debout contre la pile, la pile. L'étagère est au mur,
+// au-dessus de la pile.
+import { ARM_GEOMETRY } from "../turntable/arm";
 import { STAGE_H } from "../turntable/turntable";
 import { SHELF_W } from "../ui/wallshelf";
 
@@ -11,11 +13,18 @@ export const TABLE_Y = 560;
 const PILE_H = 460;
 
 export interface Placed { x: number; y: number; scale: number; }
-export interface SceneLayout { k: number; stage: Placed; pile: Placed; shelf: Placed; tableTop: number; }
+export interface SceneLayout {
+  k: number; stage: Placed; pile: Placed; shelf: Placed; tableTop: number;
+  sleeve: { x: number; y: number; size: number }; // pochette (px dans la zone), carrée
+}
 
 // Positions dans la pièce (px de scène).
-const STAGE_AT = { x: 10, y: TABLE_Y + 70 - STAGE_H * TT_SCALE }; // le bas de la platine sur la table
-const PILE_AT = { x: 830, y: TABLE_Y + 40 - PILE_H * PILE_SCALE }; // la base de la pile sur la table, à droite
+// Tourne-disque : le bord gauche du disque à 10 px du bord (la pochette n'est plus à sa gauche).
+const DISC_L = ARM_GEOMETRY.discCenter.x - ARM_GEOMETRY.discRadius;
+const STAGE_AT = { x: 10 - DISC_L * TT_SCALE, y: TABLE_Y + 70 - STAGE_H * TT_SCALE }; // le bas sur la table
+const PILE_AT = { x: 870, y: TABLE_Y + 40 - PILE_H * PILE_SCALE }; // la base de la pile sur la table, à droite
+const SLEEVE_SIZE = 300;
+const SLEEVE_AT = { x: 590, y: TABLE_Y + 46 - SLEEVE_SIZE }; // debout sur la table, contre la pile
 const SHELF_AT = { x: ROOM.w - SHELF_W - 30, y: 90 };
 
 export function layoutScene(w: number, h: number): SceneLayout {
@@ -28,5 +37,6 @@ export function layoutScene(w: number, h: number): SceneLayout {
     pile: at(PILE_AT, k * PILE_SCALE),
     shelf: at(SHELF_AT, k),
     tableTop: oy + TABLE_Y * k,
+    sleeve: { x: ox + SLEEVE_AT.x * k, y: oy + SLEEVE_AT.y * k, size: SLEEVE_SIZE * k },
   };
 }
