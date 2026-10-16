@@ -166,16 +166,16 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-stand-groove { border-radius: 4px 4px 0 0;
   background: linear-gradient(0deg, rgba(40,20,8,.6) 0 12%, rgba(60,30,12,.25) 12% 20%, transparent 20%), linear-gradient(180deg, #caa478, #e0c094); }
 .vy-stand-side { background: linear-gradient(180deg, #b48a5c, #94703f); box-shadow: inset 0 2px 0 rgba(255,236,205,.3); }
-/* Panneau de noyer foncé derrière le tourne-disque (planches verticales, veinage léger, éclairé au centre). */
-.vy-wall { position: absolute; pointer-events: none; border-radius: 10px 10px 0 0;
-  box-shadow: 0 14px 34px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,220,180,.08), inset 0 2px 0 rgba(255,220,180,.12);
+/* Socle de la platine : noyer foncé massif (veinage horizontal), coins arrondis, chant biseauté, posé sur
+   la table (ombre portée). Le disque, le bras et les touches sont dessus. */
+.vy-plinth { position: absolute; pointer-events: none; border-radius: 16px;
   background:
-    radial-gradient(ellipse 75% 60% at 45% 32%, rgba(255,200,150,.10), transparent 70%),
-    radial-gradient(ellipse 120% 100% at 50% 40%, transparent 55%, rgba(0,0,0,.45)),
-    repeating-linear-gradient(90deg, rgba(0,0,0,.42) 0 2px, rgba(255,220,180,.05) 2px 3px, transparent 3px 92px),
-    repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 6px, rgba(0,0,0,.06) 6px 8px, transparent 8px 21px, rgba(0,0,0,.03) 21px 25px, transparent 25px 47px),
-    linear-gradient(180deg, #3d2619 0%, #2e1b11 55%, #24150d 100%);
-}
+    radial-gradient(ellipse 70% 55% at 45% 40%, rgba(255,205,160,.10), transparent 70%),
+    repeating-linear-gradient(180deg, rgba(255,255,255,.02) 0 1px, transparent 1px 5px, rgba(0,0,0,.07) 5px 7px, transparent 7px 17px, rgba(0,0,0,.035) 17px 20px, transparent 20px 41px),
+    linear-gradient(160deg, #4a2e1e 0%, #3a2316 45%, #2c190f 100%);
+  box-shadow: 0 18px 30px rgba(0,0,0,.5), 0 4px 8px rgba(0,0,0,.35),
+    inset 0 0 0 1px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,220,180,.16), inset 2px 0 0 rgba(255,220,180,.06),
+    inset 0 -3px 0 rgba(0,0,0,.35), inset 0 0 0 7px rgba(255,220,180,.025); }
 /* Grande table de la platine : plateau, ceinture avec tiroir, ombre et pieds dessous (tailles × --k). */
 .vy-room-table { --k: 1; position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;
   background: linear-gradient(180deg, rgba(10,4,2,.55), rgba(10,4,2,.25) 45%, rgba(10,4,2,.12)); }

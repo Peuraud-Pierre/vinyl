@@ -11,7 +11,7 @@ import { mountRoomTable } from "../ui/roomtable";
 import { toCss } from "../ui/pile3d";
 import { mountSleeveStand, SLEEVE_S, sleeveInStage, standGeometry } from "../ui/sleevestand";
 import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
-import { layoutScene } from "./scene";
+import { DECK_IN_STAGE, layoutScene } from "./scene";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
 const CONTROLS_W = 140;
@@ -22,10 +22,10 @@ export function mount(el: HTMLElement): () => void {
       <h1 id="pl-title" class="sr-only"></h1>
       <div id="pl-table" aria-hidden="true"></div>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
-        <div id="pl-panel" class="vy-wall" aria-hidden="true"></div>
+        <div id="pl-panel" class="vy-plinth" aria-hidden="true"></div>
         <div id="pl-stand-back"></div>
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
-          <div id="pl-deck" class="absolute" style="left:531px;top:610px"></div>
+          <div id="pl-deck" class="absolute" style="left:${DECK_IN_STAGE.x}px;top:${DECK_IN_STAGE.y}px"></div>
         </div>
         <div id="pl-stand"></div>
         <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>

@@ -15,16 +15,20 @@ const PILE_H = 460;
 export interface Placed { x: number; y: number; scale: number; }
 export interface SceneLayout {
   k: number; stage: Placed; pile: Placed; shelf: Placed; tableTop: number;
-  panel: { x: number; y: number; w: number; h: number }; // panneau de bois foncé derrière le tourne-disque
+  panel: { x: number; y: number; w: number; h: number }; // socle de la platine (bois foncé), sur la table
 }
 
 // Positions dans la pièce (px de scène).
-// Tourne-disque : le bord gauche du disque à 10 px du bord (la pochette n'est plus à sa gauche).
+// Tourne-disque : le bord gauche du disque à 40 px du bord (socle compris) (la pochette n'est plus à sa gauche).
 const DISC_L = ARM_GEOMETRY.discCenter.x - ARM_GEOMETRY.discRadius;
-const STAGE_AT = { x: 10 - DISC_L * TT_SCALE, y: TABLE_Y + 70 - STAGE_H * TT_SCALE }; // le bas sur la table
+const STAGE_AT = { x: 40 - DISC_L * TT_SCALE, y: TABLE_Y + 70 - STAGE_H * TT_SCALE }; // le bas sur la table
 const PILE_AT = { x: 870, y: TABLE_Y + 40 - PILE_H * PILE_SCALE }; // la base de la pile sur la table, à droite
-// Panneau mural de bois foncé derrière le tourne-disque (disque et bras), posé sur la table.
-const PANEL_AT = { x: -10, y: 120, w: 440 };
+// Socle de la platine (bois foncé, vu du dessus comme le disque) : sous le disque, le bras et les touches,
+// posé sur la table (il dépasse de sa ligne).
+const PANEL_AT = { x: 16, y: 120, w: 444, bottom: 640 };
+// Touches précédent / aléatoire / suivant sur le socle, en bas à gauche (px de platine) ; taille du bloc.
+export const DECK_IN_STAGE = { x: 420, y: 600 };
+export const DECK_SIZE = { w: 202, h: 42 };
 const SHELF_AT = { x: ROOM.w - SHELF_W - 30, y: 90 };
 
 export function layoutScene(w: number, h: number): SceneLayout {
@@ -37,6 +41,6 @@ export function layoutScene(w: number, h: number): SceneLayout {
     pile: at(PILE_AT, k * PILE_SCALE),
     shelf: at(SHELF_AT, k),
     tableTop: oy + TABLE_Y * k,
-    panel: { x: ox + PANEL_AT.x * k, y: oy + PANEL_AT.y * k, w: PANEL_AT.w * k, h: (TABLE_Y - PANEL_AT.y) * k },
+    panel: { x: ox + PANEL_AT.x * k, y: oy + PANEL_AT.y * k, w: PANEL_AT.w * k, h: (PANEL_AT.bottom - PANEL_AT.y) * k },
   };
 }

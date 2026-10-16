@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { ARM_GEOMETRY } from "../turntable/arm";
 import { STAGE_H } from "../turntable/turntable";
 import { SHELF_H, SHELF_W } from "../ui/wallshelf";
-import { layoutScene, PILE_SCALE, TT_SCALE } from "./scene";
+import { DECK_IN_STAGE, DECK_SIZE, layoutScene, PILE_SCALE, TT_SCALE } from "./scene";
 
 const PILE = { w: 500, h: 460 };
 const CONTROLS_W = 140; // colonne de commandes : libre en bas, la pile peut y déborder un peu
@@ -42,17 +42,26 @@ test("la pile est poussée vers la droite, sous l'étagère", () => {
   }
 });
 
-// Panneau de bois foncé derrière le tourne-disque seulement (pas tout le mur) : il entoure le disque et le
-// bras, descend jusqu'à la table et s'arrête avant la pochette.
-test.each(SIZES)("%i×%i : panneau de bois derrière le tourne-disque seulement", (w, h) => {
+// Socle de la platine (bois foncé) : sous le disque et le bras seulement (pas tout le mur), posé sur la
+// table, avec les touches dessus ; il s'arrête avant la pochette.
+test.each(SIZES)("%i×%i : socle de platine sous le disque, le bras et les touches", (w, h) => {
   const L = layoutScene(w, h);
   const s = L.stage.scale, G = ARM_GEOMETRY;
   const disc = { l: L.stage.x + (G.discCenter.x - G.discRadius) * s, r: L.stage.x + (G.discCenter.x + G.discRadius) * s, t: L.stage.y + (G.discCenter.y - G.discRadius) * s };
   const armR = L.stage.x + (G.pivot.x + 48) * s, armT = L.stage.y + (G.pivot.y - 48) * s;
-  expect(L.panel.x).toBeLessThanOrEqual(disc.l);
-  expect(L.panel.x + L.panel.w).toBeGreaterThanOrEqual(Math.max(disc.r, armR));
-  expect(L.panel.y).toBeLessThanOrEqual(Math.min(disc.t, armT));
-  expect(L.panel.y + L.panel.h).toBeCloseTo(L.tableTop, 6);
-  expect(L.panel.x + L.panel.w).toBeLessThan(L.pile.x - 300 * L.pile.scale); // bien avant la pochette
-  expect(L.panel.w).toBeLessThan(w * 0.6); // pas tout le mur
+  const keys = { l: L.stage.x + DECK_IN_STAGE.x * s, r: L.stage.x + (DECK_IN_STAGE.x + DECK_SIZE.w) * s,
+    t: L.stage.y + DECK_IN_STAGE.y * s, b: L.stage.y + (DECK_IN_STAGE.y + DECK_SIZE.h) * s };
+  const P = L.panel;
+  expect(P.x).toBeLessThanOrEqual(disc.l);
+  expect(P.x + P.w).toBeGreaterThanOrEqual(Math.max(disc.r, armR));
+  expect(P.y).toBeLessThanOrEqual(Math.min(disc.t, armT));
+  // Touches sur le socle, sous le disque.
+  expect(keys.l).toBeGreaterThan(P.x);
+  expect(keys.r).toBeLessThan(P.x + P.w);
+  expect(keys.t).toBeGreaterThan(disc.t);
+  expect(keys.b).toBeLessThan(P.y + P.h);
+  // Posé sur la table (il dépasse de sa ligne), avant la pochette, pas tout le mur.
+  expect(P.y + P.h).toBeGreaterThan(L.tableTop);
+  expect(P.x + P.w).toBeLessThan(L.pile.x - 300 * L.pile.scale);
+  expect(P.w).toBeLessThan(w * 0.6);
 });
