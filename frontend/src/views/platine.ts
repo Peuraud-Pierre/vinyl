@@ -7,6 +7,7 @@ import { platform } from "../ui/platform";
 import { icons } from "../ui/icons";
 import { mountRecentPile, type RecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
+import { mountRoomTable } from "../ui/roomtable";
 import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
 import { layoutScene } from "./scene";
 
@@ -17,7 +18,7 @@ export function mount(el: HTMLElement): () => void {
     <div id="pl-scroll" class="shelf-scroll h-screen overflow-y-auto">
     <section class="relative h-screen">
       <h1 id="pl-title" class="sr-only"></h1>
-      <div id="pl-table" class="vy-room-table" aria-hidden="true"></div>
+      <div id="pl-table" aria-hidden="true"></div>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:179px;top:610px"></div>
@@ -58,6 +59,7 @@ export function mount(el: HTMLElement): () => void {
   });
 
   // Mise à l'échelle de la scène dans la place disponible, centrée.
+  const roomTable = mountRoomTable($("pl-table"));
   const fit = () => {
     const wrap = $("pl-wrap").getBoundingClientRect();
     const L = layoutScene(wrap.width, wrap.height);
@@ -76,6 +78,7 @@ export function mount(el: HTMLElement): () => void {
     sh.style.top = `${L.shelf.y}px`;
     sh.style.transform = `scale(${L.shelf.scale})`;
     $("pl-table").style.top = `${L.tableTop}px`;
+    roomTable.setScale(L.k);
   };
   let recent: RecentPile | null = null;
   // Message bref au-dessus de la pile (morceau introuvable…).

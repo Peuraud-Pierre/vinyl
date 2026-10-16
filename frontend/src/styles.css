@@ -152,9 +152,26 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-ws-bracket { position: absolute; bottom: 0; width: 7px; height: 14px; background: #3b2618; border-radius: 0 0 2px 2px; }
 .vy-ws-bracket-l { left: 40px; }
 .vy-ws-bracket-r { right: 40px; }
-/* Grande table de la platine : toute la largeur, du dessus (ligne calculée par layoutScene) au bas de page. */
-.vy-room-table { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;
-  background: linear-gradient(180deg, #a0714f 0, #8d6243 10px, #7a5238 26px, #6b4630 60%, #5a3a27 100%),
+/* Grande table de la platine : plateau, ceinture avec tiroir, ombre et pieds dessous (tailles × --k). */
+.vy-room-table { --k: 1; position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(10,4,2,.55), rgba(10,4,2,.25) 45%, rgba(10,4,2,.12)); }
+.vy-rt-top { position: absolute; left: 0; right: 0; top: 0; height: calc(82px * var(--k));
+  background: linear-gradient(180deg, #a0714f 0, #8d6243 calc(10px * var(--k)), #7d5439 45%, #714a31 100%),
     repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 3px, transparent 3px 14px, rgba(0,0,0,.035) 14px 16px, transparent 16px 37px);
   background-blend-mode: normal, overlay;
   box-shadow: inset 0 2px 0 rgba(255,230,200,.25), inset 0 14px 22px -14px rgba(0,0,0,.35); }
+.vy-rt-apron { position: absolute; left: 0; right: 0; top: calc(82px * var(--k)); height: calc(84px * var(--k));
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #5b3a26, #4c301f 70%, #3f2819);
+  box-shadow: inset 0 calc(2px * var(--k)) 0 rgba(255,225,190,.14), 0 calc(10px * var(--k)) calc(18px * var(--k)) rgba(0,0,0,.45); }
+.vy-rt-drawer { position: relative; width: calc(320px * var(--k)); height: calc(56px * var(--k)); border-radius: calc(4px * var(--k));
+  background: linear-gradient(180deg, #6e4730, #5e3c27);
+  box-shadow: inset 0 0 0 calc(2px * var(--k)) rgba(0,0,0,.28), inset 0 calc(2px * var(--k)) 0 calc(2px * var(--k)) rgba(255,225,190,.14),
+    inset 0 calc(-3px * var(--k)) calc(6px * var(--k)) rgba(0,0,0,.25), 0 0 0 calc(5px * var(--k)) rgba(0,0,0,.18); }
+.vy-rt-knob { position: absolute; left: 50%; top: 50%; width: calc(54px * var(--k)); height: calc(12px * var(--k)); transform: translate(-50%, -50%);
+  border-radius: calc(6px * var(--k)); background: linear-gradient(180deg, #d9b98a, #a8865a 55%, #7d6040);
+  box-shadow: 0 calc(3px * var(--k)) calc(4px * var(--k)) rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.45); }
+.vy-rt-leg { position: absolute; top: calc(166px * var(--k)); bottom: 0; width: calc(46px * var(--k));
+  background: linear-gradient(90deg, #3d2617, #5a3a25 45%, #3a2416); box-shadow: inset 0 calc(16px * var(--k)) calc(14px * var(--k)) -6px rgba(0,0,0,.55); }
+.vy-rt-leg-l { left: calc(46px * var(--k)); }
+.vy-rt-leg-r { right: calc(46px * var(--k)); }

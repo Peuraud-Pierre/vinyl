@@ -33,3 +33,10 @@ test("la scène est centrée et grandit avec la fenêtre", () => {
   const left = L.stage.x, rightEdge = L.shelf.x + SHELF_W * L.shelf.scale;
   expect(Math.abs(left - (1780 - rightEdge))).toBeLessThan(200);
 });
+
+test("la pile est poussée vers la droite, sous l'étagère", () => {
+  for (const [w, h] of SIZES) {
+    const L = layoutScene(w, h);
+    expect(L.pile.x).toBeGreaterThan(L.shelf.x); // commence à droite du début de l'étagère
+  }
+});

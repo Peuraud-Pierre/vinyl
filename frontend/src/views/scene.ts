@@ -15,7 +15,7 @@ export interface SceneLayout { k: number; stage: Placed; pile: Placed; shelf: Pl
 
 // Positions dans la pièce (px de scène).
 const STAGE_AT = { x: 10, y: TABLE_Y + 70 - STAGE_H * TT_SCALE }; // le bas de la platine sur la table
-const PILE_AT = { x: 780, y: TABLE_Y + 40 - PILE_H * PILE_SCALE }; // la base de la pile sur la table
+const PILE_AT = { x: 830, y: TABLE_Y + 40 - PILE_H * PILE_SCALE }; // la base de la pile sur la table, à droite
 const SHELF_AT = { x: ROOM.w - SHELF_W - 30, y: 90 };
 
 export function layoutScene(w: number, h: number): SceneLayout {
