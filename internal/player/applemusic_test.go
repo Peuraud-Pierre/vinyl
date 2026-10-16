@@ -405,3 +405,17 @@ func TestAppleMusicResumeAfterFallsBack(t *testing.T) {
 		t.Errorf("appels : %+v", r.calls)
 	}
 }
+
+// Réécoute sans vider la file : le morceau est lancé dans la playlist (repli : la bibliothèque), jamais
+// « with once ».
+func TestAppleMusicPlayInContext(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"OK"}}
+	m := NewAppleMusic(r, t.TempDir())
+	if err := m.PlayInContext(context.Background(), "PL", "T"); err != nil {
+		t.Fatal(err)
+	}
+	c := r.calls[0]
+	if len(c.args) != 2 || c.args[0] != "PL" || c.args[1] != "T" || strings.Contains(c.script, "with once") || !strings.Contains(c.script, "library playlist 1") {
+		t.Errorf("appel : %+v", c)
+	}
+}

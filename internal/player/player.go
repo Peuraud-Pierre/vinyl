@@ -98,6 +98,12 @@ type ReplayResumer interface {
 	Resume(ctx context.Context, c PlaybackContext) error
 }
 
+// ContextPlayer est implémentée par les lecteurs qui savent lancer un morceau sans vider leur file : dans
+// une playlist (repli : la bibliothèque), comme un clic dans Musique.
+type ContextPlayer interface {
+	PlayInContext(ctx context.Context, playlistID, trackID string) error
+}
+
 // Modes est implémentée par les lecteurs qui savent lire et régler l'aléatoire et la répétition.
 type Modes interface {
 	PlaybackModes(ctx context.Context) (shuffle bool, repeat RepeatMode, err error)

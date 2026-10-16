@@ -133,6 +133,7 @@ func TestAlbumQueueStopsWhenTheUserPicksSomethingElse(t *testing.T) {
 // fakeBack : lecteur qui sait naviguer dans sa propre file (précédent / suivant).
 type fakeBack struct {
 	fakeResumer
+	inCtx  [][2]string
 	backOK bool
 	extra  int // morceaux en plus trouvés au-delà de la pile (pile décalée)
 	backs  [][2]any
@@ -145,6 +146,10 @@ func (f *fakeBack) ReplayBack(_ context.Context, id string, steps, _ int) (int, 
 		return 0, nil
 	}
 	return steps + f.extra, nil
+}
+func (f *fakeBack) PlayInContext(_ context.Context, pl, id string) error {
+	f.inCtx = append(f.inCtx, [2]string{pl, id})
+	return f.playErr
 }
 func (f *fakeBack) JumpForward(_ context.Context, steps int, id string, pos int) error {
 	f.jumps = append(f.jumps, [3]any{steps, id, pos})
@@ -355,7 +360,9 @@ func TestPlaySpotifyWebRejectsNonSpotifyIDs(t *testing.T) {
 var errNotInLibrary = errors.New("morceau absent de la bibliothèque")
 
 // Clic sur un disque de la pile : on va directement au morceau (pas de « précédent » en rafale), puis à sa
-// fin la playlist reprend au morceau interrompu, à sa position, et continue normalement.
+// Clic sur un disque de la pile : le morceau est lancé tout de suite DANS la playlist en cours (la file de
+// Musique reste remplie, pas de rembobinage) ; dans sa dernière seconde, la playlist reprend au morceau
+// qui suivait l'interrompu.
 func TestReplayGoesStraightToTheSong(t *testing.T) {
 	p := &fakeBack{backOK: true}
 	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
@@ -364,14 +371,16 @@ func TestReplayGoesStraightToTheSong(t *testing.T) {
 	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
 		t.Fatal(err)
 	}
-	if len(p.alone) != 1 || p.alone[0] != "2" || len(p.backs) != 0 {
-		t.Fatalf("joué : %v, précédent : %v", p.alone, p.backs)
+	if len(p.inCtx) != 1 || p.inCtx[0] != [2]string{"PL", "2"} || len(p.alone) != 0 || len(p.backs) != 0 {
+		t.Fatalf("dans la playlist : %v, seul : %v, précédent : %v", p.inCtx, p.alone, p.backs)
 	}
 	s.ObservePlayback(playing("2", 1000, 200000))
-	s.ObservePlayback(playing("2", 198500, 200000)) // fin du morceau
-	s.ObservePlayback(player.Snapshot{NowPlaying: player.NowPlaying{Source: "applemusic", State: player.StateStopped}})
+	if len(p.resumed) != 0 {
+		t.Fatal("pas de reprise avant la fin")
+	}
+	s.ObservePlayback(playing("2", 199000, 200000)) // dernière seconde
 	want := p.saved
-	want.After = true // la playlist reprend au morceau qui suivait l'interrompu
+	want.After = true
 	if len(p.resumed) != 1 || p.resumed[0] != want || len(p.jumps) != 0 {
 		t.Errorf("reprise : %v, suivant : %v", p.resumed, p.jumps)
 	}

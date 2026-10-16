@@ -363,6 +363,7 @@ func (s *VinylService) replayAlone(r player.ReplayResumer, source, trackID strin
 		if err == nil && saved.TrackID != "" && saved.TrackID != trackID {
 			saved.After = true // comme un clic dans l'Historique : la file reprend après le morceau interrompu
 			q.resume = &saved
+			_, q.inContext = r.(player.ContextPlayer)
 		}
 	}
 	return s.startQueue(r, q)
@@ -379,6 +380,7 @@ type vinylQueue struct {
 	started      time.Time
 	seen         bool  // le morceau en cours a bien démarré
 	lastPos, dur int64 // dernière position vue (ms) et durée
+	inContext    bool  // morceau lancé dans la playlist (file de Musique remplie) : Musique enchaîne seule
 }
 
 // nearEnd : le morceau était dans ses dernières secondes au dernier sondage.
@@ -474,8 +476,16 @@ func (s *VinylService) startQueue(r player.ReplayResumer, q *vinylQueue) error {
 	s.queueMu.Lock()
 	q.started, q.seen, q.lastPos, q.dur = time.Now(), false, 0, 0
 	id := q.tracks[q.idx].ID
+	inContext, playlist := q.inContext, ""
+	if q.resume != nil {
+		playlist = q.resume.PlaylistID
+	}
 	s.queueMu.Unlock()
-	if err := r.PlayAlone(ctx, id); err != nil {
+	play := func() error { return r.PlayAlone(ctx, id) }
+	if cp, ok := r.(player.ContextPlayer); ok && inContext {
+		play = func() error { return cp.PlayInContext(ctx, playlist, id) } // la file de Musique reste remplie
+	}
+	if err := play(); err != nil {
 		return err
 	}
 	s.setQueue(q)
@@ -547,6 +557,8 @@ func (s *VinylService) ObservePlayback(snap player.Snapshot) {
 	switch {
 	case np.Source != "" && np.Source != q.source:
 		drop = q.seen
+	case np.TrackID == cur && q.inContext && np.DurationMs > 0 && np.PositionMs >= np.DurationMs-1500:
+		advance = true // dernière seconde : reprise avant que Musique n'enchaîne la suite de la playlist
 	case np.TrackID == cur:
 		if q.nearEnd() && np.PositionMs < 3000 {
 			advance = true // revenu au début : fini puis relancé

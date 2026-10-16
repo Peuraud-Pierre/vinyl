@@ -442,6 +442,26 @@ func (m *AppleMusic) PlayAlone(ctx context.Context, trackID string) error {
 	return err
 }
 
+// argv : playlist, morceau. Lance le morceau dans la playlist, sinon dans la bibliothèque : la file de
+// Musique reste remplie (la suite de la playlist ou de la bibliothèque).
+const musicPlayInContextScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	tell application id "com.apple.Music"
+		try
+			play (first track of (first playlist whose persistent ID is (item 1 of argv)) whose persistent ID is (item 2 of argv))
+		on error
+			play (first track of library playlist 1 whose persistent ID is (item 2 of argv))
+		end try
+	end tell
+	return "OK"
+end run`
+
+// PlayInContext lance le morceau sans vider la file de Musique.
+func (m *AppleMusic) PlayInContext(ctx context.Context, playlistID, trackID string) error {
+	_, err := m.simpleRun(ctx, musicPlayInContextScript, playlistID, trackID)
+	return err
+}
+
 // Resume reprend la playlist là où elle en était ; avec After, au morceau qui suit (repli : là où elle
 // en était si le morceau n'y est plus).
 func (m *AppleMusic) Resume(ctx context.Context, c PlaybackContext) error {
