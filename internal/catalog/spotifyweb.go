@@ -257,9 +257,8 @@ func (c *SpotifyWeb) Artist(ctx context.Context, name, trackID string) (ArtistPa
 	var top struct {
 		Tracks []spTrack `json:"tracks"`
 	}
-	if err := c.get(ctx, "/artists/"+id+"/top-tracks", url.Values{"market": {"FR"}}, &top); err != nil {
-		return ArtistPage{}, err
-	}
+	// Supprimé pour les apps en mode développement (février 2026) : la page s'affiche sans titres populaires.
+	_ = c.get(ctx, "/artists/"+id+"/top-tracks", url.Values{"market": {"FR"}}, &top)
 	for _, t := range top.Tracks {
 		page.TopTracks = append(page.TopTracks, Item{ID: t.URI, Kind: "track", Title: t.Name, Subtitle: t.Album.Name, ArtworkURL: firstImage(t.Album.Images)})
 	}
@@ -340,40 +339,61 @@ func (c *SpotifyWeb) playlistTracks(ctx context.Context, id string) (Collection,
 		return Collection{}, err
 	}
 	col := Collection{ID: id, Kind: "playlist", Title: p.Name, Artist: p.Owner.DisplayName, ArtworkURL: firstImage(p.Images), Source: "spotify", Tracks: []player.Track{}}
+	// Février 2026 : /items (titre dans « item »), réservé aux playlists de l'utilisateur ; l'ancienne adresse
+	// /tracks (titre dans « track ») reste le repli pour les autres playlists, tant que Spotify la sert.
+	tracks, err := c.playlistPages(ctx, pid, "items")
+	if err != nil {
+		var errOld error
+		if tracks, errOld = c.playlistPages(ctx, pid, "tracks"); errOld != nil {
+			return Collection{}, err
+		}
+	}
+	col.Tracks = tracks
+	c.markLoved(ctx, col.Tracks)
+	return col, nil
+}
+
+// playlistPages lit les titres d'une playlist par /playlists/{id}/{endpoint}, 500 au plus.
+func (c *SpotifyWeb) playlistPages(ctx context.Context, pid, endpoint string) ([]player.Track, error) {
+	tracks := []player.Track{}
 	for offset := 0; offset < 500; offset += 100 {
 		var page struct {
 			Items []struct {
+				Item  *spFullTrack `json:"item"`
 				Track *spFullTrack `json:"track"`
 			} `json:"items"`
 			Next *string `json:"next"`
 		}
 		q := url.Values{"limit": {"100"}, "offset": {strconv.Itoa(offset)}}
-		if err := c.get(ctx, "/playlists/"+pid+"/tracks", q, &page); err != nil {
-			return Collection{}, err
+		if err := c.get(ctx, "/playlists/"+pid+"/"+endpoint, q, &page); err != nil {
+			return nil, err
 		}
 		for _, it := range page.Items {
-			if it.Track != nil && it.Track.URI != "" {
-				col.Tracks = append(col.Tracks, toTrack(*it.Track, len(col.Tracks)+1))
+			t := it.Item
+			if t == nil {
+				t = it.Track
+			}
+			if t != nil && t.URI != "" {
+				tracks = append(tracks, toTrack(*t, len(tracks)+1))
 			}
 		}
 		if page.Next == nil || *page.Next == "" {
 			break
 		}
 	}
-	c.markLoved(ctx, col.Tracks)
-	return col, nil
+	return tracks, nil
 }
 
 // markLoved coche les titres likés, par lots de 50. Une erreur laisse simplement les cœurs vides.
 func (c *SpotifyWeb) markLoved(ctx context.Context, ts []player.Track) {
 	for start := 0; start < len(ts); start += 50 {
 		end := min(start+50, len(ts))
-		ids := make([]string, 0, end-start)
+		uris := make([]string, 0, end-start)
 		for _, t := range ts[start:end] {
-			ids = append(ids, strings.TrimPrefix(t.ID, "spotify:track:"))
+			uris = append(uris, "spotify:track:"+strings.TrimPrefix(t.ID, "spotify:track:"))
 		}
-		var loved []bool
-		if c.get(ctx, "/me/tracks/contains", url.Values{"ids": {strings.Join(ids, ",")}}, &loved) != nil {
+		var loved []bool // février 2026 : /me/library/contains (URI) remplace /me/tracks/contains
+		if c.get(ctx, "/me/library/contains", url.Values{"uris": {strings.Join(uris, ",")}}, &loved) != nil {
 			return
 		}
 		for i := range loved {

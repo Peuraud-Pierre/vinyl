@@ -84,9 +84,9 @@ func TestSpotifyAlbumTracksWithHearts(t *testing.T) {
 			w.Write([]byte(`{"name":"In Utero","release_date":"1993-09-21","genres":[],"artists":[{"name":"Nirvana"}],"images":[{"url":"https://img/u"}],
 				"tracks":{"items":[{"uri":"spotify:track:1","name":"Serve the Servants","track_number":1,"duration_ms":217000,"artists":[{"name":"Nirvana"}]},
 				{"uri":"spotify:track:2","name":"Scentless Apprentice","track_number":2,"duration_ms":228000,"artists":[{"name":"Nirvana"}]}]}}`))
-		case "/me/tracks/contains":
-			if r.URL.Query().Get("ids") != "1,2" {
-				http.Error(w, "ids", 400)
+		case "/me/library/contains": // février 2026 : remplace /me/tracks/contains, prend des URI
+			if r.URL.Query().Get("uris") != "spotify:track:1,spotify:track:2" {
+				http.Error(w, "uris", 400)
 				return
 			}
 			w.Write([]byte(`[false,true]`))
@@ -103,17 +103,20 @@ func TestSpotifyAlbumTracksWithHearts(t *testing.T) {
 	}
 }
 
+// Février 2026 : titres par /playlists/{id}/items, chaque titre dans « item » (l'ancien /tracks est refusé).
 func TestSpotifyPlaylistTracksPaginated(t *testing.T) {
 	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/playlists/PL":
 			w.Write([]byte(`{"name":"Mix","owner":{"display_name":"moi"},"images":[{"url":"https://img/p"}]}`))
-		case r.URL.Path == "/playlists/PL/tracks" && r.URL.Query().Get("offset") == "0":
-			w.Write([]byte(`{"items":[{"track":{"uri":"spotify:track:1","name":"A","duration_ms":1000,"artists":[{"name":"X"}]}}],"next":"more"}`))
-		case r.URL.Path == "/playlists/PL/tracks" && r.URL.Query().Get("offset") == "100":
-			w.Write([]byte(`{"items":[{"track":null},{"track":{"uri":"spotify:track:2","name":"B","duration_ms":2000,"artists":[{"name":"Y"}]}}],"next":null}`))
-		case r.URL.Path == "/me/tracks/contains":
-			w.Write([]byte(`[false,false]`))
+		case r.URL.Path == "/playlists/PL/items" && r.URL.Query().Get("offset") == "0":
+			w.Write([]byte(`{"items":[{"item":{"uri":"spotify:track:1","name":"A","duration_ms":1000,"artists":[{"name":"X"}]}}],"next":"more"}`))
+		case r.URL.Path == "/playlists/PL/items" && r.URL.Query().Get("offset") == "100":
+			w.Write([]byte(`{"items":[{"item":null},{"item":{"uri":"spotify:track:2","name":"B","duration_ms":2000,"artists":[{"name":"Y"}]}}],"next":null}`))
+		case r.URL.Path == "/me/library/contains":
+			w.Write([]byte(`[false,true]`))
+		case r.URL.Path == "/playlists/PL/tracks":
+			http.Error(w, `{"error":{"status":403,"message":"Forbidden"}}`, 403)
 		default:
 			http.Error(w, r.URL.String(), 404)
 		}
@@ -122,8 +125,65 @@ func TestSpotifyPlaylistTracksPaginated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if col.Title != "Mix" || col.Artist != "moi" || len(col.Tracks) != 2 || col.Tracks[1].Number != 2 || col.Tracks[1].Title != "B" {
+	if col.Title != "Mix" || col.Artist != "moi" || len(col.Tracks) != 2 || col.Tracks[1].Number != 2 || col.Tracks[1].Title != "B" || !col.Tracks[1].Loved {
 		t.Errorf("got %+v", col)
+	}
+}
+
+// Playlist d'un autre (publique) : /items refusé ; l'ancienne adresse, encore servie, donne les titres.
+func TestSpotifyPlaylistNotOwnedFallsBack(t *testing.T) {
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/playlists/PL":
+			w.Write([]byte(`{"name":"Top 50","owner":{"display_name":"Spotify"},"images":[]}`))
+		case "/playlists/PL/items":
+			http.Error(w, `{"error":{"status":403,"message":"Forbidden"}}`, 403)
+		case "/playlists/PL/tracks":
+			w.Write([]byte(`{"items":[{"track":{"uri":"spotify:track:9","name":"Z","duration_ms":1000,"artists":[{"name":"W"}]}}],"next":null}`))
+		case "/me/library/contains":
+			w.Write([]byte(`[false]`))
+		default:
+			http.Error(w, r.URL.String(), 404)
+		}
+	})
+	col, err := c.Tracks(context.Background(), "spotify:playlist:PL")
+	if err != nil || len(col.Tracks) != 1 || col.Tracks[0].Title != "Z" {
+		t.Errorf("col=%+v err=%v", col, err)
+	}
+}
+
+// Les deux adresses refusées : l'erreur de la nouvelle est montrée.
+func TestSpotifyPlaylistBothRefused(t *testing.T) {
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/playlists/PL":
+			w.Write([]byte(`{"name":"X","owner":{"display_name":"Y"},"images":[]}`))
+		default:
+			http.Error(w, `{"error":{"status":403,"message":"Forbidden"}}`, 403)
+		}
+	})
+	if _, err := c.Tracks(context.Background(), "spotify:playlist:PL"); err == nil || !strings.Contains(err.Error(), "403") {
+		t.Errorf("err=%v", err)
+	}
+}
+
+// /artists/{id}/top-tracks supprimé (février 2026) : la page artiste s'affiche quand même, sans titres populaires.
+func TestSpotifyArtistWithoutTopTracks(t *testing.T) {
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/tracks/42":
+			w.Write([]byte(`{"artists":[{"id":"AR"}]}`))
+		case "/artists/AR":
+			w.Write([]byte(`{"name":"Daft Punk","uri":"spotify:artist:AR","images":[]}`))
+		case "/artists/AR/albums":
+			w.Write([]byte(`{"items":[{"uri":"spotify:album:7","name":"Discovery","release_date":"2001-03-12","images":[]}]}`))
+		default:
+			http.Error(w, `{"error":{"status":404,"message":"Not found"}}`, 404)
+		}
+	})
+	p, err := c.Artist(context.Background(), "Daft Punk", "spotify:track:42")
+	if err != nil || len(p.TopTracks) != 0 || len(p.Albums) != 1 {
+		t.Errorf("p=%+v err=%v", p, err)
 	}
 }
 
