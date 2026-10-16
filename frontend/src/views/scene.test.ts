@@ -41,3 +41,18 @@ test("la pile est poussée vers la droite, sous l'étagère", () => {
     expect(L.pile.x).toBeGreaterThan(L.shelf.x); // commence à droite du début de l'étagère
   }
 });
+
+// Panneau de bois foncé derrière le tourne-disque seulement (pas tout le mur) : il entoure le disque et le
+// bras, descend jusqu'à la table et s'arrête avant la pochette.
+test.each(SIZES)("%i×%i : panneau de bois derrière le tourne-disque seulement", (w, h) => {
+  const L = layoutScene(w, h);
+  const s = L.stage.scale, G = ARM_GEOMETRY;
+  const disc = { l: L.stage.x + (G.discCenter.x - G.discRadius) * s, r: L.stage.x + (G.discCenter.x + G.discRadius) * s, t: L.stage.y + (G.discCenter.y - G.discRadius) * s };
+  const armR = L.stage.x + (G.pivot.x + 48) * s, armT = L.stage.y + (G.pivot.y - 48) * s;
+  expect(L.panel.x).toBeLessThanOrEqual(disc.l);
+  expect(L.panel.x + L.panel.w).toBeGreaterThanOrEqual(Math.max(disc.r, armR));
+  expect(L.panel.y).toBeLessThanOrEqual(Math.min(disc.t, armT));
+  expect(L.panel.y + L.panel.h).toBeCloseTo(L.tableTop, 6);
+  expect(L.panel.x + L.panel.w).toBeLessThan(L.pile.x - 300 * L.pile.scale); // bien avant la pochette
+  expect(L.panel.w).toBeLessThan(w * 0.6); // pas tout le mur
+});

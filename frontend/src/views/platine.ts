@@ -18,10 +18,11 @@ const CONTROLS_W = 140;
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
     <div id="pl-scroll" class="shelf-scroll h-screen overflow-y-auto">
-    <section class="vy-wall relative h-screen">
+    <section class="relative h-screen">
       <h1 id="pl-title" class="sr-only"></h1>
       <div id="pl-table" aria-hidden="true"></div>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
+        <div id="pl-panel" class="vy-wall" aria-hidden="true"></div>
         <div id="pl-stand-back"></div>
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:531px;top:610px"></div>
@@ -83,6 +84,7 @@ export function mount(el: HTMLElement): () => void {
     sh.style.top = `${L.shelf.y}px`;
     sh.style.transform = `scale(${L.shelf.scale})`;
     $("pl-table").style.top = `${L.tableTop}px`;
+    Object.assign($("pl-panel").style, { left: `${L.panel.x}px`, top: `${L.panel.y}px`, width: `${L.panel.w}px`, height: `${L.panel.h}px` });
     // Pochette sur son support : vus avec la caméra de la pile (ui/sleevestand). Le support est placé et mis à
     // l'échelle comme la pile ; la pochette reste dans la platine (image, clic), sa matrice est convertie.
     for (const id of ["pl-stand-back", "pl-stand"]) {
