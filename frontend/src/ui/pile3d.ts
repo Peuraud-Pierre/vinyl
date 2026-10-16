@@ -29,25 +29,33 @@ const rotateY = (deg: number): Mat4 => {
   return [c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1];
 };
 
-/** Matrices des trois faces visibles d'un disque : tranche (avant), pochette (dessus), côté droit. */
-export function faceMatrices(v: PileView, level: number, dx: number, yaw: number): { front: Mat4; top: Mat4; side: Mat4 } {
-  const yTop = v.height - (level + 1) * v.slab;
-  const W = v.width, D = v.depth;
-  // Disque : décalé de dx et tourné sur la table autour de son centre.
-  const c = { x: W / 2, y: yTop + v.slab / 2, z: -D / 2 };
-  const disc = mul(translate(c.x + dx, c.y, c.z), mul(rotateY(yaw), translate(-c.x, -c.y, -c.z)));
+/** Pavé : coin avant-haut-gauche (x, y, z), largeur w, hauteur h, profondeur d (vers −z). */
+export interface Box { x: number; y: number; z: number; w: number; h: number; d: number; }
+export type Faces = { front: Mat4; top: Mat4; side: Mat4 };
+
+/** Matrices des trois faces visibles d'un pavé tourné de yaw autour de pivot : face avant, dessus, côté droit. */
+export function boxMatrices(v: PileView, b: Box, yaw: number, pivot: { x: number; y: number; z: number }): Faces {
+  const turn = mul(translate(pivot.x, pivot.y, pivot.z), mul(rotateY(yaw), translate(-pivot.x, -pivot.y, -pivot.z)));
   // Perspective centrée sur le point de fuite.
   const persp: Mat4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1 / v.perspective, 0, 0, 0, 1];
   const proj = mul(translate(v.eye.x, v.eye.y, 0), mul(persp, translate(-v.eye.x, -v.eye.y, 0)));
-  const full = (local: Mat4) => mul(proj, mul(disc, local));
+  const full = (local: Mat4) => mul(proj, mul(turn, local));
   return {
-    // Élément W × slab : (u, t) → (u, yTop + t, 0).
-    front: full(translate(0, yTop, 0)),
-    // Élément W × D posé à plat : (u, v) → (u, yTop, v − D) ; son bord bas (v = D) touche la tranche.
-    top: full([1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, yTop, -D, 1]),
-    // Élément D × slab : (s, t) → (W, yTop + t, −s) ; son bord gauche (s = 0) touche la tranche.
-    side: full([0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, W, yTop, 0, 1]),
+    // Élément w × h : (u, t) → (x + u, y + t, z).
+    front: full(translate(b.x, b.y, b.z)),
+    // Élément w × d posé à plat : (u, v) → (x + u, y, z − d + v) ; son bord bas (v = d) touche la face avant.
+    top: full([1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, b.x, b.y, b.z - b.d, 1]),
+    // Élément d × h : (s, t) → (x + w, y + t, z − s) ; son bord gauche (s = 0) touche la face avant.
+    side: full([0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, b.x + b.w, b.y, b.z, 1]),
   };
+}
+
+/** Matrices des trois faces visibles d'un disque : tranche (avant), pochette (dessus), côté droit. */
+export function faceMatrices(v: PileView, level: number, dx: number, yaw: number): Faces {
+  const yTop = v.height - (level + 1) * v.slab;
+  // Disque : décalé de dx et tourné sur la table autour de son centre.
+  return boxMatrices(v, { x: dx, y: yTop, z: 0, w: v.width, h: v.slab, d: v.depth }, yaw,
+    { x: v.width / 2 + dx, y: yTop + v.slab / 2, z: -v.depth / 2 });
 }
 
 /** Point (u, v) de l'élément → position à l'écran (px de la pile). */

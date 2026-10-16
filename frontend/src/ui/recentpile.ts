@@ -4,7 +4,7 @@
 import type { HistoryEntry } from "../api";
 import { escapeHtml } from "../views/grid";
 import { spineColors } from "../views/shelf";
-import { faceMatrices, toCss, type PileView } from "./pile3d";
+import { boxMatrices, faceMatrices, toCss, type Box, type PileView } from "./pile3d";
 import { imageTint } from "./theme";
 
 export const RECENT_MAX = 7;
@@ -26,8 +26,49 @@ const tints = new Map<string, string | null>(); // teinte de chaque pochette, ca
 
 export interface RecentPile { update(list: HistoryEntry[]): void; setScale(k: number): void; }
 
-// Vue de la pile : un peu d'en haut (point de fuite au-dessus, à 40 % de la largeur).
-const VIEW: PileView = { width: PILE_W, height: 460, depth: PILE_W, slab: SLAB, eye: { x: PILE_W * 0.4, y: -70 }, perspective: 1800 };
+// Vue de la pile : un peu d'en haut (point de fuite au-dessus, à 40 % de la largeur). La pile repose sur
+// une table (plateau à PILE_BASE, pieds jusqu'en bas de la zone).
+const PILE_BASE = 345;
+const VIEW: PileView = { width: PILE_W, height: PILE_BASE, depth: PILE_W, slab: SLAB, eye: { x: PILE_W * 0.4, y: PILE_BASE - 530 }, perspective: 1800 };
+
+// Table : plateau qui déborde des disques, quatre pieds ; tournée comme la pile.
+const TOP_T = 24, LEG = 26, LEG_H = 118, OVER = 46;
+const TABLE_TOP: Box = { x: -OVER, y: PILE_BASE, z: OVER, w: PILE_W + 2 * OVER, h: TOP_T, d: PILE_W + 2 * OVER };
+const PIVOT = { x: PILE_W / 2, y: PILE_BASE, z: -PILE_W / 2 };
+const legAt = (x: number, z: number): Box => ({ x, y: PILE_BASE + TOP_T, z, w: LEG, h: LEG_H, d: LEG });
+const IN = 22; // retrait des pieds sous le plateau
+const LEGS: Box[] = [ // du fond vers l'avant (ordre de dessin)
+  legAt(-OVER + IN, -PILE_W - OVER + IN + LEG), legAt(PILE_W + OVER - IN - LEG, -PILE_W - OVER + IN + LEG),
+  legAt(-OVER + IN, OVER - IN), legAt(PILE_W + OVER - IN - LEG, OVER - IN),
+];
+
+function face(cls: string, w: number, h: number, m: string): HTMLElement {
+  const f = document.createElement("div");
+  f.className = cls;
+  f.style.width = `${w}px`;
+  f.style.height = `${h}px`;
+  f.style.transform = m;
+  return f;
+}
+
+function table(): HTMLElement {
+  const t = document.createElement("div");
+  t.className = "vy-table";
+  for (const leg of LEGS) {
+    const m = boxMatrices(VIEW, leg, PILE_TURN, PIVOT);
+    const g = document.createElement("div");
+    g.className = "vy-table-leg";
+    g.append(face("vy-table-leg-front", leg.w, leg.h, toCss(m.front)), face("vy-table-leg-side", leg.d, leg.h, toCss(m.side)));
+    t.appendChild(g);
+  }
+  const m = boxMatrices(VIEW, TABLE_TOP, PILE_TURN, PIVOT);
+  t.append(
+    face("vy-table-top", TABLE_TOP.w, TABLE_TOP.d, toCss(m.top)),
+    face("vy-table-side", TABLE_TOP.d, TABLE_TOP.h, toCss(m.side)),
+    face("vy-table-front", TABLE_TOP.w, TABLE_TOP.h, toCss(m.front)),
+  );
+  return t;
+}
 
 export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry): void }): RecentPile {
   let seen = new Set<string>(); // disques de l'affichage précédent
@@ -59,6 +100,7 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
       root.appendChild(pile);
       zoom = pile;
       applyScale();
+      pile.appendChild(table()); // sous les disques
       let topDisc: HTMLElement | null = null;
       // Du plus ancien (en bas) au plus récent (en haut). Chaque disque est un petit volume :
       // tranche de face, côté droit (visible puisque la pile a pivoté) et pochette posée à plat dessus

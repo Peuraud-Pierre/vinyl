@@ -139,3 +139,15 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-recent-side { width: 500px; height: 20px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 2px rgba(0,0,0,.35); }
 .vy-recent-lid { width: 500px; height: 500px; border: 0; padding: 0; border-radius: 3px; background: #2a2220 center / cover; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
 .vy-recent-lid:hover { filter: brightness(1.08); }
+/* Table sous la pile : plateau en noyer (veinage léger, ombre de la pile), chants et pieds plus sombres. */
+.vy-table { position: absolute; inset: 0; pointer-events: none; }
+.vy-table-leg { position: absolute; inset: 0; }
+.vy-table div { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.vy-table-top { border-radius: 6px;
+  background: radial-gradient(ellipse 46% 44% at 50% 52%, rgba(20,8,4,.42), transparent 75%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 3px, transparent 3px 11px, rgba(0,0,0,.04) 11px 13px, transparent 13px 29px),
+    linear-gradient(90deg, #7a5238, #8d6243 45%, #73492f); box-shadow: inset 0 0 0 1px rgba(255,235,210,.12); }
+.vy-table-front { border-radius: 0 0 4px 4px; background: linear-gradient(180deg, #5d3b26, #4a2e1d); box-shadow: inset 0 1px 0 rgba(255,225,190,.22); }
+.vy-table-side { background: linear-gradient(180deg, #3f2718, #331f13); }
+.vy-table-leg-front { background: linear-gradient(90deg, #4b2f1e, #5c3a25 55%, #432a1a); }
+.vy-table-leg-side { background: #2e1c11; }
