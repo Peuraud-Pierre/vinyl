@@ -376,22 +376,6 @@ const musicPlayAloneScript = `on run argv
 	return "OK"
 end run`
 
-// argv : playlist, morceau. Lance le morceau dans la playlist (comme un clic dans Musique) : la file de
-// Musique garde la suite de la playlist. "NOTFOUND" si le morceau n'y est pas.
-const musicPlayWithinPlaylistScript = `on run argv
-	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	tell application id "com.apple.Music"
-		try
-			set p to (first playlist whose persistent ID is (item 1 of argv))
-			set t to (first track of p whose persistent ID is (item 2 of argv))
-		on error
-			return "NOTFOUND"
-		end try
-		play t
-	end tell
-	return "OK"
-end run`
-
 // argv : playlist, morceau, position (s). Reprend la playlist là où elle en était ; si elle n'existe
 // plus, le morceau est lancé depuis la bibliothèque.
 const musicResumeScript = `on run argv
@@ -433,15 +417,6 @@ func (m *AppleMusic) SaveContext(ctx context.Context) (PlaybackContext, error) {
 func (m *AppleMusic) PlayAlone(ctx context.Context, trackID string) error {
 	_, err := m.simpleRun(ctx, musicPlayAloneScript, trackID)
 	return err
-}
-
-// PlayWithinPlaylist lance le morceau dans la playlist, sans toucher à la suite de la file.
-func (m *AppleMusic) PlayWithinPlaylist(ctx context.Context, playlistID, trackID string) (bool, error) {
-	if playlistID == "" || trackID == "" {
-		return false, nil
-	}
-	out, err := m.simpleRun(ctx, musicPlayWithinPlaylistScript, playlistID, trackID)
-	return err == nil && out == "OK", err
 }
 
 // Resume reprend la playlist là où elle en était.

@@ -295,25 +295,17 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 	if p == nil {
 		return errors.New("source inconnue")
 	}
-	// D'abord comme un clic dans Musique : le morceau est lancé dans la playlist en cours, la file du
-	// lecteur garde la suite et continue normalement. Sinon, sans toucher à la file : « précédent »
-	// jusqu'au morceau, puis « suivant » au morceau interrompu juste avant la fin (voir ObservePlayback).
+	// D'abord directement : le morceau est lancé seul, puis à sa fin la playlist reprend au morceau
+	// interrompu (voir ObservePlayback). Si c'est impossible (morceau absent de la bibliothèque) ou que
+	// le lecteur ne sait pas le faire (Windows) : « précédent » jusqu'au morceau, puis « suivant » au
+	// retour, sans toucher à la file du lecteur.
 	b, back := p.(player.BackReplayer)
 	cs, saves := p.(player.ContextSaver)
-	if pp, ok := p.(player.PlaylistPlayer); ok && saves && s.activeQueue() == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		saved, err := cs.SaveContext(ctx)
-		found := false
-		if err == nil {
-			found, err = pp.PlayWithinPlaylist(ctx, saved.PlaylistID, trackID)
-		}
-		cancel()
-		if found {
-			s.queueMu.Lock()
-			s.back = nil // une réécoute précédente n'a plus à revenir
-			s.queueMu.Unlock()
-			s.watcher.Wake()
-			return nil
+	r, ok := p.(player.ReplayResumer)
+	if ok {
+		err := s.replayAlone(r, source, trackID)
+		if err == nil || !back {
+			return err
 		}
 	}
 	if back && saves && s.activeQueue() == nil {
@@ -338,7 +330,6 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 			}
 		}
 	}
-	r, ok := p.(player.ReplayResumer)
 	if !ok && back {
 		// Lecteur qui ne sait que reculer / avancer (Windows) : son identifiant de morceau est une
 		// empreinte, inutilisable pour lancer le morceau autrement ; surtout pas de nouveau « play ».
@@ -351,6 +342,11 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 		}
 		return s.PlayItem(source, id)
 	}
+	return errors.New("ce morceau n'est plus dans la file de lecture")
+}
+
+// replayAlone lance le morceau seul puis, à sa fin, reprend la lecture interrompue (Vinyl enchaîne).
+func (s *VinylService) replayAlone(r player.ReplayResumer, source, trackID string) error {
 	q := &vinylQueue{source: source, tracks: []player.Track{{ID: trackID}}}
 	if prev := s.activeQueue(); prev != nil && prev.source == source {
 		// Déjà en train d'enchaîner : on reprendra là où on en était (morceau interrompu compris).

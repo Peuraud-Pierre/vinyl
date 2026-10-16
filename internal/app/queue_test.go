@@ -133,12 +133,10 @@ func TestAlbumQueueStopsWhenTheUserPicksSomethingElse(t *testing.T) {
 // fakeBack : lecteur qui sait naviguer dans sa propre file (précédent / suivant).
 type fakeBack struct {
 	fakeResumer
-	inPlaylist bool // le morceau est dans la playlist en cours
-	inPL       [][2]string
-	backOK     bool
-	extra      int // morceaux en plus trouvés au-delà de la pile (pile décalée)
-	backs      [][2]any
-	jumps      [][3]any
+	backOK bool
+	extra  int // morceaux en plus trouvés au-delà de la pile (pile décalée)
+	backs  [][2]any
+	jumps  [][3]any
 }
 
 func (f *fakeBack) ReplayBack(_ context.Context, id string, steps, _ int) (int, error) {
@@ -147,10 +145,6 @@ func (f *fakeBack) ReplayBack(_ context.Context, id string, steps, _ int) (int, 
 		return 0, nil
 	}
 	return steps + f.extra, nil
-}
-func (f *fakeBack) PlayWithinPlaylist(_ context.Context, pl, id string) (bool, error) {
-	f.inPL = append(f.inPL, [2]string{pl, id})
-	return f.inPlaylist, nil
 }
 func (f *fakeBack) JumpForward(_ context.Context, steps int, id string, pos int) error {
 	f.jumps = append(f.jumps, [3]any{steps, id, pos})
@@ -359,28 +353,9 @@ func TestPlaySpotifyWebRejectsNonSpotifyIDs(t *testing.T) {
 
 var errNotInLibrary = errors.New("morceau absent de la bibliothèque")
 
-// Clic sur un disque de la pile : comme un clic dans Musique, le morceau est lancé dans la playlist en
-// cours ; la file de Musique garde la suite de la playlist et continue normalement (rien à reprendre).
+// Clic sur un disque de la pile : on va directement au morceau (pas de « précédent » en rafale), puis à sa
+// fin la playlist reprend au morceau interrompu, à sa position, et continue normalement.
 func TestReplayGoesStraightToTheSong(t *testing.T) {
-	p := &fakeBack{backOK: true, inPlaylist: true}
-	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
-	s := serviceWith(p)
-	s.SetHistory(pileOf(t, "1", "2", "3", "4"), nil)
-	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
-		t.Fatal(err)
-	}
-	if len(p.inPL) != 1 || p.inPL[0] != [2]string{"PL", "2"} || len(p.alone) != 0 || len(p.backs) != 0 {
-		t.Fatalf("playlist : %v, seul : %v, précédent : %v", p.inPL, p.alone, p.backs)
-	}
-	s.ObservePlayback(playing("2", 198500, 200000))
-	s.ObservePlayback(playing("3", 500, 200000)) // Musique enchaîne lui-même
-	if len(p.resumed) != 0 || len(p.jumps) != 0 {
-		t.Errorf("Vinyl ne doit plus intervenir : reprise %v, suivant %v", p.resumed, p.jumps)
-	}
-}
-
-// Morceau absent de la playlist en cours : « précédent » jusqu'au morceau (la file n'est pas touchée).
-func TestReplayOutsideThePlaylistStepsBack(t *testing.T) {
 	p := &fakeBack{backOK: true}
 	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
 	s := serviceWith(p)
@@ -388,7 +363,13 @@ func TestReplayOutsideThePlaylistStepsBack(t *testing.T) {
 	if err := s.PlayFromHistory("applemusic", "2"); err != nil {
 		t.Fatal(err)
 	}
-	if len(p.inPL) != 1 || len(p.backs) != 1 || len(p.alone) != 0 {
-		t.Errorf("playlist : %v, précédent : %v, seul : %v", p.inPL, p.backs, p.alone)
+	if len(p.alone) != 1 || p.alone[0] != "2" || len(p.backs) != 0 {
+		t.Fatalf("joué : %v, précédent : %v", p.alone, p.backs)
+	}
+	s.ObservePlayback(playing("2", 1000, 200000))
+	s.ObservePlayback(playing("2", 198500, 200000)) // fin du morceau
+	s.ObservePlayback(player.Snapshot{NowPlaying: player.NowPlaying{Source: "applemusic", State: player.StateStopped}})
+	if len(p.resumed) != 1 || p.resumed[0] != p.saved || len(p.jumps) != 0 {
+		t.Errorf("reprise : %v, suivant : %v", p.resumed, p.jumps)
 	}
 }
