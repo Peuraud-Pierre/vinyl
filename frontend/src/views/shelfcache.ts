@@ -14,3 +14,7 @@ export function recall(key: string): ShelfState | undefined {
   const s = memory.get(key);
   return s && { items: [...s.items], next: s.next, position: s.position };
 }
+
+export function forget(key: string): void {
+  memory.delete(key);
+}
