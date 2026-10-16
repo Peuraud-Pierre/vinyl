@@ -419,3 +419,14 @@ func TestAppleMusicPlayInContext(t *testing.T) {
 		t.Errorf("appel : %+v", c)
 	}
 }
+
+// En aléatoire, la reprise relance la playlist entière : c'est la seule commande qui remplit la file de
+// Musique (un « play » sur un morceau précis la laisse vide).
+func TestAppleMusicResumeAfterShuffleRefillsQueue(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"OK"}}
+	m := NewAppleMusic(r, t.TempDir())
+	m.Resume(context.Background(), PlaybackContext{PlaylistID: "PL", TrackID: "T", After: true})
+	if !strings.Contains(r.calls[0].script, "if shuffle enabled then") || !strings.Contains(r.calls[0].script, "play p") {
+		t.Errorf("script :\n%s", r.calls[0].script)
+	}
+}

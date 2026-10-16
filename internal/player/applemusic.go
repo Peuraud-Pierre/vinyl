@@ -392,17 +392,23 @@ const musicResumeScript = `on run argv
 	return "OK"
 end run`
 
-// argv : playlist, morceau interrompu. Lance le morceau qui le suit dans la playlist ; "END" s'il était
+// argv : playlist, morceau interrompu. Lance le morceau qui le suit dans la playlist (en aléatoire : la
+// playlist entière, pour que la file de Musique se remplisse) ; "END" s'il était
 // le dernier, "NOTFOUND" si la playlist ou le morceau n'y sont plus.
 const musicResumeAfterScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
 	tell application id "com.apple.Music"
 		try
 			set p to (first playlist whose persistent ID is (item 1 of argv))
-			set ids to persistent ID of every track of p
 		on error
 			return "NOTFOUND"
 		end try
+		-- En aléatoire, la playlist entière : seule commande qui remplit la file de Musique.
+		if shuffle enabled then
+			play p
+			return "OK"
+		end if
+		set ids to persistent ID of every track of p
 		set n to count of ids
 		repeat with i from 1 to n
 			if item i of ids is (item 2 of argv) then
