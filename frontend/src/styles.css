@@ -161,9 +161,10 @@ html, body { margin: 0; height: 100%; background: transparent; }
     repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 9px, rgba(0,0,0,.05) 9px 10px, transparent 10px 23px);
   background-blend-mode: normal, overlay; box-shadow: inset 0 -2px 3px rgba(0,0,0,.22);
   font: 700 16px/1 -apple-system, "SF Pro Text", sans-serif; letter-spacing: .3em; color: rgba(74,42,20,.72); text-shadow: 0 1px 0 rgba(255,236,205,.5); }
-.vy-stand-top { border-radius: 4px 4px 0 0;
-  background: linear-gradient(180deg, rgba(60,30,12,.35) 0 30%, transparent 30% 36%, rgba(40,20,8,.55) 36% 44%, transparent 44%),
-    linear-gradient(180deg, #caa478, #e0c094); }
+.vy-stand-top { background: linear-gradient(180deg, #cfa97c, #e2c398); }
+/* Dessus arrière : la rainure (sombre) le long de son bord avant, où la pochette est calée. */
+.vy-stand-groove { border-radius: 4px 4px 0 0;
+  background: linear-gradient(0deg, rgba(40,20,8,.6) 0 12%, rgba(60,30,12,.25) 12% 20%, transparent 20%), linear-gradient(180deg, #caa478, #e0c094); }
 .vy-stand-side { background: linear-gradient(180deg, #b48a5c, #94703f); box-shadow: inset 0 2px 0 rgba(255,236,205,.3); }
 /* Grande table de la platine : plateau, ceinture avec tiroir, ombre et pieds dessous (tailles × --k). */
 .vy-room-table { --k: 1; position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;

@@ -22,6 +22,7 @@ export function mount(el: HTMLElement): () => void {
       <h1 id="pl-title" class="sr-only"></h1>
       <div id="pl-table" aria-hidden="true"></div>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
+        <div id="pl-stand-back"></div>
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:531px;top:610px"></div>
         </div>
@@ -63,7 +64,7 @@ export function mount(el: HTMLElement): () => void {
 
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const roomTable = mountRoomTable($("pl-table"));
-  mountSleeveStand($("pl-stand"));
+  mountSleeveStand($("pl-stand-back"), $("pl-stand"));
   const fit = () => {
     const wrap = $("pl-wrap").getBoundingClientRect();
     const L = layoutScene(wrap.width, wrap.height);
@@ -84,7 +85,9 @@ export function mount(el: HTMLElement): () => void {
     $("pl-table").style.top = `${L.tableTop}px`;
     // Pochette sur son support : vus avec la caméra de la pile (ui/sleevestand). Le support est placé et mis à
     // l'échelle comme la pile ; la pochette reste dans la platine (image, clic), sa matrice est convertie.
-    Object.assign($("pl-stand").style, { left: `${L.pile.x}px`, top: `${L.pile.y}px`, scale: String(L.pile.scale) });
+    for (const id of ["pl-stand-back", "pl-stand"]) {
+      Object.assign($(id).style, { left: `${L.pile.x}px`, top: `${L.pile.y}px`, scale: String(L.pile.scale) });
+    }
     const sl = $("tt").querySelector<HTMLElement>(".tt-sleeve");
     if (sl) {
       Object.assign(sl.style, {

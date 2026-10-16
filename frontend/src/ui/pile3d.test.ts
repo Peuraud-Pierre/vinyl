@@ -55,3 +55,15 @@ test("un disque est un pavé comme un autre (faceMatrices = boxMatrices)", () =>
   near(apply(a.front, 120, 7), apply(b.front, 120, 7));
   near(apply(a.top, 33, 400), apply(b.top, 33, 400));
 });
+
+// Pavé penché en arrière (tilt, en degrés) autour de son arête avant-basse : le haut recule (z négatif),
+// le bas ne bouge pas.
+test("un pavé penché en arrière garde son arête basse, son haut recule", () => {
+  const box = { x: 0, y: 0, z: 0, w: 100, h: 200, d: 0 };
+  const straight = boxMatrices(view, box, 0, { x: 50, y: 200, z: 0 });
+  const leaning = boxMatrices(view, box, 0, { x: 50, y: 200, z: 0 }, 10);
+  near(apply(leaning.front, 0, 200), apply(straight.front, 0, 200));
+  near(apply(leaning.front, 100, 200), apply(straight.front, 100, 200));
+  // Vu d'en haut, un haut qui recule paraît plus haut à l'écran… et le pavé paraît plus court.
+  expect(apply(leaning.front, 50, 0)[1]).toBeGreaterThan(apply(straight.front, 50, 0)[1]);
+});

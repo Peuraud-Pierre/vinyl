@@ -34,9 +34,17 @@ const rotateY = (deg: number): Mat4 => {
 export interface Box { x: number; y: number; z: number; w: number; h: number; d: number; }
 export type Faces = { front: Mat4; top: Mat4; side: Mat4 };
 
-/** Matrices des trois faces visibles d'un pavé tourné de yaw autour de pivot : face avant, dessus, côté droit. */
-export function boxMatrices(v: PileView, b: Box, yaw: number, pivot: { x: number; y: number; z: number }): Faces {
-  const turn = mul(translate(pivot.x, pivot.y, pivot.z), mul(rotateY(yaw), translate(-pivot.x, -pivot.y, -pivot.z)));
+// Même sens que rotateX() en CSS : un angle positif fait reculer (z négatif) ce qui est au-dessus de l'axe.
+const rotateX = (deg: number): Mat4 => {
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  return [1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1];
+};
+
+/** Matrices des trois faces visibles d'un pavé tourné de yaw autour de pivot : face avant, dessus, côté droit.
+ *  tilt (degrés) : le pavé penche en arrière autour de son arête avant-basse (pochette sur un support). */
+export function boxMatrices(v: PileView, b: Box, yaw: number, pivot: { x: number; y: number; z: number }, tilt = 0): Faces {
+  const lean = mul(translate(0, b.y + b.h, b.z), mul(rotateX(tilt), translate(0, -(b.y + b.h), -b.z)));
+  const turn = mul(translate(pivot.x, pivot.y, pivot.z), mul(rotateY(yaw), mul(translate(-pivot.x, -pivot.y, -pivot.z), lean)));
   // Perspective centrée sur le point de fuite.
   const persp: Mat4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1 / v.perspective, 0, 0, 0, 1];
   const proj = mul(translate(v.eye.x, v.eye.y, 0), mul(persp, translate(-v.eye.x, -v.eye.y, 0)));
