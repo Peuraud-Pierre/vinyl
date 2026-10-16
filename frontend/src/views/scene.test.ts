@@ -30,13 +30,14 @@ test.each(SIZES)("%i×%i : tout tient dans la zone, posé sur la table", (w, h) 
   expect(L.shelf.y + SHELF_H * L.shelf.scale).toBeLessThan(L.tableTop);
 });
 
-// De gauche à droite : tourne-disque, pochette posée contre la pile, pile.
-test.each(SIZES)("%i×%i : la pochette est entre le tourne-disque et la pile, contre la pile", (w, h) => {
+// De gauche à droite : tourne-disque, pochette sur son support, pile — la pochette ne passe jamais
+// derrière la pile.
+test.each(SIZES)("%i×%i : la pochette est entre le tourne-disque et la pile, sans passer derrière", (w, h) => {
   const L = layoutScene(w, h);
   const ttRight = L.stage.x + TT_RIGHT * L.stage.scale;
-  expect(L.sleeve.x).toBeGreaterThan(ttRight);
-  expect(L.sleeve.x + L.sleeve.size).toBeGreaterThan(L.pile.x); // touche la pile (la pile passe devant)
-  expect(L.sleeve.x).toBeLessThan(L.pile.x);
+  expect(L.stand.x).toBeGreaterThan(ttRight);
+  expect(L.sleeve.x + L.sleeve.size).toBeLessThan(L.pile.x);
+  expect(L.stand.x + L.stand.w).toBeLessThan(L.pile.x);
 });
 
 test("la scène est centrée et grandit avec la fenêtre", () => {

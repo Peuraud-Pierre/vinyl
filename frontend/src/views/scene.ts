@@ -1,6 +1,6 @@
 // Disposition de la platine : une « pièce » de taille fixe (ROOM, px de scène) mise à l'échelle dans la
 // zone disponible, centrée. La table occupe le bas (à partir de TABLE_Y). Sur la table, de gauche à droite :
-// le tourne-disque (disque et bras), la pochette posée debout contre la pile, la pile. L'étagère est au mur,
+// le tourne-disque (disque et bras), la pochette sur son support (tournée vers le tourne-disque), la pile. L'étagère est au mur,
 // au-dessus de la pile.
 import { ARM_GEOMETRY } from "../turntable/arm";
 import { STAGE_H } from "../turntable/turntable";
@@ -25,10 +25,14 @@ const DISC_L = ARM_GEOMETRY.discCenter.x - ARM_GEOMETRY.discRadius;
 const STAGE_AT = { x: 10 - DISC_L * TT_SCALE, y: TABLE_Y + 70 - STAGE_H * TT_SCALE }; // le bas sur la table
 const PILE_AT = { x: 870, y: TABLE_Y + 40 - PILE_H * PILE_SCALE }; // la base de la pile sur la table, à droite
 const SLEEVE_SIZE = 300;
-const SLEEVE_AT = { x: 590, y: TABLE_Y + 46 - SLEEVE_SIZE }; // debout sur son support, contre la pile
+const SLEEVE_AT = { x: 500, y: TABLE_Y + 46 - SLEEVE_SIZE }; // debout sur son support, à gauche de la pile
+// Pochette et support tournés de trois quarts vers le tourne-disque (autour du bas de la pochette).
+export const SLEEVE_YAW = -42; // degrés (CSS rotateY : négatif = face vers la gauche)
+export const SLEEVE_PERSPECTIVE = 1100; // px de scène
 // Support « en écoute » (socle en chêne) : un peu plus large que la pochette ; son rebord avant cache le bas
 // de la pochette, calée dans la rainure ; posé sur la table.
 const STAND = { pad: 18, over: 16, h: 34 };
+export const STAND_DEPTH = 70; // profondeur du socle (px de scène), visible sur son côté droit
 const SHELF_AT = { x: ROOM.w - SHELF_W - 30, y: 90 };
 
 export function layoutScene(w: number, h: number): SceneLayout {
