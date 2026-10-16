@@ -100,6 +100,16 @@ func (p *Player) JumpForward(_ context.Context, steps int, trackID string, posSe
 	if err != nil {
 		return err
 	}
+	if trackID == "" { // simplement avancer de steps morceaux (comme après un clic dans l'historique)
+		for range steps {
+			cur := p.current()
+			if err := s.Next(); err != nil {
+				return err
+			}
+			p.waitChange(cur)
+		}
+		return nil
+	}
 	if p.nextUntil(s, trackID, steps+1) {
 		return s.Seek(time.Duration(posSec) * time.Second)
 	}

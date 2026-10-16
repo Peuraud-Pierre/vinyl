@@ -260,3 +260,23 @@ func TestBriefLossKeepsLastState(t *testing.T) {
 		t.Errorf("Musique quitté : %+v", s)
 	}
 }
+
+// Pendant une réécoute par « précédent » (Vinyl fait défiler la file), les morceaux traversés ne sont ni
+// lus ni affichés.
+func TestHoldSkipsTicks(t *testing.T) {
+	h := newHarness()
+	h.am.err, h.am.np = nil, playing("A")
+	h.tick(0)
+	h.w.Hold(true)
+	h.am.np = playing("traversé")
+	h.tick(time.Second)
+	if s := h.w.Current(); s.NowPlaying.TrackID != "A" || len(h.emitted) != 1 {
+		t.Fatalf("morceau traversé vu : %+v", s)
+	}
+	h.w.Hold(false)
+	h.am.np = playing("B")
+	h.tick(time.Second)
+	if h.w.Current().NowPlaying.TrackID != "B" {
+		t.Error("le suivi doit reprendre")
+	}
+}

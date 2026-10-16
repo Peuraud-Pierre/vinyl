@@ -305,7 +305,9 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 			defer cancel()
 			saved, err := cs.SaveContext(ctx)
 			if err == nil && saved.TrackID != "" {
+				s.watcher.Hold(true) // morceaux traversés : ni affichés ni posés sur la pile
 				taken, err := b.ReplayBack(ctx, trackID, steps, saved.PositionSec)
+				s.watcher.Hold(false)
 				s.watcher.Wake()
 				if err != nil {
 					return err
@@ -375,8 +377,9 @@ func (s *VinylService) setQueue(q *vinylQueue) {
 	s.queueMu.Unlock()
 }
 
-// backReplay : morceau réécouté en reculant dans la file de Musique ; à sa fin, on revient de steps
-// morceaux en avant, au morceau interrompu et à sa position.
+// backReplay : morceau réécouté en reculant dans la file de Musique ; à sa fin, comme après un clic dans
+// l'Historique de Musique, on avance au morceau qui suivait le morceau interrompu (steps+1 « suivant ») :
+// le morceau interrompu reste dans l'historique et la file continue normalement.
 type backReplay struct {
 	source, trackID string
 	steps           int
@@ -413,12 +416,12 @@ func (s *VinylService) observeBack(np player.NowPlaying) bool {
 	case np.TrackID == b.trackID:
 		b.seen, b.lastPos, b.dur = true, np.PositionMs, np.DurationMs
 		if b.dur > 0 && np.PositionMs >= b.dur-1500 {
-			steps = b.steps // dernière seconde : retour direct au morceau interrompu
+			steps = b.steps + 1 // dernière seconde : directement au morceau qui suivait l'interrompu
 		}
 	case !b.seen:
 		drop = time.Since(b.started) > 15*time.Second
 	case b.dur > 0 && b.lastPos >= b.dur-4000:
-		steps = b.steps - 1 // Musique est déjà passé au morceau suivant
+		steps = b.steps // Musique est déjà passé au morceau suivant
 	default:
 		drop = true // l'utilisateur a choisi autre chose
 	}
@@ -430,7 +433,7 @@ func (s *VinylService) observeBack(np player.NowPlaying) bool {
 		if j, ok := s.watcher.Player(b.source).(player.BackReplayer); ok {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			j.JumpForward(ctx, steps, b.saved.TrackID, b.saved.PositionSec)
+			j.JumpForward(ctx, steps, "", 0)
 			s.watcher.Wake()
 		}
 	}

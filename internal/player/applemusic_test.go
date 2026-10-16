@@ -370,3 +370,16 @@ func TestNotRunningAppIsNotQueried(t *testing.T) {
 		t.Errorf("Spotify : err=%v, appels=%d", err, len(r.calls))
 	}
 }
+
+// Les sauts de morceaux se font son coupé, et le volume d'origine est toujours remis (même en cas d'erreur).
+func TestAppleMusicSkipsAreMuted(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"MISS", "OK"}}
+	m := NewAppleMusic(r, t.TempDir())
+	m.ReplayBack(context.Background(), "T", 2, 0)
+	m.JumpForward(context.Background(), 3, "", 0)
+	for _, c := range r.calls {
+		if !strings.Contains(c.script, "set sound volume to 0") || strings.Count(c.script, "set sound volume to vol") < 2 {
+			t.Errorf("son non coupé ou non rétabli :\n%s", c.script)
+		}
+	}
+}

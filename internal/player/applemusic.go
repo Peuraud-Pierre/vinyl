@@ -434,51 +434,72 @@ const musicReplayBackScript = `on run argv
 	set target to item 1 of argv
 	set us to character id 31
 	tell application id "com.apple.Music"
-		set taken to 0
-		repeat ((item 2 of argv) as integer) times
-			previous track
-			set taken to taken + 1
-			delay 0.1
-		end repeat
-		repeat with extra from 0 to 2
-			if extra > 0 then
+		set vol to sound volume
+		set sound volume to 0
+		try
+			set taken to 0
+			repeat ((item 2 of argv) as integer) times
 				previous track
 				set taken to taken + 1
-			end if
-			repeat 15 times
-				try
-					if (persistent ID of current track) is target then
-						if player state is not playing then playpause
-						return "BACK" & us & taken
-					end if
-				end try
 				delay 0.1
 			end repeat
-		end repeat
-		repeat taken times
-			next track
-			delay 0.1
-		end repeat
-		delay 0.3
-		try
-			set player position to ((item 3 of argv) as integer)
+			repeat with extra from 0 to 2
+				if extra > 0 then
+					previous track
+					set taken to taken + 1
+				end if
+				repeat 15 times
+					try
+						if (persistent ID of current track) is target then
+							set player position to 0
+							if player state is not playing then playpause
+							set sound volume to vol
+							return "BACK" & us & taken
+						end if
+					end try
+					delay 0.1
+				end repeat
+			end repeat
+			repeat taken times
+				next track
+				delay 0.1
+			end repeat
+			delay 0.3
+			try
+				set player position to ((item 3 of argv) as integer)
+			end try
+		on error e
+			set sound volume to vol
+			error e
 		end try
+		set sound volume to vol
 	end tell
 	return "MISS"
 end run`
 
-// argv : nombre de morceaux, morceau interrompu, position (s). Revient au morceau interrompu par
-// « suivant », sans toucher à la file, et le replace où il en était.
+// argv : nombre de morceaux, morceau à replacer (vide : aucun), position (s). Avance par « suivant »,
+// sans toucher à la file, son coupé pendant les sauts.
 const musicJumpForwardScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
 	tell application id "com.apple.Music"
-		repeat ((item 1 of argv) as integer) times
-			next track
-			delay 0.15
-		end repeat
+		set vol to sound volume
+		set sound volume to 0
 		try
-			if (persistent ID of current track) is (item 2 of argv) then set player position to ((item 3 of argv) as integer)
+			repeat ((item 1 of argv) as integer) times
+				next track
+				delay 0.15
+			end repeat
+			delay 0.2
+			if (item 2 of argv) is not "" then
+				if (persistent ID of current track) is (item 2 of argv) then set player position to ((item 3 of argv) as integer)
+			else
+				set player position to 0
+			end if
+		on error e
+			set sound volume to vol
+			error e
 		end try
+		set sound volume to vol
 	end tell
 	return "OK"
 end run`
@@ -497,7 +518,7 @@ func (m *AppleMusic) ReplayBack(ctx context.Context, trackID string, steps, posS
 	return 0, nil
 }
 
-// JumpForward avance de steps morceaux et replace le morceau interrompu à sa position.
+// JumpForward avance de steps morceaux ; si trackID est donné et atteint, le replace à posSec.
 func (m *AppleMusic) JumpForward(ctx context.Context, steps int, trackID string, posSec int) error {
 	_, err := m.simpleRun(ctx, musicJumpForwardScript, strconv.Itoa(steps), trackID, strconv.Itoa(posSec))
 	return err

@@ -29,6 +29,7 @@ type Watcher struct {
 	now     func() time.Time
 	wake    chan struct{}
 	force   atomic.Bool // posé par Wake : le prochain Tick émet même sans changement (ex. après un Seek)
+	hold    atomic.Bool // posé par Hold : Vinyl fait défiler la file, les morceaux traversés sont ignorés
 
 	// Utilisés uniquement depuis Tick (une seule goroutine).
 	prevState    map[string]State
@@ -106,7 +107,13 @@ func (w *Watcher) RunAdaptive(ctx context.Context, interval func() time.Duration
 	}
 }
 
+// Hold suspend (true) ou reprend (false) le suivi pendant que Vinyl fait défiler la file du lecteur.
+func (w *Watcher) Hold(on bool) { w.hold.Store(on) }
+
 func (w *Watcher) Tick(ctx context.Context) {
+	if w.hold.Load() {
+		return
+	}
 	candidates := w.players
 	if mode := w.mode(); mode != "auto" {
 		if p := w.Player(mode); p != nil {

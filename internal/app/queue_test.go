@@ -150,8 +150,9 @@ func (f *fakeBack) JumpForward(_ context.Context, steps int, id string, pos int)
 	return nil
 }
 
-// Comme Apple Music : la file de Musique n'est jamais remplacée. Précédent ×N vers le morceau choisi,
-// puis juste avant sa fin, suivant ×N vers le morceau interrompu, à sa position.
+// Comme un clic dans l'Historique de Musique : la file n'est jamais remplacée. Précédent ×N vers le
+// morceau choisi, puis à sa fin, suivant ×(N+1) : le morceau interrompu reste dans l'historique et la
+// file reprend au morceau qui devait suivre, depuis son début.
 func TestReplayKeepsMusicQueueAndComesBack(t *testing.T) {
 	p := &fakeBack{backOK: true}
 	p.saved = player.PlaybackContext{PlaylistID: "PL", TrackID: "4", PositionSec: 61}
@@ -168,7 +169,7 @@ func TestReplayKeepsMusicQueueAndComesBack(t *testing.T) {
 		t.Fatal("pas de retour avant la fin")
 	}
 	s.ObservePlayback(playing("2", 199000, 200000)) // dernière seconde
-	if len(p.jumps) != 1 || p.jumps[0] != [3]any{2, "4", 61} {
+	if len(p.jumps) != 1 || p.jumps[0] != [3]any{3, "", 0} {
 		t.Fatalf("retour : %v", p.jumps)
 	}
 	s.ObservePlayback(playing("4", 61500, 300000))
@@ -186,7 +187,7 @@ func TestReplayComesBackEvenIfTheEndWasMissed(t *testing.T) {
 	s.PlayFromHistory("applemusic", "1") // 3 morceaux en arrière
 	s.ObservePlayback(playing("1", 197000, 200000))
 	s.ObservePlayback(playing("2", 300, 200000))
-	if len(p.jumps) != 1 || p.jumps[0] != [3]any{2, "4", 10} {
+	if len(p.jumps) != 1 || p.jumps[0] != [3]any{3, "", 0} {
 		t.Fatalf("retour : %v", p.jumps)
 	}
 }
@@ -215,7 +216,7 @@ func TestReplayUsesTheStepsReallyTaken(t *testing.T) {
 	s.PlayFromHistory("applemusic", "2")
 	s.ObservePlayback(playing("2", 1000, 200000))
 	s.ObservePlayback(playing("2", 199000, 200000))
-	if len(p.jumps) != 1 || p.jumps[0] != [3]any{3, "4", 5} {
+	if len(p.jumps) != 1 || p.jumps[0] != [3]any{4, "", 0} {
 		t.Errorf("retour : %v", p.jumps)
 	}
 }
@@ -316,7 +317,7 @@ func TestReplayFromPileWithBackOnlyPlayer(t *testing.T) {
 	}
 	s.ObservePlayback(playing("2", 1000, 200000))
 	s.ObservePlayback(playing("2", 199000, 200000))
-	if len(p.jumps) != 1 || p.jumps[0] != "4" {
+	if len(p.jumps) != 1 || p.jumps[0] != "" { // au morceau qui suivait l'interrompu, sans le viser
 		t.Errorf("retour : %v", p.jumps)
 	}
 }

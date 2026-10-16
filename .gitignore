@@ -20,3 +20,4 @@ widget/Extension/*.entitlements
 /screen/# Clés des codes contributeur (bêtas) : jamais dans le dépôt
 .env
 .env.*
+/fonctionne/

@@ -75,6 +75,17 @@ func TestJumpForward(t *testing.T) {
 	}
 }
 
+// Sans morceau visé : on avance simplement de steps morceaux, depuis leur début (pas de position).
+func TestJumpForwardWithoutTarget(t *testing.T) {
+	q := &queueSession{fakeSession: fakeSession{id: "Spotify.exe"}, queue: []string{"1", "2", "3", "4", "5"}, idx: 1}
+	if err := replayPlayer(q).JumpForward(context.Background(), 3, "", 0); err != nil {
+		t.Fatal(err)
+	}
+	if q.idx != 4 || len(q.seeks) != 0 {
+		t.Errorf("idx=%d seeks=%v", q.idx, q.seeks)
+	}
+}
+
 var _ player.BackReplayer = (*Player)(nil)
 
 // Où en est la lecture, pour y revenir après une réécoute.
