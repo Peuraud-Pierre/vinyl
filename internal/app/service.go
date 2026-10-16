@@ -347,6 +347,32 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 	return errors.New("ce morceau n'est plus dans la file de lecture")
 }
 
+// CurrentPlaylist : playlist en cours de lecture, au format des éléments de la bibliothèque
+// (« playlist:<id> » pour Apple Music, URI pour Spotify) ; "" si inconnue.
+func (s *VinylService) CurrentPlaylist(source string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+	defer cancel()
+	switch source {
+	case "applemusic":
+		cs, ok := s.watcher.Player("applemusic").(player.ContextSaver)
+		if !ok {
+			return "", nil
+		}
+		c, err := cs.SaveContext(ctx)
+		if err != nil || c.PlaylistID == "" {
+			return "", nil
+		}
+		return "playlist:" + c.PlaylistID, nil
+	case "spotify":
+		if w, ok := s.catalogs["spotify"].(*catalog.SpotifyWeb); ok {
+			if id, err := w.CurrentPlaylist(ctx); err == nil {
+				return id, nil
+			}
+		}
+	}
+	return "", nil
+}
+
 // replayAlone lance le morceau seul puis, à sa fin, reprend la lecture interrompue (Vinyl enchaîne).
 func (s *VinylService) replayAlone(r player.ReplayResumer, source, trackID string) error {
 	q := &vinylQueue{source: source, tracks: []player.Track{{ID: trackID}}}

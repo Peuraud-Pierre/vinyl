@@ -241,3 +241,31 @@ func TestSpotifyOwnerPremiumRequired(t *testing.T) {
 		t.Errorf("got %v", err)
 	}
 }
+
+// Playlist en cours (GET /me/player) : seulement si le contexte est une playlist.
+func TestSpotifyCurrentPlaylist(t *testing.T) {
+	for body, want := range map[string]string{
+		`{"context":{"type":"playlist","uri":"spotify:playlist:PL"}}`: "spotify:playlist:PL",
+		`{"context":{"type":"album","uri":"spotify:album:AL"}}`:       "",
+		`{"context":null}`: "",
+	} {
+		c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/me/player" {
+				http.Error(w, r.URL.Path, 404)
+				return
+			}
+			w.Write([]byte(body))
+		})
+		if got, err := c.CurrentPlaylist(context.Background()); err != nil || got != want {
+			t.Errorf("%s → %q, %v", body, got, err)
+		}
+	}
+}
+
+// Rien ne joue (204, corps vide) : pas d'erreur, pas de playlist.
+func TestSpotifyCurrentPlaylistNothingPlaying(t *testing.T) {
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
+	if got, err := c.CurrentPlaylist(context.Background()); err != nil || got != "" {
+		t.Errorf("%q, %v", got, err)
+	}
+}

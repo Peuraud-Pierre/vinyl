@@ -421,3 +421,41 @@ func (c *SpotifyWeb) Queue(ctx context.Context) ([]player.Track, error) {
 	}
 	return out, nil
 }
+
+// CurrentPlaylist : URI de la playlist en cours de lecture (GET /me/player), "" si rien ne joue ou si le
+// contexte n'est pas une playlist.
+func (c *SpotifyWeb) CurrentPlaylist(ctx context.Context) (string, error) {
+	tok, err := c.Token(ctx)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", c.BaseURL+"/me/player", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+tok)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 204 {
+		return "", nil // rien ne joue
+	}
+	if resp.StatusCode != 200 {
+		return "", spotifyError(resp)
+	}
+	var body struct {
+		Context *struct {
+			Type string `json:"type"`
+			URI  string `json:"uri"`
+		} `json:"context"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", err
+	}
+	if body.Context == nil || body.Context.Type != "playlist" {
+		return "", nil
+	}
+	return body.Context.URI, nil
+}

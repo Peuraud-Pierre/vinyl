@@ -53,6 +53,14 @@ export function CheckForUpdate(): $CancellablePromise<$models.UpdateInfo> {
     return $Call.ByID(4048733634);
 }
 
+/**
+ * CurrentPlaylist : playlist en cours de lecture, au format des éléments de la bibliothèque
+ * (« playlist:<id> » pour Apple Music, URI pour Spotify) ; "" si inconnue.
+ */
+export function CurrentPlaylist(source: string): $CancellablePromise<string> {
+    return $Call.ByID(2102783, source);
+}
+
 export function GetSettings(): $CancellablePromise<settings$0.Settings> {
     return $Call.ByID(1783502765);
 }

@@ -219,3 +219,19 @@ func TestQueueDuringReplayShowsThePlaylistToResume(t *testing.T) {
 		t.Errorf("file = %+v", q.Upcoming)
 	}
 }
+
+// Playlist en cours, au format des éléments de la bibliothèque.
+func TestCurrentPlaylistAppleMusic(t *testing.T) {
+	p := &fakeResumer{saved: player.PlaybackContext{PlaylistID: "PL", TrackID: "4"}}
+	s := serviceWith(p)
+	if got, err := s.CurrentPlaylist("applemusic"); err != nil || got != "playlist:PL" {
+		t.Errorf("%q, %v", got, err)
+	}
+	p.saved.PlaylistID = ""
+	if got, _ := s.CurrentPlaylist("applemusic"); got != "" {
+		t.Errorf("sans playlist : %q", got)
+	}
+	if got, _ := s.CurrentPlaylist("spotify"); got != "" { // pas de catalogue Spotify branché
+		t.Errorf("spotify : %q", got)
+	}
+}
