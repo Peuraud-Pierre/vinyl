@@ -152,15 +152,9 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-ws-bracket { position: absolute; bottom: 0; width: 7px; height: 14px; background: #3b2618; border-radius: 0 0 2px 2px; }
 .vy-ws-bracket-l { left: 40px; }
 .vy-ws-bracket-r { right: 40px; }
-/* Table sous la pile : plateau en noyer (veinage léger, ombre de la pile), chants et pieds plus sombres. */
-.vy-table { position: absolute; inset: 0; pointer-events: none; }
-.vy-table-leg { position: absolute; inset: 0; }
-.vy-table div { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.vy-table-top { border-radius: 6px;
-  background: radial-gradient(ellipse 46% 44% at 50% 52%, rgba(20,8,4,.42), transparent 75%),
-    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 3px, transparent 3px 11px, rgba(0,0,0,.04) 11px 13px, transparent 13px 29px),
-    linear-gradient(90deg, #7a5238, #8d6243 45%, #73492f); box-shadow: inset 0 0 0 1px rgba(255,235,210,.12); }
-.vy-table-front { border-radius: 0 0 4px 4px; background: linear-gradient(180deg, #5d3b26, #4a2e1d); box-shadow: inset 0 1px 0 rgba(255,225,190,.22); }
-.vy-table-side { background: linear-gradient(180deg, #3f2718, #331f13); }
-.vy-table-leg-front { background: linear-gradient(90deg, #4b2f1e, #5c3a25 55%, #432a1a); }
-.vy-table-leg-side { background: #2e1c11; }
+/* Grande table de la platine : toute la largeur, du dessus (ligne calculée par layoutScene) au bas de page. */
+.vy-room-table { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;
+  background: linear-gradient(180deg, #a0714f 0, #8d6243 10px, #7a5238 26px, #6b4630 60%, #5a3a27 100%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 3px, transparent 3px 14px, rgba(0,0,0,.035) 14px 16px, transparent 16px 37px);
+  background-blend-mode: normal, overlay;
+  box-shadow: inset 0 2px 0 rgba(255,230,200,.25), inset 0 14px 22px -14px rgba(0,0,0,.35); }

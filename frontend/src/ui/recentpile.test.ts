@@ -126,17 +126,3 @@ test("un nouveau disque posé sur la pile est animé (et lui seul)", () => {
   expect(at("2").dataset.dropped).toBe("1");
   expect(at("1").dataset.dropped).toBeUndefined();
 });
-
-// La pile est posée sur une table (plateau + quatre pieds), là même quand la pile est vide.
-test("une table porte la pile", () => {
-  const root = document.createElement("div");
-  const pile = mountRecentPile(root, { play: vi.fn() });
-  pile.update([]);
-  expect(root.querySelector(".vy-table")).not.toBeNull();
-  expect(root.querySelectorAll(".vy-table-leg").length).toBe(4);
-  pile.update(["2", "1"].map(e));
-  const table = root.querySelector(".vy-table")!;
-  const firstDisc = root.querySelector(".vy-recent-disc")!;
-  // La table est dessinée avant les disques (dessous) et ne capte pas les clics.
-  expect(table.compareDocumentPosition(firstDisc) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-});

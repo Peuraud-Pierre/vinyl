@@ -1,32 +1,29 @@
-import { api, onHistory, onSettings, onSnapshot, onStats, type Snapshot, type StatsSnapshot } from "../api";
-import { go } from "../router";
+import { activeSource, api, onHistory, onSettings, onSnapshot, onStats, type Item, type Snapshot, type StatsSnapshot } from "../api";
+import { go, type Route } from "../router";
 import { openShareCard } from "../share/sharecard";
-import { STAGE_H, STAGE_W, Turntable } from "../turntable/turntable";
+import { Turntable } from "../turntable/turntable";
 import { mountDeck } from "../ui/deck";
 import { platform } from "../ui/platform";
 import { icons } from "../ui/icons";
 import { mountRecentPile, type RecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
+import { mountWallShelf, openPlaylistShelf } from "../ui/wallshelf";
+import { layoutScene } from "./scene";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
 const CONTROLS_W = 140;
-// Scène de la page : platine, plus la pile des derniers écoutés à sa droite (au-delà du bras au repos).
-// La pile déborde un peu sous la colonne de commandes (libre en bas) pour ne pas rapetisser la platine.
-const SCENE_W = STAGE_W + 450;
-// Place de la pile dans la scène (px de scène). Elle est hors de la scène mise à l'échelle (même montage
-// 3D que l'étagère) : sa position et sa taille sont recalculées à chaque redimensionnement.
-const RECENT = { x: STAGE_W + 60, y: 150, w: 500, h: 460 };
-
 export function mount(el: HTMLElement): () => void {
   el.innerHTML = `
     <div id="pl-scroll" class="shelf-scroll h-screen overflow-y-auto">
     <section class="relative h-screen">
       <h1 id="pl-title" class="sr-only"></h1>
+      <div id="pl-table" class="vy-room-table" aria-hidden="true"></div>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:179px;top:610px"></div>
         </div>
         <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>
+        <div id="pl-shelf"></div>
         <p id="pl-recent-msg" class="glass pointer-events-none absolute hidden rounded-full px-5 py-2 text-[14px]" role="status"></p>
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
@@ -63,17 +60,22 @@ export function mount(el: HTMLElement): () => void {
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const fit = () => {
     const wrap = $("pl-wrap").getBoundingClientRect();
-    const k = Math.min(wrap.width / SCENE_W, wrap.height / STAGE_H);
+    const L = layoutScene(wrap.width, wrap.height);
     const s = $("pl-scaled");
-    s.style.transform = `scale(${k})`;
-    s.style.left = `${(wrap.width - SCENE_W * k) / 2}px`;
-    s.style.top = `${(wrap.height - STAGE_H * k) / 2}px`;
+    s.style.transform = `scale(${L.stage.scale})`;
+    s.style.left = `${L.stage.x}px`;
+    s.style.top = `${L.stage.y}px`;
     const r = $("pl-recent");
-    r.style.left = `${(wrap.width - SCENE_W * k) / 2 + RECENT.x * k}px`;
-    r.style.top = `${(wrap.height - STAGE_H * k) / 2 + RECENT.y * k}px`;
-    r.style.width = `${RECENT.w * k}px`;
-    r.style.height = `${RECENT.h * k}px`;
-    recent?.setScale(k);
+    r.style.left = `${L.pile.x}px`;
+    r.style.top = `${L.pile.y}px`;
+    r.style.width = `${500 * L.pile.scale}px`;
+    r.style.height = `${460 * L.pile.scale}px`;
+    recent?.setScale(L.pile.scale);
+    const sh = $("pl-shelf");
+    sh.style.left = `${L.shelf.x}px`;
+    sh.style.top = `${L.shelf.y}px`;
+    sh.style.transform = `scale(${L.shelf.scale})`;
+    $("pl-table").style.top = `${L.tableTop}px`;
   };
   let recent: RecentPile | null = null;
   // Message bref au-dessus de la pile (morceau introuvable…).
@@ -105,6 +107,12 @@ export function mount(el: HTMLElement): () => void {
         .catch((err) => showRecentMsg(String(err).includes("plus dans la file") ? "Ce morceau n'est plus dans la file de lecture" : "Lecture impossible"))
         .finally(() => api.History().then((l) => recent?.update(l ?? [])).catch(() => {}));
     },
+  });
+  const shelf = wireShelf($("pl-shelf"), {
+    source: activeSource,
+    library: (src) => api.Library(src, "playlists", 0).then((p) => (p.items ?? []) as Item[]),
+    current: (src) => api.CurrentPlaylist(src),
+    onSettings,
   });
   const offHistory = onHistory((l) => recent?.update(l));
   api.History().then((l) => recent?.update(l ?? [])).catch(() => {});
@@ -152,5 +160,30 @@ export function mount(el: HTMLElement): () => void {
     offSet();
     ro.disconnect();
     tt.destroy();
+    shelf.destroy();
   };
+}
+
+// Étagère murale branchée sur la source active : rechargée quand la source change dans les réglages ;
+// un clic ouvre la vue Étagère des playlists de cette source.
+export function wireShelf(el: HTMLElement, deps: {
+  source(): Promise<string>;
+  library(source: string): Promise<Item[]>;
+  current(source: string): Promise<string>;
+  nav?: (route: Route, param: string) => void;
+  onSettings(cb: (s: { source: string }) => void): () => void;
+}): { destroy(): void } {
+  let lastSource = "";
+  let prev: string | null = null; // source au dernier chargement (réglage « source » au dernier changement)
+  const shelf = mountWallShelf(el, {
+    load: () => deps.source().then((s) => { lastSource = s; prev ??= s; return deps.library(s); }),
+    current: () => deps.source().then((s) => deps.current(s)),
+    open: () => void deps.source().then((s) => openPlaylistShelf(s, deps.nav)).catch(() => openPlaylistShelf(lastSource, deps.nav)),
+  });
+  // Réglages modifiés : rechargement seulement si la source a changé (pas pour le craquement, etc.).
+  const off = deps.onSettings((s) => {
+    if (prev !== null && s.source !== prev) shelf.refresh();
+    prev = s.source;
+  });
+  return { destroy() { off(); shelf.destroy(); } };
 }
