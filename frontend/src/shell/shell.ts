@@ -1,5 +1,5 @@
 // Cadre commun : gélule de commandes, menu « … », fond teinté par la pochette.
-import { api, onSnapshot, type Snapshot } from "../api";
+import { api, onSnapshot, playPause, type Snapshot } from "../api";
 import { go } from "../router";
 import { icons } from "../ui/icons";
 import { applyPalette, imageTint, paletteFor } from "../ui/theme";
@@ -39,7 +39,7 @@ export function mountShell(root: HTMLElement, accent: () => string): { refreshTh
 
   $("sh-lib").onclick = () => go("bibliotheque", "albums");
   $("sh-cover").onclick = () => go("platine");
-  $("sh-pp").onclick = () => api.PlayPause().catch(() => {});
+  $("sh-pp").onclick = () => playPause().catch(() => {});
   $("sh-queue").onclick = (e) => {
     e.stopPropagation();
     closeAll();

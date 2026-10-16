@@ -1,5 +1,5 @@
 import type { Settings, Snapshot } from "../api";
-import { api } from "../api";
+import { api, playPause } from "../api";
 import { ARM_GEOMETRY, ARM_LIFT, ARM_REST, CLICK_TOLERANCE, angleForProgress, armRelease, dragAngleFromPointer } from "./arm";
 import { estimatePosition } from "./clock";
 import { playCrackle } from "./crackle";
@@ -94,7 +94,7 @@ export class Turntable {
     if (opts.variant === "widget") this.disc.innerHTML = DISC_INNER;
     this.label = root.querySelector(".tt-label")!;
     this.arm = root.querySelector(".tt-arm");
-    this.label.addEventListener("click", () => api.PlayPause());
+    this.label.addEventListener("click", () => void playPause().catch(() => {}));
     if (this.arm) this.bindArm(this.arm);
     // Pochette de la platine : un clic la fait glisser puis revenir, avec un ressort.
     const sleeve = root.querySelector<HTMLElement>(".tt-sleeve");
@@ -258,12 +258,12 @@ export class Turntable {
       });
       end();
       try {
-        if (action.kind === "pause") await api.PlayPause();
-        if (action.kind === "play") await api.PlayPause();
+        if (action.kind === "pause") await playPause();
+        if (action.kind === "play") await playPause();
         if (action.kind === "seek") {
           if (this.appearance?.crackle) playCrackle();
           await api.SeekMs(action.positionMs);
-          if (action.resume) await api.PlayPause();
+          if (action.resume) await playPause();
         }
       } catch {
         // Aucun lecteur actif : la platine affiche déjà le message adéquat.

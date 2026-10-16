@@ -1,5 +1,5 @@
 import "./styles.css";
-import { api, applyAccent, onSettings, onWidgetUpdate } from "./api";
+import { api, applyAccent, onSettings, onWidgetUpdate, playPause } from "./api";
 import { parseRoute, type Route } from "./router";
 import { mountShell } from "./shell/shell";
 import * as platine from "./views/platine";
@@ -57,7 +57,7 @@ window.addEventListener("keydown", (e) => {
   if ((e.target as HTMLElement).closest("input, select, textarea")) return;
   if (e.code === "Space") {
     e.preventDefault();
-    api.PlayPause();
+    playPause().catch(() => {});
   }
   if (e.key === "ArrowLeft") api.Previous();
   if (e.key === "ArrowRight") api.Next();

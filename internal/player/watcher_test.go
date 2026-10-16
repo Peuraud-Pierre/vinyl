@@ -152,6 +152,10 @@ func TestPlayerQuitWhilePlaying(t *testing.T) {
 	h.tick(0)
 	h.am.err = ErrNotRunning
 	h.tick(500 * time.Millisecond)
+	if h.w.Current().Problem != "" {
+		t.Fatalf("raté passager : %+v", h.w.Current()) // voir TestBriefLossKeepsLastState
+	}
+	h.tick(lostGrace)
 	if h.w.Current().Problem != "no-player" {
 		t.Fatalf("got %+v", h.w.Current())
 	}
@@ -230,5 +234,29 @@ func TestRunAdaptiveInterval(t *testing.T) {
 	cancel()
 	if n := p.count(); n < 6 {
 		t.Errorf("intervalle court : sondages rapprochés attendus, %d", n)
+	}
+}
+
+// Musique ne répond pas une fois (pause, démarrage) : on garde le dernier état au lieu d'afficher
+// « Lance Musique ou Spotify » ; seulement si ça dure, le problème s'affiche.
+func TestBriefLossKeepsLastState(t *testing.T) {
+	h := newHarness()
+	h.am.err, h.am.np = nil, playing("A")
+	h.tick(0)
+	h.am.err = ErrNotRunning // raté passager
+	h.tick(time.Second)
+	if s := h.w.Current(); s.Problem != "" || s.NowPlaying.TrackID != "A" || h.w.Active() == nil {
+		t.Fatalf("raté passager affiché : %+v", s)
+	}
+	h.am.err, h.am.np = nil, NowPlaying{TrackID: "A", State: StatePaused, DurationMs: 1000}
+	h.tick(time.Second)
+	if s := h.w.Current(); s.Problem != "" || s.NowPlaying.State != StatePaused {
+		t.Fatalf("après reprise : %+v", s)
+	}
+	h.am.err = ErrNotRunning // Musique vraiment quitté
+	h.tick(time.Second)
+	h.tick(lostGrace)
+	if s := h.w.Current(); s.Problem != "no-player" {
+		t.Errorf("Musique quitté : %+v", s)
 	}
 }

@@ -1,6 +1,7 @@
 import { Events } from "@wailsio/runtime";
 import { VinylService } from "../bindings/vinyl/internal/app";
 import type { WidgetStatus } from "./widgetupdate";
+import { createOptimistic } from "./optimistic";
 
 // Types volontairement « larges » (string, string[]) pour rester compatibles avec les interfaces
 // générées par `wails3 generate bindings` ; les valeurs possibles sont commentées.
@@ -21,8 +22,32 @@ export interface HistoryEntry { source: string; trackId: string; title: string; 
 
 export const api = VinylService;
 
+// États du lecteur : tous les abonnés passent par le filtre de lecture/pause instantanée (optimistic.ts).
+const optimistic = createOptimistic();
+const snapSubs = new Set<(s: Snapshot) => void>();
+let lastSnap: Snapshot | undefined;
+let listening = false;
+const publish = (s: Snapshot) => { lastSnap = s; snapSubs.forEach((cb) => cb(s)); };
+
 export function onSnapshot(cb: (s: Snapshot) => void): () => void {
-  return Events.On("nowplaying", (ev) => cb(ev.data as Snapshot));
+  if (!listening) {
+    listening = true;
+    Events.On("nowplaying", (ev) => publish(optimistic.filter(ev.data as Snapshot)));
+    api.GetSnapshot().then((s) => { lastSnap ??= s; }).catch(() => {}); // pour que le premier clic soit instantané
+  }
+  snapSubs.add(cb);
+  return () => { snapSubs.delete(cb); };
+}
+
+// Lecture/pause : le disque, le titre et les boutons réagissent au clic, sans attendre le lecteur.
+export function playPause(): Promise<void> {
+  const o = optimistic.toggle(lastSnap);
+  if (o) publish(o);
+  return api.PlayPause().catch((e) => {
+    optimistic.cancel();
+    api.GetSnapshot().then(publish).catch(() => {});
+    throw e;
+  });
 }
 export function onSettings(cb: (s: Settings) => void): () => void {
   return Events.On("settings", (ev) => cb(ev.data as Settings));

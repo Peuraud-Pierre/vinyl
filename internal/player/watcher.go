@@ -11,6 +11,9 @@ import (
 const (
 	resyncEvery = 2 * time.Second
 	scriptLimit = 2 * time.Second
+	// lostGrace : le lecteur actif ne répond plus (raté passager pendant une pause, un démarrage…) ; on garde
+	// son dernier état ce temps-là avant d'afficher « Lance Musique ou Spotify ».
+	lostGrace = 4 * time.Second
 )
 
 type Snapshot struct {
@@ -31,6 +34,7 @@ type Watcher struct {
 	prevState    map[string]State
 	playingSince map[string]time.Time
 	onPlaying    func(NowPlaying)
+	lostSince    time.Time // début de la perte du lecteur actif (zéro : aucune)
 
 	mu          sync.Mutex
 	active      string
@@ -164,6 +168,17 @@ func (w *Watcher) Tick(ctx context.Context) {
 				chosen = p.Name()
 				break
 			}
+		}
+	}
+
+	if chosen != "" {
+		w.lostSince = time.Time{}
+	} else if active != "" && last.Problem == "" {
+		if w.lostSince.IsZero() {
+			w.lostSince = now
+		}
+		if now.Sub(w.lostSince) < lostGrace {
+			chosen, results[active] = active, last.NowPlaying // raté passager : rien ne change à l'écran
 		}
 	}
 

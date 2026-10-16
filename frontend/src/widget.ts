@@ -1,5 +1,5 @@
 import "./styles.css";
-import { api, applyAccent, onSettings, onSnapshot, type Settings, type Snapshot } from "./api";
+import { api, applyAccent, onSettings, onSnapshot, playPause, type Settings, type Snapshot } from "./api";
 import { Turntable } from "./turntable/turntable";
 
 const tt = new Turntable(document.getElementById("disc")!, { variant: "widget" });
@@ -19,7 +19,7 @@ function showSettings(s: Settings) {
 }
 
 document.getElementById("prev")!.onclick = () => api.Previous();
-document.getElementById("pp")!.onclick = () => api.PlayPause();
+document.getElementById("pp")!.onclick = () => void playPause().catch(() => {});
 document.getElementById("next")!.onclick = () => api.Next();
 document.getElementById("open")!.onclick = () => api.OpenMainWindow();
 
