@@ -81,6 +81,7 @@ type PlaybackContext struct {
 	PlaylistID  string
 	TrackID     string
 	PositionSec int
+	After       bool // reprendre au morceau qui suit TrackID (comme après un clic dans l'Historique)
 }
 
 // ContextSaver est implémentée par les lecteurs qui savent dire où en est la lecture (morceau,

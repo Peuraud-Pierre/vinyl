@@ -383,3 +383,25 @@ func TestAppleMusicSkipsAreMuted(t *testing.T) {
 		}
 	}
 }
+
+// Reprise « au morceau suivant » : la playlist reprend au morceau qui suivait l'interrompu.
+func TestAppleMusicResumeAfter(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"OK"}}
+	m := NewAppleMusic(r, t.TempDir())
+	if err := m.Resume(context.Background(), PlaybackContext{PlaylistID: "PL", TrackID: "T", PositionSec: 61, After: true}); err != nil {
+		t.Fatal(err)
+	}
+	if c := r.calls[0]; len(c.args) < 2 || c.args[0] != "PL" || c.args[1] != "T" || !strings.Contains(c.script, "i + 1") {
+		t.Errorf("appel : %+v", c)
+	}
+}
+
+// Morceau interrompu introuvable dans la playlist : on le reprend où il en était.
+func TestAppleMusicResumeAfterFallsBack(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"NOTFOUND", "OK"}}
+	m := NewAppleMusic(r, t.TempDir())
+	m.Resume(context.Background(), PlaybackContext{PlaylistID: "PL", TrackID: "T", PositionSec: 61, After: true})
+	if len(r.calls) != 2 || r.calls[1].args[2] != "61" {
+		t.Errorf("appels : %+v", r.calls)
+	}
+}

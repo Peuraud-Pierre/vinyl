@@ -136,7 +136,10 @@ func TestReplayThenResumeWhereThePlaylistWas(t *testing.T) {
 		t.Fatal("pas de reprise avant la fin")
 	}
 	s.ObservePlayback(player.Snapshot{NowPlaying: player.NowPlaying{Source: "applemusic", State: player.StateStopped}})
-	if len(p.resumed) != 1 || p.resumed[0] != p.saved {
+	// Comme un clic dans l'Historique de Musique : la playlist reprend au morceau qui SUIVAIT l'interrompu.
+	want := p.saved
+	want.After = true
+	if len(p.resumed) != 1 || p.resumed[0] != want {
 		t.Fatalf("reprise : %v", p.resumed)
 	}
 	s.ObservePlayback(playing("4", 61000, 300000))
@@ -211,7 +214,8 @@ func TestQueueDuringReplayShowsThePlaylistToResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(q.Upcoming) != 2 || q.Upcoming[0].ID != "4" {
+	// La playlist reprendra au morceau qui suivait l'interrompu (« 4 » n'est pas repris).
+	if len(q.Upcoming) != 1 || q.Upcoming[0].ID != "x" {
 		t.Errorf("file = %+v", q.Upcoming)
 	}
 }

@@ -392,6 +392,29 @@ const musicResumeScript = `on run argv
 	return "OK"
 end run`
 
+// argv : playlist, morceau interrompu. Lance le morceau qui le suit dans la playlist ; "END" s'il était
+// le dernier, "NOTFOUND" si la playlist ou le morceau n'y sont plus.
+const musicResumeAfterScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	tell application id "com.apple.Music"
+		try
+			set p to (first playlist whose persistent ID is (item 1 of argv))
+			set ids to persistent ID of every track of p
+		on error
+			return "NOTFOUND"
+		end try
+		set n to count of ids
+		repeat with i from 1 to n
+			if item i of ids is (item 2 of argv) then
+				if i is n then return "END"
+				play track (i + 1) of p
+				return "OK"
+			end if
+		end repeat
+	end tell
+	return "NOTFOUND"
+end run`
+
 func (m *AppleMusic) simpleRun(ctx context.Context, script string, args ...string) (string, error) {
 	out, err := m.run.Run(ctx, script, args...)
 	if err == nil && out == "NOTRUNNING" {
@@ -419,8 +442,15 @@ func (m *AppleMusic) PlayAlone(ctx context.Context, trackID string) error {
 	return err
 }
 
-// Resume reprend la playlist là où elle en était.
+// Resume reprend la playlist là où elle en était ; avec After, au morceau qui suit (repli : là où elle
+// en était si le morceau n'y est plus).
 func (m *AppleMusic) Resume(ctx context.Context, c PlaybackContext) error {
+	if c.After {
+		out, err := m.simpleRun(ctx, musicResumeAfterScript, c.PlaylistID, c.TrackID)
+		if err != nil || out == "OK" || out == "END" {
+			return err
+		}
+	}
 	_, err := m.simpleRun(ctx, musicResumeScript, c.PlaylistID, c.TrackID, strconv.Itoa(c.PositionSec))
 	return err
 }
