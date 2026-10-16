@@ -370,3 +370,22 @@ func TestNotRunningAppIsNotQueried(t *testing.T) {
 		t.Errorf("Spotify : err=%v, appels=%d", err, len(r.calls))
 	}
 }
+
+// Réécoute « comme un clic dans Musique » : le morceau est lancé dans la playlist en cours (la file de
+// Musique garde la suite de la playlist).
+func TestAppleMusicPlayWithinPlaylist(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"OK", "NOTFOUND"}}
+	m := NewAppleMusic(r, t.TempDir())
+	if ok, err := m.PlayWithinPlaylist(context.Background(), "PL", "T2"); !ok || err != nil {
+		t.Errorf("ok=%v err=%v", ok, err)
+	}
+	if c := r.calls[0]; len(c.args) != 2 || c.args[0] != "PL" || c.args[1] != "T2" || strings.Contains(c.script, "with once") {
+		t.Errorf("appel : %+v", c)
+	}
+	if ok, err := m.PlayWithinPlaylist(context.Background(), "PL", "ailleurs"); ok || err != nil {
+		t.Errorf("absent de la playlist : ok=%v err=%v", ok, err)
+	}
+	if ok, _ := m.PlayWithinPlaylist(context.Background(), "", "T2"); ok || len(r.calls) != 2 {
+		t.Error("sans playlist en cours : rien à lancer")
+	}
+}

@@ -97,6 +97,12 @@ type ReplayResumer interface {
 	Resume(ctx context.Context, c PlaybackContext) error
 }
 
+// PlaylistPlayer est implémentée par les lecteurs qui savent lancer un morceau dans une playlist, comme
+// un clic dans Musique : la file du lecteur garde la suite de la playlist. found : le morceau y est.
+type PlaylistPlayer interface {
+	PlayWithinPlaylist(ctx context.Context, playlistID, trackID string) (found bool, err error)
+}
+
 // Modes est implémentée par les lecteurs qui savent lire et régler l'aléatoire et la répétition.
 type Modes interface {
 	PlaybackModes(ctx context.Context) (shuffle bool, repeat RepeatMode, err error)
