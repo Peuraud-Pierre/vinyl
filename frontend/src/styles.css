@@ -170,7 +170,7 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-stand-side { background: linear-gradient(180deg, #b48a5c, #94703f); box-shadow: inset 0 2px 0 rgba(255,236,205,.3); }
 /* Socle de la platine : noyer foncé massif (veinage horizontal), coins arrondis, chant biseauté, posé sur
    la table (ombre portée). Le disque, le bras et les touches sont dessus. */
-.vy-plinth { position: absolute; pointer-events: none; border-radius: 16px;
+.vy-plinth { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; border-radius: 16px;
   background:
     radial-gradient(ellipse 70% 55% at 45% 40%, rgba(255,205,160,.10), transparent 70%),
     repeating-linear-gradient(180deg, rgba(255,255,255,.02) 0 1px, transparent 1px 5px, rgba(0,0,0,.07) 5px 7px, transparent 7px 17px, rgba(0,0,0,.035) 17px 20px, transparent 20px 41px),
@@ -178,6 +178,13 @@ html, body { margin: 0; height: 100%; background: transparent; }
   box-shadow: 0 18px 30px rgba(0,0,0,.5), 0 4px 8px rgba(0,0,0,.35),
     inset 0 0 0 1px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,220,180,.16), inset 2px 0 0 rgba(255,220,180,.06),
     inset 0 -3px 0 rgba(0,0,0,.35), inset 0 0 0 7px rgba(255,220,180,.025); }
+/* Platine en vue de côté : face avant (touches) et côté du socle, même noyer que le dessus. */
+.vy-tt-face { position: absolute; left: 0; top: 0; transform-origin: 0 0; cursor: pointer; opacity: 0; }
+.vy-tt-front { border-radius: 0 0 10px 10px;
+  background: repeating-linear-gradient(180deg, rgba(255,255,255,.02) 0 1px, transparent 1px 5px, rgba(0,0,0,.07) 5px 7px, transparent 7px 17px),
+    linear-gradient(180deg, #4a2e1e 0%, #33200f 100%);
+  box-shadow: inset 0 2px 0 rgba(255,220,180,.18), inset 0 -3px 0 rgba(0,0,0,.4), 0 14px 22px rgba(0,0,0,.45); }
+.vy-tt-sideface { background: linear-gradient(180deg, #2d1a0f, #1f110a); box-shadow: inset 0 2px 0 rgba(255,220,180,.1); }
 /* Grande table de la platine : plateau, ceinture avec tiroir, ombre et pieds dessous (tailles × --k). */
 .vy-room-table { --k: 1; position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none;
   background: linear-gradient(180deg, rgba(10,4,2,.55), rgba(10,4,2,.25) 45%, rgba(10,4,2,.12)); }

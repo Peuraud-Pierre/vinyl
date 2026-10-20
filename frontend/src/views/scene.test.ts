@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { ARM_GEOMETRY } from "../turntable/arm";
 import { STAGE_H } from "../turntable/turntable";
 import { SHELF_H, SHELF_W } from "../ui/wallshelf";
-import { DECK_IN_STAGE, DECK_SIZE, layoutScene, PILE_SCALE, TT_SCALE } from "./scene";
+import { DECK_IN_STAGE, DECK_SIZE, layoutScene, PILE_SCALE, plinthInStage, TT_SCALE } from "./scene";
 
 const PILE = { w: 500, h: 460 };
 const CONTROLS_W = 140; // colonne de commandes : libre en bas, la pile peut y déborder un peu
@@ -64,4 +64,14 @@ test.each(SIZES)("%i×%i : socle de platine sous le disque, le bras et les touch
   expect(P.y + P.h).toBeGreaterThan(L.tableTop);
   expect(P.x + P.w).toBeLessThan(L.pile.x - 300 * L.pile.scale);
   expect(P.w).toBeLessThan(w * 0.6);
+});
+
+// Rectangle du socle dans le repère de la platine (px de platine) : le même que le socle à l'écran.
+test("socle dans le repère de la platine", () => {
+  const L = layoutScene(1300, 900);
+  const r = plinthInStage();
+  expect(L.stage.x + r.x * L.stage.scale).toBeCloseTo(L.panel.x, 6);
+  expect(L.stage.y + r.y * L.stage.scale).toBeCloseTo(L.panel.y, 6);
+  expect(r.w * L.stage.scale).toBeCloseTo(L.panel.w, 6);
+  expect(r.h * L.stage.scale).toBeCloseTo(L.panel.h, 6);
 });

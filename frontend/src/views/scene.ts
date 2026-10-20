@@ -31,6 +31,14 @@ export const DECK_IN_STAGE = { x: 420, y: 600 };
 export const DECK_SIZE = { w: 202, h: 42 };
 const SHELF_AT = { x: ROOM.w - SHELF_W - 30, y: 90 };
 
+/** Rectangle du socle dans le repère de la platine (px de platine, avant mise à l'échelle). */
+export function plinthInStage(): { x: number; y: number; w: number; h: number } {
+  return {
+    x: (PANEL_AT.x - STAGE_AT.x) / TT_SCALE, y: (PANEL_AT.y - STAGE_AT.y) / TT_SCALE,
+    w: PANEL_AT.w / TT_SCALE, h: (PANEL_AT.bottom - PANEL_AT.y) / TT_SCALE,
+  };
+}
+
 export function layoutScene(w: number, h: number): SceneLayout {
   const k = Math.min(w / ROOM.w, h / ROOM.h);
   const ox = (w - ROOM.w * k) / 2, oy = (h - ROOM.h * k) / 2;

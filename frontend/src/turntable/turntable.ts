@@ -34,6 +34,7 @@ const TEMPLATE_STAGE = `
     <div class="tt-sleeve absolute overflow-hidden bg-cover bg-center" style="left:20px;top:60px;width:520px;height:520px;transform:rotate(-2.2deg);border-radius:10px;border:6px solid #0c0909;background-color:#15100f;box-shadow:0 30px 60px rgba(20,8,6,.55),0 4px 10px rgba(0,0,0,.4)">
       <div class="tt-sleeve-empty absolute inset-0 flex items-end p-7 text-[26px] font-semibold" style="color:#e9d6c9;background:radial-gradient(circle at 70% 62%, var(--accent) 0 18%, color-mix(in srgb, var(--accent) 50%, #15100f) 36%, #15100f 60%)"></div>
     </div>
+    <div class="tt-plane absolute left-0 top-0" style="width:${STAGE_W}px;height:${STAGE_H}px;transform-origin:0 0">
     <div class="absolute rounded-full" style="left:${DISC_LEFT}px;top:${DISC_TOP}px;width:${DISC_SIZE}px;height:${DISC_SIZE}px;box-shadow:0 26px 50px rgba(20,8,6,.55)">
       <div class="tt-disc absolute inset-0 overflow-hidden rounded-full">
         <div class="tt-base absolute inset-0 rounded-full"></div>
@@ -53,6 +54,7 @@ const TEMPLATE_STAGE = `
         <rect x="30" y="${G.length - 18}" width="16" height="30" rx="3" fill="#1b1918"/>
         <g transform="rotate(-28 38 ${G.length + 10})"><rect x="22" y="${G.length + 4}" width="40" height="62" rx="6" fill="#1f1d1c"/><rect x="54" y="${G.length + 50}" width="22" height="5" rx="2" fill="#2b2928"/></g>
       </svg>
+    </div>
     </div>
   </div>`;
 

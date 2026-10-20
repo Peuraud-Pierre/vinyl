@@ -11,7 +11,8 @@ import { mountRoomTable } from "../ui/roomtable";
 import { toCss } from "../ui/pile3d";
 import { mountSleeveStand, SLEEVE_S, sleeveAtScale, sleeveInStage, standGeometry } from "../ui/sleevestand";
 import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
-import { DECK_IN_STAGE, layoutScene } from "./scene";
+import { layoutScene, type SceneLayout } from "./scene";
+import { easeInOut, lerpMat, sideView, topView, viewState } from "../ui/turntableside";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
 const CONTROLS_W = 140;
@@ -23,15 +24,18 @@ export function mount(el: HTMLElement): () => void {
       <div id="pl-table" aria-hidden="true"></div>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-panel" class="vy-plinth" aria-hidden="true"></div>
+        <div id="pl-tt-side" class="vy-tt-face vy-tt-sideface" aria-hidden="true"></div>
+        <div id="pl-tt-front" class="vy-tt-face vy-tt-front" aria-hidden="true"></div>
         <div id="pl-stand-back"></div>
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
-          <div id="pl-deck" class="absolute" style="left:${DECK_IN_STAGE.x}px;top:${DECK_IN_STAGE.y}px"></div>
+          <div id="pl-deck" class="absolute left-0 top-0" style="transform-origin:0 0"></div>
         </div>
         <div id="pl-stand"></div>
         <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>
         <div id="pl-shelf"></div>
         <p id="pl-recent-msg" class="glass pointer-events-none absolute hidden rounded-full px-5 py-2 text-[14px]" role="status"></p>
       </div>
+      <button id="pl-view" class="glass round-btn vy-drop fixed z-30" style="left:44px;top:28px" aria-label="Vue de côté" title="Vue de côté (Échap)" hidden>${icons.sideview}</button>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
       <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
       <button id="pl-mini" class="vy-drop fixed z-30 h-[58px] w-[58px] overflow-hidden rounded-[16px] bg-cover bg-center" style="left:44px;bottom:32px;box-shadow:0 0 0 2px rgba(255,255,255,.45),0 8px 20px rgba(0,0,0,.35);background-color:#2a2220" aria-label="Mini-platine" title="Mini-platine (⌘⇧M)"></button>
@@ -66,6 +70,42 @@ export function mount(el: HTMLElement): () => void {
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const roomTable = mountRoomTable($("pl-table"));
   const stand = mountSleeveStand($("pl-stand-back"), $("pl-stand"));
+  // Deux vues de la platine : de côté (par défaut, en volume, touches sur la face avant) et de dessus
+  // (disque et bras manipulables). Bascule animée entre les deux (ui/turntableside).
+  let tView = 1; // 1 = vue de côté, 0 = vue de dessus
+  let lastLayout: SceneLayout | null = null;
+  let viewRaf = 0;
+  const plane = () => $("tt").querySelector<HTMLElement>(".tt-plane");
+  const applyView = (L: SceneLayout, t: number) => {
+    const T = topView(L), S = sideView(L);
+    const at = (k: "wrapper" | "deck" | "panel") => toCss(lerpMat(T[k], S[k], t));
+    const p = plane();
+    if (p) p.style.transform = at("wrapper");
+    $("pl-deck").style.transform = at("deck");
+    $("pl-panel").style.transform = at("panel");
+    for (const [id, m, [w, h]] of [["pl-tt-front", S.front, S.frontSize], ["pl-tt-side", S.side, S.sideSize]] as const) {
+      Object.assign($(id).style, { width: `${w}px`, height: `${h}px`, transform: toCss(m), opacity: String(t) });
+    }
+    const v = viewState(t);
+    if (p) p.style.pointerEvents = v.topInteractive ? "" : "none";
+    for (const id of ["pl-panel", "pl-tt-front", "pl-tt-side"]) $(id).style.pointerEvents = v.plinthOpensTop ? "auto" : "none";
+    $("pl-view").hidden = !v.showSideButton;
+  };
+  const setView = (to: 0 | 1) => {
+    cancelAnimationFrame(viewRaf);
+    const from = tView, start = performance.now(), dur = 520;
+    const step = (now: number) => {
+      const k = Math.min(1, (now - start) / dur);
+      tView = from + (to - from) * easeInOut(k);
+      if (lastLayout) applyView(lastLayout, tView);
+      if (k < 1) viewRaf = requestAnimationFrame(step);
+    };
+    viewRaf = requestAnimationFrame(step);
+  };
+  for (const id of ["pl-panel", "pl-tt-front", "pl-tt-side"]) $(id).addEventListener("click", () => { if (tView >= 1) setView(0); });
+  $("pl-view").onclick = () => setView(1);
+  const onEscape = (e: KeyboardEvent) => { if (e.key === "Escape" && tView < 1) setView(1); };
+  window.addEventListener("keydown", onEscape);
   const fit = () => {
     const wrap = $("pl-wrap").getBoundingClientRect();
     const L = layoutScene(wrap.width, wrap.height);
@@ -84,7 +124,9 @@ export function mount(el: HTMLElement): () => void {
     sh.style.top = `${L.shelf.y}px`;
     sh.style.transform = `scale(${L.shelf.scale})`;
     $("pl-table").style.top = `${L.tableTop}px`;
-    Object.assign($("pl-panel").style, { left: `${L.panel.x}px`, top: `${L.panel.y}px`, width: `${L.panel.w}px`, height: `${L.panel.h}px` });
+    Object.assign($("pl-panel").style, { left: "0px", top: "0px", width: `${L.panel.w}px`, height: `${L.panel.h}px` });
+    lastLayout = L;
+    applyView(L, tView);
     // Pochette sur son support : vus avec la caméra de la pile (ui/sleevestand). Le support est placé et mis à
     // l'échelle comme la pile ; la pochette reste dans la platine (image, clic), sa matrice est convertie.
     for (const id of ["pl-stand-back", "pl-stand"]) Object.assign($(id).style, { left: `${L.pile.x}px`, top: `${L.pile.y}px` });
@@ -180,6 +222,8 @@ export function mount(el: HTMLElement): () => void {
     offStats();
     offSnap();
     window.removeEventListener("focus", onFocus);
+    window.removeEventListener("keydown", onEscape);
+    cancelAnimationFrame(viewRaf);
     offHistory();
     clearTimeout(msgTimer);
     offSet();
