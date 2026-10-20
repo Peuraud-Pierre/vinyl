@@ -6,7 +6,7 @@
 // le rebord avant (gravé), devant elle. La pochette est calée dans la rainure entre les deux et penche un
 // peu en arrière.
 import type { Placed } from "../views/scene";
-import { boxMatrices, mul, scaleXY, toCss, translate, type Box, type Faces, type Mat4 } from "./pile3d";
+import { atScale, boxMatrices, mul, scaleXY, toCss, translate, type Box, type Faces, type Mat4 } from "./pile3d";
 import { PILE_TURN, PILE_VIEW } from "./recentpile";
 
 const BASE = PILE_VIEW.height; // ligne de la table dans le repère de la pile
@@ -34,28 +34,40 @@ export function sleeveInStage(sleeve: Mat4, pile: Placed, stage: Placed): Mat4 {
   return mul(translate((pile.x - stage.x) / stage.scale, (pile.y - stage.y) / stage.scale, 0), mul(scaleXY(r), sleeve));
 }
 
-function face(cls: string, w: number, h: number, m: Mat4, text = ""): HTMLElement {
+/** Pochette dessinée q fois plus grande (à sa taille d'affichage, donc nette) : même projection. */
+export function sleeveAtScale(m: Mat4, q: number): Mat4 {
+  return mul(m, scaleXY(1 / q));
+}
+
+function face(cls: string, w: number, h: number, m: Mat4, s: number, text = ""): HTMLElement {
   const f = Object.assign(document.createElement("div"), { className: cls, textContent: text });
-  f.style.width = `${w}px`;
-  f.style.height = `${h}px`;
-  f.style.transform = toCss(m);
+  f.style.width = `${w * s}px`;
+  f.style.height = `${h * s}px`;
+  f.style.transform = toCss(atScale(m, s));
   return f;
 }
 
-/** Socle (deux calques placés et mis à l'échelle comme la pile) : back derrière la pochette, front devant. */
-export function mountSleeveStand(back: HTMLElement, front: HTMLElement): void {
+/** Socle en deux calques placés comme la pile (back derrière la pochette, front devant), dessinés à leur
+ *  taille d'affichage : setScale(échelle de la pile) les redessine. */
+export function mountSleeveStand(back: HTMLElement, front: HTMLElement): { setScale(s: number): void } {
   const g = standGeometry();
   for (const el of [back, front]) {
     el.classList.add("vy-stand");
     el.setAttribute("aria-hidden", "true");
   }
-  back.replaceChildren(
-    face("vy-stand-side", STAND_BACK.d, STAND_BACK.h, g.back.side),
-    face("vy-stand-top vy-stand-groove", STAND_BACK.w, STAND_BACK.d, g.back.top),
-  );
-  front.replaceChildren(
-    face("vy-stand-side", STAND_RAIL.d, STAND_RAIL.h, g.rail.side),
-    face("vy-stand-top", STAND_RAIL.w, STAND_RAIL.d, g.rail.top),
-    face("vy-stand-front", STAND_RAIL.w, STAND_RAIL.h, g.rail.front, "EN ÉCOUTE"),
-  );
+  const draw = (s: number) => {
+    for (const el of [back, front]) el.style.setProperty("--ps", String(s));
+    back.replaceChildren(
+      face("vy-stand-side", STAND_BACK.d, STAND_BACK.h, g.back.side, s),
+      face("vy-stand-top vy-stand-groove", STAND_BACK.w, STAND_BACK.d, g.back.top, s),
+    );
+    front.replaceChildren(
+      face("vy-stand-side", STAND_RAIL.d, STAND_RAIL.h, g.rail.side, s),
+      face("vy-stand-top", STAND_RAIL.w, STAND_RAIL.d, g.rail.top, s),
+      face("vy-stand-front", STAND_RAIL.w, STAND_RAIL.h, g.rail.front, s, "EN ÉCOUTE"),
+    );
+  };
+  let current = 1;
+  draw(current);
+  return { setScale(s) { if (s !== current) { current = s; draw(s); } } };
 }

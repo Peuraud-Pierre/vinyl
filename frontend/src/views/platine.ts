@@ -9,7 +9,7 @@ import { mountRecentPile, type RecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
 import { mountRoomTable } from "../ui/roomtable";
 import { toCss } from "../ui/pile3d";
-import { mountSleeveStand, SLEEVE_S, sleeveInStage, standGeometry } from "../ui/sleevestand";
+import { mountSleeveStand, SLEEVE_S, sleeveAtScale, sleeveInStage, standGeometry } from "../ui/sleevestand";
 import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
 import { DECK_IN_STAGE, layoutScene } from "./scene";
 
@@ -65,7 +65,7 @@ export function mount(el: HTMLElement): () => void {
 
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const roomTable = mountRoomTable($("pl-table"));
-  mountSleeveStand($("pl-stand-back"), $("pl-stand"));
+  const stand = mountSleeveStand($("pl-stand-back"), $("pl-stand"));
   const fit = () => {
     const wrap = $("pl-wrap").getBoundingClientRect();
     const L = layoutScene(wrap.width, wrap.height);
@@ -87,14 +87,15 @@ export function mount(el: HTMLElement): () => void {
     Object.assign($("pl-panel").style, { left: `${L.panel.x}px`, top: `${L.panel.y}px`, width: `${L.panel.w}px`, height: `${L.panel.h}px` });
     // Pochette sur son support : vus avec la caméra de la pile (ui/sleevestand). Le support est placé et mis à
     // l'échelle comme la pile ; la pochette reste dans la platine (image, clic), sa matrice est convertie.
-    for (const id of ["pl-stand-back", "pl-stand"]) {
-      Object.assign($(id).style, { left: `${L.pile.x}px`, top: `${L.pile.y}px`, scale: String(L.pile.scale) });
-    }
+    for (const id of ["pl-stand-back", "pl-stand"]) Object.assign($(id).style, { left: `${L.pile.x}px`, top: `${L.pile.y}px` });
+    stand.setScale(L.pile.scale); // dessiné à sa taille d'affichage (net)
     const sl = $("tt").querySelector<HTMLElement>(".tt-sleeve");
     if (sl) {
+      // Dessinée à la taille où elle s'affiche (q = échelle de la pile) : image nette, même projection.
+      const q = L.pile.scale;
       Object.assign(sl.style, {
-        left: "0px", top: "0px", width: `${SLEEVE_S}px`, height: `${SLEEVE_S}px`, transformOrigin: "0 0",
-        transform: toCss(sleeveInStage(standGeometry().sleeve, L.pile, L.stage)),
+        left: "0px", top: "0px", width: `${SLEEVE_S * q}px`, height: `${SLEEVE_S * q}px`, transformOrigin: "0 0",
+        transform: toCss(sleeveAtScale(sleeveInStage(standGeometry().sleeve, L.pile, L.stage), q)),
       });
     }
     roomTable.setScale(L.k);

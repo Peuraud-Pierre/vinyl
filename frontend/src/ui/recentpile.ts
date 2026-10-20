@@ -4,7 +4,7 @@
 import type { HistoryEntry } from "../api";
 import { escapeHtml } from "../views/grid";
 import { spineColors } from "../views/shelf";
-import { faceMatrices, toCss, type PileView } from "./pile3d";
+import { atScale, faceMatrices, toCss, type PileView } from "./pile3d";
 import { imageTint } from "./theme";
 
 export const RECENT_MAX = 7;
@@ -33,19 +33,23 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
   let seen = new Set<string>(); // disques de l'affichage précédent
   let first = true;
   let scale = 1;
-  let zoom: HTMLElement | null = null;
-  // Faces projetées par le calcul (pile3d) : aucune 3D du navigateur, seulement une mise à l'échelle.
-  const applyScale = () => {
-    if (zoom) zoom.style.scale = String(scale);
-  };
+  let last: HistoryEntry[] | null = null;
+  // Faces projetées par le calcul (pile3d), dessinées à leur taille d'affichage (--ps, atScale) : rien
+  // n'est agrandi après coup, les pochettes restent nettes en grand ou zoomées.
+  const at = (m: Parameters<typeof toCss>[0]) => toCss(atScale(m, scale));
   const paint = (slab: HTMLElement, it: HistoryEntry) => {
     const c = spineColors(it.title, tints.get(key(it)) ?? undefined);
     slab.style.background = c.bg;
     slab.style.color = c.ink;
   };
-  return {
-    setScale(k) { scale = k; applyScale(); },
+  const pileApi: RecentPile = {
+    setScale(k) {
+      if (k === scale) return;
+      scale = k;
+      if (last) pileApi.update(last); // redessinée à la nouvelle taille (sans animation : rien de nouveau)
+    },
     update(list) {
+      last = list;
       const shown = list.slice(0, RECENT_MAX);
       const n = shown.length;
       // Un disque vient d'être posé : celui du dessus n'était pas sur la pile juste avant. (Après une
@@ -56,9 +60,8 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
       root.innerHTML = "";
       const pile = document.createElement("div");
       pile.className = "vy-recent-3d";
+      pile.style.setProperty("--ps", String(scale));
       root.appendChild(pile);
-      zoom = pile;
-      applyScale();
       let topDisc: HTMLElement | null = null;
       // Du plus ancien (en bas) au plus récent (en haut). Chaque disque est un petit volume :
       // tranche de face, côté droit (visible puisque la pile a pivoté) et pochette posée à plat dessus
@@ -78,10 +81,10 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         b.setAttribute("aria-label", `${it.title} — ${it.artist}`);
         b.title = `${it.title} — ${it.artist}`;
         b.innerHTML = `<b>${escapeHtml(it.title)}</b><span>${escapeHtml(it.artist)}</span>`;
-        b.style.transform = toCss(m.front);
+        b.style.transform = at(m.front);
         const side = document.createElement("div");
         side.className = "vy-recent-side";
-        side.style.transform = toCss(m.side);
+        side.style.transform = at(m.side);
         // Côté plus sombre, par la couleur.
         const paintAll = () => {
           paint(b, it);
@@ -94,7 +97,7 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
         lid.setAttribute("aria-label", `${it.title} — ${it.artist}`);
         lid.title = `${it.title} — ${it.artist}`;
         if (it.artworkUrl) lid.style.backgroundImage = cssUrl(it.artworkUrl);
-        lid.style.transform = toCss(m.top);
+        lid.style.transform = at(m.top);
         // Ordre de dessin : pochette, côté, puis tranche (devant).
         d.append(lid, side, b);
         // Tout le disque est cliquable (tranche, côté, pochette) ; au clavier, la tranche suffit.
@@ -110,10 +113,11 @@ export function mountRecentPile(root: HTMLElement, deps: { play(e: HistoryEntry)
       if (dropped && topDisc) {
         topDisc.dataset.dropped = "1";
         // Posé depuis le disque : il arrive d'en haut à gauche et se dépose sur la pile.
-        const from = { opacity: 0, translate: "-140px -70px" };
+        const from = { opacity: 0, translate: `${-140 * scale}px ${-70 * scale}px` };
         const to = { opacity: 1, translate: "0 0" };
         topDisc?.animate?.([from, to], { duration: 650, easing: "cubic-bezier(.2,.75,.2,1)" });
       }
     },
   };
+  return pileApi;
 }

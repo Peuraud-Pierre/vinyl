@@ -70,19 +70,23 @@ test("pile tournée dans l'autre sens, chaque disque un peu de travers au hasard
   expect(new Set(yaws).size).toBeGreaterThan(2); // pas tous pareils
 });
 
-// Même montage que l'étagère (dont la 3D s'affiche bien dans l'app) : conteneur en perspective non
-// transformé, un seul niveau en preserve-3d portant l'échelle, puis les disques.
-test("montage 3D comme l'étagère : l'échelle est portée par le niveau 3D, pas par un parent", () => {
+// Dessinée à sa taille d'affichage (nette en grand ou zoomée) : pas d'agrandissement du conteneur ; les
+// faces sont à l'échelle (--ps) et leurs matrices en tiennent compte. Redimensionner redessine.
+test("pile dessinée à la taille d'affichage : pas d'agrandissement, faces à l'échelle", () => {
   const root = document.createElement("div");
   const pile = mountRecentPile(root, { play: vi.fn() });
   pile.setScale(0.8);
   pile.update(["b", "a"].map(e));
   const zoom = root.querySelector<HTMLElement>(".vy-recent-3d")!;
   expect(zoom.parentElement).toBe(root);
-  expect(zoom.style.scale).toBe("0.8");
-  expect(zoom.querySelector(".vy-recent-disc")!.parentElement).toBe(zoom);
+  expect(zoom.style.scale).toBe("");
+  expect(zoom.style.getPropertyValue("--ps")).toBe("0.8");
+  const lid = () => root.querySelector<HTMLElement>(".vy-recent-lid")!.style.transform;
+  const before = lid();
   pile.setScale(1.1); // redimensionnement de la fenêtre
-  expect(root.querySelector<HTMLElement>(".vy-recent-3d")!.style.scale).toBe("1.1");
+  expect(root.querySelector<HTMLElement>(".vy-recent-3d")!.style.getPropertyValue("--ps")).toBe("1.1");
+  expect(lid()).not.toBe(before);
+  expect(root.querySelectorAll(".vy-recent-disc").length).toBe(2);
 });
 
 test("côtés des disques assombris par la couleur, sans filtre (un filtre aplatit la 3D dans WebKit)", () => {

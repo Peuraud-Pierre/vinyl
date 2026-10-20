@@ -130,17 +130,17 @@ html, body { margin: 0; height: 100%; background: transparent; }
 /* Pile des derniers écoutés (à droite du disque) : disques couchés vus un peu d'en haut. Chaque face
    (tranche, côté, pochette) reçoit sa matrice de projection calculée (ui/pile3d.ts) : pas de preserve-3d,
    qui s'aplatissait dans WebKit. Toutes les faces partent du coin haut gauche de la pile. */
-.vy-recent-3d { position: absolute; left: 0; top: 0; width: 500px; height: 460px; transform-origin: 0 0; }
+.vy-recent-3d { --ps: 1; position: absolute; left: 0; top: 0; width: calc(500px * var(--ps)); height: calc(460px * var(--ps)); }
 .vy-recent-disc { position: absolute; inset: 0; pointer-events: none; }
 .vy-recent, .vy-recent-side, .vy-recent-lid { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: auto; cursor: pointer; }
-.vy-recent { width: 500px; height: 20px; display: flex; align-items: center; gap: 10px; padding: 0 18px; border: 0; border-radius: 2px;
-  font-size: 13px; line-height: 1; white-space: nowrap; overflow: hidden; text-align: left;
+.vy-recent { width: calc(500px * var(--ps)); height: calc(20px * var(--ps)); display: flex; align-items: center; gap: calc(10px * var(--ps)); padding: 0 calc(18px * var(--ps)); border: 0; border-radius: 2px;
+  font-size: calc(13px * var(--ps)); line-height: 1; white-space: nowrap; overflow: hidden; text-align: left;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -2px 3px rgba(0,0,0,.28); }
 .vy-recent b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
 .vy-recent span { opacity: .75; overflow: hidden; text-overflow: ellipsis; }
 .vy-recent:hover { filter: brightness(1.12); }
-.vy-recent-side { width: 500px; height: 20px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 2px rgba(0,0,0,.35); }
-.vy-recent-lid { width: 500px; height: 500px; border: 0; padding: 0; border-radius: 3px; background: #2a2220 center / cover; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.vy-recent-side { width: calc(500px * var(--ps)); height: calc(20px * var(--ps)); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 2px rgba(0,0,0,.35); }
+.vy-recent-lid { width: calc(500px * var(--ps)); height: calc(500px * var(--ps)); border: 0; padding: 0; border-radius: 3px; background: #2a2220 center / cover; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
 .vy-recent-lid:hover { filter: brightness(1.08); }
 /* Étagère murale de playlists (platine) : tranches serrées, une pochette en biais, planche et équerres. */
 .vy-wallshelf { position: absolute; width: 330px; height: 150px; transform-origin: 0 0; cursor: pointer; outline: none; transition: filter .2s; }
@@ -156,13 +156,13 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-ws-bracket-l { left: 40px; }
 .vy-ws-bracket-r { right: 40px; }
 /* Support de pochette « en écoute » (faces projetées comme la pile : ui/sleevestand) : chêne clair. */
-.vy-stand { position: absolute; width: 500px; height: 460px; transform-origin: 0 0; pointer-events: none; }
+.vy-stand { --ps: 1; position: absolute; pointer-events: none; }
 .vy-stand > div { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .vy-stand-front { display: flex; align-items: center; justify-content: center; border-radius: 0 0 4px 4px;
   background: linear-gradient(180deg, #e2c196 0, #cba679 14%, #b68d60 100%),
     repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 9px, rgba(0,0,0,.05) 9px 10px, transparent 10px 23px);
   background-blend-mode: normal, overlay; box-shadow: inset 0 -2px 3px rgba(0,0,0,.22);
-  font: 700 16px/1 -apple-system, "SF Pro Text", sans-serif; letter-spacing: .3em; color: rgba(74,42,20,.72); text-shadow: 0 1px 0 rgba(255,236,205,.5); }
+  font: 700 calc(16px * var(--ps))/1 -apple-system, "SF Pro Text", sans-serif; letter-spacing: .3em; color: rgba(74,42,20,.72); text-shadow: 0 1px 0 rgba(255,236,205,.5); }
 .vy-stand-top { background: linear-gradient(180deg, #cfa97c, #e2c398); }
 /* Dessus arrière : la rainure (sombre) le long de son bord avant, où la pochette est calée. */
 .vy-stand-groove { border-radius: 4px 4px 0 0;

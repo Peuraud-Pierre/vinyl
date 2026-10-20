@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { apply, boxMatrices, faceMatrices, type PileView } from "./pile3d";
+import { apply, atScale, boxMatrices, faceMatrices, type PileView } from "./pile3d";
 
 const view: PileView = { width: 500, height: 460, depth: 500, slab: 20, eye: { x: 200, y: -70 }, perspective: 1800 };
 const near = (a: [number, number], b: [number, number]) => {
@@ -66,4 +66,17 @@ test("un pavé penché en arrière garde son arête basse, son haut recule", () 
   near(apply(leaning.front, 100, 200), apply(straight.front, 100, 200));
   // Vu d'en haut, un haut qui recule paraît plus haut à l'écran… et le pavé paraît plus court.
   expect(apply(leaning.front, 50, 0)[1]).toBeGreaterThan(apply(straight.front, 50, 0)[1]);
+});
+
+// Dessin à la taille d'affichage : un élément s fois plus grand, avec la matrice atScale(m, s), tombe
+// exactement là où m l'aurait mis puis agrandi de s — mais il est rendu net (pas d'agrandissement).
+test("atScale : même projection, élément dessiné à la taille d'affichage", () => {
+  const m = faceMatrices(view, 3, 4, -20).top;
+  for (const s of [0.6, 1, 1.8]) {
+    const big = atScale(m, s);
+    for (const [u, v] of [[0, 0], [500, 0], [0, 500], [250, 120]]) {
+      const [x, y] = apply(m, u!, v!);
+      near(apply(big, u! * s, v! * s), [x * s, y * s]);
+    }
+  }
 });

@@ -3,7 +3,7 @@ import { ARM_GEOMETRY } from "../turntable/arm";
 import { layoutScene } from "../views/scene";
 import { apply, faceMatrices, type Mat4 } from "./pile3d";
 import { PILE_TURN, PILE_VIEW } from "./recentpile";
-import { mountSleeveStand, SLEEVE_BOX, SLEEVE_S, SLEEVE_TILT, sleeveInStage, standGeometry, STAND_BACK, STAND_RAIL } from "./sleevestand";
+import { mountSleeveStand, SLEEVE_BOX, SLEEVE_S, SLEEVE_TILT, sleeveAtScale, sleeveInStage, standGeometry, STAND_BACK, STAND_RAIL } from "./sleevestand";
 
 const corners = (m: Mat4, w: number, h: number) => [[0, 0], [w, 0], [0, h], [w, h]].map(([u, v]) => apply(m, u!, v!));
 
@@ -77,4 +77,29 @@ test.each([[1300, 900], [1780, 700], [960, 1000], [600, 400]])("%i×%i : entre l
   const ttRight = L.stage.x + (ARM_GEOMETRY.pivot.x + 50) * L.stage.scale;
   expect(Math.min(...front.map(([x]) => x!))).toBeGreaterThan(ttRight);
   expect(Math.max(...front.map(([, y]) => y!))).toBeGreaterThan(L.tableTop); // le support repose sur la table
+});
+
+// Support dessiné à sa taille d'affichage (net en grand) : faces à l'échelle, matrices en conséquence.
+test("support : faces dessinées à l'échelle d'affichage", () => {
+  const back = document.createElement("div"), front = document.createElement("div");
+  const stand = mountSleeveStand(back, front);
+  const w = () => front.querySelector<HTMLElement>(".vy-stand-front")!.style.width;
+  expect(w()).toBe(`${STAND_RAIL.w}px`);
+  stand.setScale(1.5);
+  expect(w()).toBe(`${STAND_RAIL.w * 1.5}px`);
+  expect(front.style.getPropertyValue("--ps")).toBe("1.5");
+});
+
+// Pochette dessinée à la taille où elle s'affiche : élément agrandi de q, même projection.
+test("pochette : même projection quand elle est dessinée q fois plus grande", () => {
+  const L = layoutScene(1780, 1080);
+  const g = standGeometry();
+  const q = L.pile.scale;
+  const ref = sleeveInStage(g.sleeve, L.pile, L.stage), big = sleeveAtScale(ref, q);
+  for (const [u, v] of [[0, 0], [SLEEVE_S, SLEEVE_S], [100, 300]]) {
+    const [x, y] = apply(ref, u!, v!);
+    const [bx, by] = apply(big, u! * q, v! * q);
+    expect(bx).toBeCloseTo(x, 6);
+    expect(by).toBeCloseTo(y, 6);
+  }
 });

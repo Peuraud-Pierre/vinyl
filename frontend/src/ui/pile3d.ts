@@ -67,6 +67,12 @@ export function faceMatrices(v: PileView, level: number, dx: number, yaw: number
     { x: v.width / 2 + dx, y: yTop + v.slab / 2, z: -v.depth / 2 });
 }
 
+/** Même projection pour un élément dessiné s fois plus grand (à sa taille d'affichage, donc net) :
+ *  ses coordonnées sont ramenées à l'échelle 1, projetées par m, puis agrandies de s. */
+export function atScale(m: Mat4, s: number): Mat4 {
+  return mul(scaleXY(s), mul(m, scaleXY(1 / s)));
+}
+
 /** Point (u, v) de l'élément → position à l'écran (px de la pile). */
 export function apply(m: Mat4, u: number, v: number): [number, number] {
   const x = m[0]! * u + m[4]! * v + m[12]!;
