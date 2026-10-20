@@ -23,7 +23,5 @@ export const icons = {
   shuffle: svg(22, '<path d="M3 7h3.5c2.6 0 4 1.2 5.5 5s2.9 5 5.5 5H21"/><path d="M3 17h3.5c1.4 0 2.5-.4 3.4-1.3"/><path d="M14.1 8.3C15 7.4 16.1 7 17.5 7H21"/><path d="M18 4l3 3-3 3"/><path d="M18 14l3 3-3 3"/>'),
   repeat: svg(22, '<path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M17 3l3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="M7 21l-3-3 3-3"/>'),
   repeatOne: svg(22, '<path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M17 3l3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="M7 21l-3-3 3-3"/><path d="M11.5 10.5l1.5-1v5"/>'),
-  sideview: svg(22, '<path d="M3 15l4-4h13l-3 4z"/><path d="M3 15v3h14l3-3v-4"/><path d="M17 18v-3"/><ellipse cx="11.5" cy="12.5" rx="4" ry="1.2"/>'),
-  topview: svg(22, '<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><circle cx="10.5" cy="12" r="5"/><circle cx="10.5" cy="12" r="1.2"/><path d="M17.5 6.5v8l-3 3"/>'),
   mini: svg(20, '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/>'),
 };
