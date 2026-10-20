@@ -26,6 +26,12 @@ export function shelfTransform(i: number, offset: number, halfWidth: number): { 
   return { x, rotateY: onRight ? -angle : angle, zIndex: 1000 - Math.round(Math.abs(x)), spineRight: onRight };
 }
 
+/** Transformation CSS d'un boîtier, à l'échelle d'affichage (unit) : les boîtiers sont dessinés à leur vraie
+ *  taille (largeur 300 × unit), sans agrandissement après coup — sinon pochettes floues en grand. */
+export function boxTransform(t: { x: number; rotateY: number }, unit: number): string {
+  return `translate(-50%,-50%) translateX(${+(t.x * unit).toFixed(3)}px) rotateY(${t.rotateY}deg)`;
+}
+
 /** Position de départ : borné par clampOffset, le premier boîtier se place au milieu. */
 export const SHELF_START = -Infinity;
 

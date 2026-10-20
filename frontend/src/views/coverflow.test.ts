@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { CENTER_GAP, clampOffset, SHELF_START, SHELF_ANGLE, SHELF_GAP, SHELF_MARGIN, SHELF_SPINE, shelfTransform, springStep, visibleIndices, wheelDelta } from "./coverflow";
+import { boxTransform, CENTER_GAP, clampOffset, SHELF_START, SHELF_ANGLE, SHELF_GAP, SHELF_MARGIN, SHELF_SPINE, shelfTransform, springStep, visibleIndices, wheelDelta } from "./coverflow";
 
 const HALF = 600; // demi-largeur de la scène
 
@@ -147,4 +147,12 @@ test("passage du centre sans saut : la tranche reste au même endroit à l'écra
 
 test("au départ (demande utilisateur), le premier boîtier est au milieu", () => {
   for (const n of [1, 3, 120]) expect(shelfTransform(0, clampOffset(SHELF_START, n, HALF), HALF).x).toBeCloseTo(0, 6);
+});
+
+// Boîtiers dessinés à leur vraie taille (unité = échelle d'affichage) : rien n'est agrandi après coup,
+// les pochettes restent nettes en grand ou zoomées. Les positions suivent l'unité.
+test("transformation d'un boîtier à l'échelle d'affichage", () => {
+  const t = { x: 74, rotateY: 75, zIndex: 1, spineRight: false };
+  expect(boxTransform(t, 1)).toBe("translate(-50%,-50%) translateX(74px) rotateY(75deg)");
+  expect(boxTransform(t, 2.5)).toBe("translate(-50%,-50%) translateX(185px) rotateY(75deg)");
 });

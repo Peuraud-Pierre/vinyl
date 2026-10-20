@@ -4,7 +4,7 @@ import { activeSource, api, type Item } from "../api";
 import { albumParam, go, TABS, type Tab } from "../router";
 import { icons } from "../ui/icons";
 import { imageTint } from "../ui/theme";
-import { clampOffset, SHELF_ANGLE, SHELF_START, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, springStep, wheelDelta, visibleIndices } from "./coverflow";
+import { boxTransform, clampOffset, SHELF_ANGLE, SHELF_START, SHELF_GAP, SHELF_PERSPECTIVE, shelfTransform, springStep, wheelDelta, visibleIndices } from "./coverflow";
 import { albumCoverRect, flightFrames } from "../ui/flight";
 import { escapeHtml, initials } from "./grid";
 import { filterItems, pileCurrent, pilePad, settleWithin, spineColors, unavailableLibraryMessage } from "./shelf";
@@ -207,7 +207,7 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
         reveal(slot, it, entering ? Math.max(0, i - a) : -1);
       }
       const t = shelfTransform(i, offset, half);
-      slot.style.transform = `translate(-50%,-50%) translateX(${t.x}px) rotateY(${t.rotateY}deg)`;
+      slot.style.transform = boxTransform(t, scale);
       slot.style.zIndex = String(t.zIndex);
       slot.classList.toggle("cf-right", t.spineRight);
     }
@@ -240,9 +240,11 @@ export function mount(el: HTMLElement, tabParam: string): () => void {
     const row = area.querySelector<HTMLElement>("#cf-row");
     if (!row) return;
     scale = Math.max(0.8, (area.clientHeight * 0.8) / 300); // vidéo : boîtiers sur ~80 % de la hauteur
-    row.style.scale = String(scale);
-    // La profondeur grandit avec l'échelle : sans ça, la perspective serait bien plus forte que dans la vidéo.
-    (row.parentElement as HTMLElement).style.perspective = `${SHELF_PERSPECTIVE * scale}px`;
+    // Vraie taille : l'unité --u agrandit les boîtiers eux-mêmes (dessinés nets), pas leur rangée.
+    row.style.setProperty("--u", String(scale));
+    // Même rendu qu'un agrandissement : les boîtiers (donc leur profondeur) sont × scale, la perspective
+    // doit l'être × scale² pour que la projection reste identique (sinon effet 3D bien plus fort).
+    (row.parentElement as HTMLElement).style.perspective = `${SHELF_PERSPECTIVE * scale * scale}px`;
     layout();
   };
   // Vue pile : la pochette au milieu de l'écran sort à droite (comme au survol) ; marges haute et basse
