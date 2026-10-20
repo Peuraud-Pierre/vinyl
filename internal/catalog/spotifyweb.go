@@ -30,13 +30,13 @@ type spImage struct {
 	Width int    `json:"width"`
 }
 
-// shelfImage choisit pour l'étagère la plus légère des images d'au moins 300 px (Spotify fournit
-// en général 640, 300 et 64 px) ; sans tailles connues, la première.
+// shelfImage choisit la plus grande image (Spotify fournit en général 640, 300 et 64 px) : l'étagère
+// s'affiche en grand et se zoome ; sans tailles connues, la première.
 func shelfImage(imgs []spImage) string {
 	best := ""
 	bestW := 0
-	for _, im := range imgs {
-		if im.Width >= 300 && (bestW == 0 || im.Width < bestW) {
+	for _, im := range imgs { // la plus grande : l'étagère s'affiche en grand (et se zoome)
+		if im.Width > bestW {
 			best, bestW = im.URL, im.Width
 		}
 	}

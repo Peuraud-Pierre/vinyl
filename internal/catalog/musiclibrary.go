@@ -97,7 +97,7 @@ type MusicLibrary struct {
 
 // ThumbSize est la taille des miniatures de l'étagère (px) : assez pour un boîtier à l'écran,
 // beaucoup plus léger à décoder que les pochettes d'origine (600 à 1 200 px).
-const ThumbSize = 360
+const ThumbSize = 1000
 
 // sipsResize réduit une image avec l'outil sips de macOS et l'écrit en JPEG.
 func sipsResize(src, dst string, size int) error {
@@ -422,7 +422,7 @@ func (m *MusicLibrary) Thumbnail(ctx context.Context, id string) (string, error)
 		return full, err
 	}
 	name := strings.TrimPrefix(full, "/artwork/")
-	thumb := name + ".thumb.jpg"
+	thumb := name + ".t1000.jpg" // nom lié à la taille : les anciennes miniatures (360 px) sont refaites
 	dst := filepath.Join(m.artworkDir, thumb)
 	if fi, err := os.Stat(dst); err == nil && fi.Size() > 0 {
 		return "/artwork/" + thumb, nil

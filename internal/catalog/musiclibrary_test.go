@@ -258,7 +258,7 @@ func TestThumbnailIsMadeOnceFromTheArtwork(t *testing.T) {
 	full := filepath.Join(dir, player.ArtworkFileName("item:"+id))
 	os.WriteFile(full, []byte("big"), 0o644)
 	u, err := m.Thumbnail(context.Background(), id)
-	if err != nil || !strings.HasSuffix(u, ".thumb.jpg") || !strings.HasPrefix(u, "/artwork/") {
+	if err != nil || !strings.HasSuffix(u, ".t1000.jpg") || !strings.HasPrefix(u, "/artwork/") {
 		t.Fatalf("url=%q err=%v", u, err)
 	}
 	if len(calls) != 1 || calls[0][0] != full || calls[0][2] != strconv.Itoa(ThumbSize) {
@@ -276,7 +276,14 @@ func TestThumbnailFallsBackToFullArtworkIfResizeFails(t *testing.T) {
 	id := "album:A" + player.Sep + "X"
 	os.WriteFile(filepath.Join(dir, player.ArtworkFileName("item:"+id)), []byte("big"), 0o644)
 	u, err := m.Thumbnail(context.Background(), id)
-	if err != nil || strings.HasSuffix(u, ".thumb.jpg") || u == "" {
+	if err != nil || strings.HasSuffix(u, ".t1000.jpg") || u == "" {
 		t.Errorf("repli sur la pochette complète attendu : %q %v", u, err)
+	}
+}
+
+// Miniatures assez grandes pour l'étagère affichée en grand (Retina, zoom) : 1000 px au moins.
+func TestThumbSizeIsLargeEnough(t *testing.T) {
+	if ThumbSize < 1000 {
+		t.Errorf("ThumbSize = %d", ThumbSize)
 	}
 }

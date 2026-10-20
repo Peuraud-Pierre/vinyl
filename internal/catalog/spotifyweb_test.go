@@ -201,9 +201,10 @@ func TestSpotifyQueue(t *testing.T) {
 	}
 }
 
-func TestShelfImagePicksTheLightestLargeEnough(t *testing.T) {
-	imgs := []spImage{{URL: "big", Width: 640}, {URL: "mid", Width: 300}, {URL: "tiny", Width: 64}}
-	if got := shelfImage(imgs); got != "mid" {
+// Étagère affichée en grand (et zoomable) : la plus grande image, pour des pochettes nettes.
+func TestShelfImagePicksTheLargest(t *testing.T) {
+	imgs := []spImage{{URL: "mid", Width: 300}, {URL: "big", Width: 640}, {URL: "tiny", Width: 64}}
+	if got := shelfImage(imgs); got != "big" {
 		t.Errorf("got %q", got)
 	}
 	if got := shelfImage([]spImage{{URL: "seule"}}); got != "seule" {
