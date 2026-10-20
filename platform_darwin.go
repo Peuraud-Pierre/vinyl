@@ -22,9 +22,12 @@ type platform struct {
 func newPlatform(artworkDir string) platform {
 	player.IsRunning = apps.Running // une app non lancée n'est pas interrogée (pas d'osascript)
 	runner := player.OSAScript{}
+	music := catalog.NewMusicLibrary(runner, catalog.NewITunes(), artworkDir)
+	am := player.NewAppleMusic(runner, artworkDir)
+	am.HD = music.FetchHD // pochette HD (iTunes) du morceau en cours
 	return platform{
-		players: []player.Player{player.NewAppleMusic(runner, artworkDir), player.NewSpotify(runner)},
-		music:   catalog.NewMusicLibrary(runner, catalog.NewITunes(), artworkDir),
+		players: []player.Player{am, player.NewSpotify(runner)},
+		music:   music,
 	}
 }
 

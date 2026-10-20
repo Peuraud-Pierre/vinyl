@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // ITunes interroge l'API publique iTunes Search (sans clé) pour les pages artiste Apple Music.
@@ -37,8 +38,71 @@ type itunesResult struct {
 	CollectionViewURL string `json:"collectionViewUrl"`
 }
 
-// hd demande la pochette en 600×600 au lieu de 100×100.
-func hd(u string) string { return strings.Replace(u, "100x100bb", "600x600bb", 1) }
+// hd demande la pochette en 1200×1200 au lieu de 100×100 (affichée en grand, nette au zoom).
+func hd(u string) string { return strings.Replace(u, "100x100bb", "1200x1200bb", 1) }
+
+// AlbumArtwork : adresse de la pochette en 1500×1500 d'un album (artiste et titre), "" si iTunes ne
+// connaît pas d'album correspondant (on garde alors la pochette fournie par Musique).
+func (c *ITunes) AlbumArtwork(ctx context.Context, artist, album string) (string, error) {
+	found, err := c.get(ctx, "/search", url.Values{"term": {artist + " " + album}, "entity": {"album"}, "limit": {"10"}})
+	if err != nil {
+		return "", err
+	}
+	a, al := normName(artist), normAlbum(album)
+	if a == "" || al == "" {
+		return "", nil
+	}
+	for _, r := range found {
+		ra, ral := normName(r.ArtistName), normAlbum(r.CollectionName)
+		if r.ArtworkURL100 == "" || ra == "" || ral != al {
+			continue
+		}
+		if ra == a || strings.Contains(ra, a) || strings.Contains(a, ra) {
+			return strings.Replace(r.ArtworkURL100, "100x100bb", "1500x1500bb", 1), nil
+		}
+	}
+	return "", nil
+}
+
+var accents = strings.NewReplacer("à", "a", "â", "a", "ä", "a", "á", "a", "ã", "a", "å", "a", "é", "e", "è", "e", "ê", "e", "ë", "e",
+	"î", "i", "ï", "i", "í", "i", "ì", "i", "ô", "o", "ö", "o", "ó", "o", "ò", "o", "õ", "o", "ù", "u", "û", "u", "ü", "u", "ú", "u",
+	"ç", "c", "ñ", "n", "œ", "oe", "æ", "ae", "ÿ", "y")
+
+// normName : minuscules, sans accents ni ponctuation, espaces simples.
+func normName(s string) string {
+	s = accents.Replace(strings.ToLower(s))
+	var b strings.Builder
+	space := true
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+			space = false
+		} else if !space {
+			b.WriteByte(' ')
+			space = true
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// normAlbum : comme normName, sans les mentions entre parenthèses/crochets ni « - Single » / « - EP ».
+func normAlbum(s string) string {
+	for _, p := range [][2]string{{"(", ")"}, {"[", "]"}} {
+		for {
+			i := strings.Index(s, p[0])
+			j := strings.Index(s, p[1])
+			if i < 0 || j < i {
+				break
+			}
+			s = s[:i] + s[j+1:]
+		}
+	}
+	n := normName(s)
+	for _, suf := range []string{" single", " ep"} {
+		n = strings.TrimSuffix(n, suf)
+	}
+	return strings.TrimSpace(n)
+}
 
 func year(date string) string {
 	if len(date) >= 4 {

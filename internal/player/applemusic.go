@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -69,6 +70,9 @@ end run`
 type AppleMusic struct {
 	run        Runner
 	artworkDir string
+	// HD télécharge dans dst la pochette HD (iTunes) d'un album ; nil : pas de pochette HD.
+	HD     func(ctx context.Context, artist, album, dst string) bool
+	hdSeen sync.Map // morceau → struct{} : pochette HD déjà cherchée (une fois par morceau)
 }
 
 func NewAppleMusic(r Runner, artworkDir string) *AppleMusic {
@@ -80,6 +84,12 @@ func (m *AppleMusic) Name() string { return "applemusic" }
 func ArtworkFileName(trackID string) string {
 	sum := sha1.Sum([]byte(trackID))
 	return hex.EncodeToString(sum[:]) + ".img"
+}
+
+// HDFileName : fichier de la pochette HD (iTunes) d'un morceau.
+func HDFileName(trackID string) string {
+	sum := sha1.Sum([]byte(trackID))
+	return hex.EncodeToString(sum[:]) + ".hd.jpg"
 }
 
 func (m *AppleMusic) NowPlaying(ctx context.Context) (NowPlaying, error) {
@@ -104,11 +114,21 @@ func (m *AppleMusic) NowPlaying(ctx context.Context) (NowPlaying, error) {
 		Source: m.Name(), State: parseState(f[0]), TrackID: f[1], Title: f[2], Artist: f[3], Album: f[4],
 		DurationMs: parseSeconds(f[5]), PositionMs: parseSeconds(f[6]),
 	}
-	if n, _ := strconv.Atoi(strings.TrimSpace(f[7])); n > 0 && np.TrackID != "" {
+	if np.TrackID == "" {
+		return np, nil
+	}
+	// Pochette HD (iTunes) si elle est là ; sinon celle de Musique tout de suite, et la HD cherchée en
+	// arrière-plan : elle la remplacera au sondage suivant.
+	if fi, err := os.Stat(filepath.Join(m.artworkDir, HDFileName(np.TrackID))); err == nil && fi.Size() > 0 {
+		np.ArtworkURL = "/artwork/" + HDFileName(np.TrackID)
+		return np, nil
+	}
+	if n, _ := strconv.Atoi(strings.TrimSpace(f[7])); n > 0 {
 		if err := m.ensureArtwork(ctx, np.TrackID); err == nil {
 			np.ArtworkURL = "/artwork/" + ArtworkFileName(np.TrackID)
 		}
 	}
+	m.upgradeHD(np.TrackID, np.Artist, np.Album)
 	return np, nil
 }
 
@@ -578,4 +598,19 @@ func (m *AppleMusic) ReplayBack(ctx context.Context, trackID string, steps, posS
 func (m *AppleMusic) JumpForward(ctx context.Context, steps int, trackID string, posSec int) error {
 	_, err := m.simpleRun(ctx, musicJumpForwardScript, strconv.Itoa(steps), trackID, strconv.Itoa(posSec))
 	return err
+}
+
+// upgradeHD cherche une fois, en arrière-plan, la pochette HD du morceau (sans retarder le sondage).
+func (m *AppleMusic) upgradeHD(trackID, artist, album string) {
+	if m.HD == nil || album == "" {
+		return
+	}
+	if _, seen := m.hdSeen.LoadOrStore(trackID, struct{}{}); seen {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		m.HD(ctx, artist, album, filepath.Join(m.artworkDir, HDFileName(trackID)))
+	}()
 }

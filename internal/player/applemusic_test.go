@@ -430,3 +430,40 @@ func TestAppleMusicResumeAfterShuffleRefillsQueue(t *testing.T) {
 		t.Errorf("script :\n%s", r.calls[0].script)
 	}
 }
+
+// Morceau en cours : la pochette de Musique s'affiche tout de suite ; la HD (iTunes) est cherchée en
+// arrière-plan, une seule fois, et la remplace dès qu'elle est là.
+func TestNowPlayingUpgradesToHDArtwork(t *testing.T) {
+	r := &exportRunner{nowPlaying: join("playing", "ABC", "T", "Daft Punk", "Discovery", "200", "1", "1"), exportOut: "OK", content: []byte("png")}
+	m := NewAppleMusic(r, t.TempDir())
+	calls := make(chan [2]string, 4)
+	release := make(chan struct{})
+	m.HD = func(_ context.Context, artist, album, dst string) bool {
+		calls <- [2]string{artist, album}
+		<-release
+		return os.WriteFile(dst, []byte("hd"), 0o644) == nil
+	}
+	np, _ := m.NowPlaying(context.Background())
+	if np.ArtworkURL != "/artwork/"+ArtworkFileName("ABC") {
+		t.Fatalf("pochette de Musique d'abord : %q", np.ArtworkURL)
+	}
+	if c := <-calls; c != [2]string{"Daft Punk", "Discovery"} {
+		t.Errorf("HD demandée pour %v", c)
+	}
+	m.NowPlaying(context.Background()) // pendant la recherche : pas de seconde demande
+	close(release)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		np, _ = m.NowPlaying(context.Background())
+		if np.ArtworkURL == "/artwork/"+HDFileName("ABC") || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if np.ArtworkURL != "/artwork/"+HDFileName("ABC") {
+		t.Errorf("pochette HD attendue, obtenu %q", np.ArtworkURL)
+	}
+	if len(calls) != 0 {
+		t.Errorf("une seule recherche HD attendue")
+	}
+}

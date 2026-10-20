@@ -2,6 +2,8 @@ package catalog
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -285,5 +287,37 @@ func TestThumbnailFallsBackToFullArtworkIfResizeFails(t *testing.T) {
 func TestThumbSizeIsLargeEnough(t *testing.T) {
 	if ThumbSize < 1000 {
 		t.Errorf("ThumbSize = %d", ThumbSize)
+	}
+}
+
+// Albums de la bibliothèque : pochette HD (iTunes) d'abord, téléchargée dans le cache ; Musique n'est pas
+// sollicité. Sans correspondance chez iTunes : export de Musique comme avant.
+func TestAlbumArtworkPrefersHD(t *testing.T) {
+	jpeg := strings.Repeat("J", 20000)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/search":
+			w.Write([]byte(`{"results":[{"wrapperType":"collection","artistName":"Nirvana","collectionName":"In Utero","artworkUrl100":"` + "http://" + r.Host + `/img/100x100bb.jpg"}]}`))
+		case r.URL.Path == "/img/1500x1500bb.jpg":
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.Write([]byte(jpeg))
+		default:
+			http.Error(w, r.URL.Path, 404)
+		}
+	}))
+	defer srv.Close()
+	r := &slowRunner{out: "OK"}
+	dir := t.TempDir()
+	m := NewMusicLibrary(r, &ITunes{BaseURL: srv.URL, HTTP: srv.Client()}, dir)
+	u, err := m.Artwork(context.Background(), "album:In Utero"+player.Sep+"Nirvana")
+	if err != nil || u == "" || r.calls != 0 {
+		t.Fatalf("u=%q err=%v exports Musique=%d", u, err, r.calls)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, strings.TrimPrefix(u, "/artwork/"))); string(b) != jpeg {
+		t.Errorf("fichier HD absent ou incomplet (%d octets)", len(b))
+	}
+	// Album inconnu d'iTunes : export de Musique.
+	if u, _ := m.Artwork(context.Background(), "album:Inconnu"+player.Sep+"Personne"); u == "" || r.calls != 1 {
+		t.Errorf("repli sur Musique : u=%q exports=%d", u, r.calls)
 	}
 }

@@ -3,6 +3,8 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"vinyl/internal/player"
 )
@@ -93,6 +96,8 @@ type MusicLibrary struct {
 	exports    chan struct{}
 	noArtwork  sync.Map // id → struct{} : éléments sans pochette, pour ne pas relancer l'export
 	resize     func(src, dst string, size int) error
+	hdMu       sync.Mutex
+	hdDown     time.Time // iTunes injoignable : pas de nouvel essai avant cette heure
 }
 
 // ThumbSize est la taille des miniatures de l'étagère (px) : assez pour un boîtier à l'écran,
@@ -230,6 +235,9 @@ func (m *MusicLibrary) Artwork(ctx context.Context, id string) (string, error) {
 		return "/artwork/" + file, nil
 	}
 	key1, key2, _ := strings.Cut(rest, player.Sep)
+	if kind == "album" && m.FetchHD(ctx, key2, key1, path) { // HD d'abord (iTunes), Musique sinon
+		return "/artwork/" + file, nil
+	}
 	out, err := m.run.Run(ctx, itemArtworkScript, kind, key1, key2, path)
 	if err != nil {
 		return "", err
@@ -431,4 +439,69 @@ func (m *MusicLibrary) Thumbnail(ctx context.Context, id string) (string, error)
 		return full, nil
 	}
 	return "/artwork/" + thumb, nil
+}
+
+// FetchHD télécharge dans dst la pochette HD (iTunes, 1500 px) d'un album ; false si iTunes ne la connaît
+// pas ou est injoignable (pas de nouvel essai pendant 5 min dans ce cas : pas d'attente hors ligne).
+func (m *MusicLibrary) FetchHD(ctx context.Context, artist, album, dst string) bool {
+	if m.itunes == nil || artist == "" || album == "" {
+		return false
+	}
+	m.hdMu.Lock()
+	down := time.Now().Before(m.hdDown)
+	m.hdMu.Unlock()
+	if down {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	u, err := m.itunes.AlbumArtwork(ctx, artist, album)
+	if err == nil && u != "" {
+		err = download(ctx, m.itunes.HTTP, u, dst)
+		if err == nil {
+			return true
+		}
+	}
+	if err != nil {
+		m.hdMu.Lock()
+		m.hdDown = time.Now().Add(5 * time.Minute)
+		m.hdMu.Unlock()
+	}
+	return false
+}
+
+// download écrit une image (au plus 15 Mo) dans dst, en passant par un fichier temporaire.
+func download(ctx context.Context, client *http.Client, u, dst string) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "image/") {
+		return fmt.Errorf("pochette HD : HTTP %d (%s)", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	tmp := dst + ".dl"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	n, err := io.Copy(f, io.LimitReader(resp.Body, 15<<20))
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && n < 1000 {
+		err = fmt.Errorf("pochette HD trop petite (%d octets)", n)
+	}
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, dst)
 }
