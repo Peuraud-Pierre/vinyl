@@ -61,10 +61,12 @@ test("bascule : interpolation des matrices, de la vue de dessus (t = 0) à la vu
 });
 
 // Ce qui réagit selon la vue (t : 0 = dessus, 1 = côté ; entre les deux : bascule en cours).
+// Le bouton en haut à gauche bascule d'une vue à l'autre : « vue de dessus » en vue de côté, « vue de
+// côté » en vue de dessus ; caché pendant la bascule.
 test("interactions selon la vue", () => {
-  expect(viewState(1)).toEqual({ topInteractive: false, plinthOpensTop: true, showSideButton: false });
-  expect(viewState(0)).toEqual({ topInteractive: true, plinthOpensTop: false, showSideButton: true });
-  expect(viewState(0.4)).toEqual({ topInteractive: false, plinthOpensTop: false, showSideButton: false }); // pendant la bascule
+  expect(viewState(1)).toEqual({ topInteractive: false, plinthOpensTop: true, button: "top" });
+  expect(viewState(0)).toEqual({ topInteractive: true, plinthOpensTop: false, button: "side" });
+  expect(viewState(0.4)).toEqual({ topInteractive: false, plinthOpensTop: false, button: null }); // pendant la bascule
 });
 
 test("bascule douce : départ et arrivée en douceur", () => {
@@ -72,4 +74,12 @@ test("bascule douce : départ et arrivée en douceur", () => {
   expect(easeInOut(1)).toBe(1);
   expect(easeInOut(0.5)).toBeCloseTo(0.5, 6);
   expect(easeInOut(0.1)).toBeLessThan(0.1);
+});
+
+// Dans le même sens que la table : face avant parallèle au bord de la table (arête basse horizontale).
+test("vue de côté alignée sur la table", () => {
+  const L = layoutScene(1300, 900);
+  const V = sideView(L);
+  const [, yl] = apply(V.front, 0, V.frontSize[1]), [, yr] = apply(V.front, V.frontSize[0], V.frontSize[1]);
+  expect(yr).toBeCloseTo(yl, 6);
 });

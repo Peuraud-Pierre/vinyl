@@ -35,7 +35,7 @@ export function mount(el: HTMLElement): () => void {
         <div id="pl-shelf"></div>
         <p id="pl-recent-msg" class="glass pointer-events-none absolute hidden rounded-full px-5 py-2 text-[14px]" role="status"></p>
       </div>
-      <button id="pl-view" class="glass round-btn vy-drop fixed z-30" style="left:44px;top:28px" aria-label="Vue de côté" title="Vue de côté (Échap)" hidden>${icons.sideview}</button>
+      <button id="pl-view" class="glass round-btn vy-drop fixed z-30" style="left:44px;top:28px"></button>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
       <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
       <button id="pl-mini" class="vy-drop fixed z-30 h-[58px] w-[58px] overflow-hidden rounded-[16px] bg-cover bg-center" style="left:44px;bottom:32px;box-shadow:0 0 0 2px rgba(255,255,255,.45),0 8px 20px rgba(0,0,0,.35);background-color:#2a2220" aria-label="Mini-platine" title="Mini-platine (⌘⇧M)"></button>
@@ -89,7 +89,14 @@ export function mount(el: HTMLElement): () => void {
     const v = viewState(t);
     if (p) p.style.pointerEvents = v.topInteractive ? "" : "none";
     for (const id of ["pl-panel", "pl-tt-front", "pl-tt-side"]) $(id).style.pointerEvents = v.plinthOpensTop ? "auto" : "none";
-    $("pl-view").hidden = !v.showSideButton;
+    const b = $("pl-view");
+    b.hidden = v.button === null;
+    if (v.button && b.dataset.view !== v.button) {
+      b.dataset.view = v.button;
+      b.innerHTML = v.button === "top" ? icons.topview : icons.sideview;
+      b.title = v.button === "top" ? "Vue de dessus" : "Vue de côté (Échap)";
+      b.setAttribute("aria-label", v.button === "top" ? "Vue de dessus" : "Vue de côté");
+    }
   };
   const setView = (to: 0 | 1) => {
     cancelAnimationFrame(viewRaf);
@@ -103,7 +110,7 @@ export function mount(el: HTMLElement): () => void {
     viewRaf = requestAnimationFrame(step);
   };
   for (const id of ["pl-panel", "pl-tt-front", "pl-tt-side"]) $(id).addEventListener("click", () => { if (tView >= 1) setView(0); });
-  $("pl-view").onclick = () => setView(1);
+  $("pl-view").onclick = () => setView(tView >= 1 ? 0 : 1);
   const onEscape = (e: KeyboardEvent) => { if (e.key === "Escape" && tView < 1) setView(1); };
   window.addEventListener("keydown", onEscape);
   const fit = () => {
