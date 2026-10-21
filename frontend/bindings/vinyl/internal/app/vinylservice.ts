@@ -91,6 +91,14 @@ export function ItemArtwork(source: string, id: string): $CancellablePromise<str
     return $Call.ByID(2339201997, source, id);
 }
 
+/**
+ * LaunchAtLogin : Vinyl s'ouvre à l'ouverture de session (état tenu par le système : éléments
+ * d'ouverture du Mac, clé Run de Windows).
+ */
+export function LaunchAtLogin(): $CancellablePromise<boolean> {
+    return $Call.ByID(2300462351);
+}
+
 export function Library(source: string, kind: string, offset: number): $CancellablePromise<catalog$0.Page> {
     return $Call.ByID(1851563471, source, kind, offset);
 }
@@ -234,6 +242,13 @@ export function SetHistory(h: history$0.Store | null, notify: any): $Cancellable
     return $Call.ByID(2284534012, h, notify);
 }
 
+/**
+ * SetLaunchAtLogin active ou retire le lancement au démarrage et renvoie l'état obtenu.
+ */
+export function SetLaunchAtLogin(on: boolean): $CancellablePromise<boolean> {
+    return $Call.ByID(4255073527, on);
+}
+
 export function SetRepeat(mode: string): $CancellablePromise<void> {
     return $Call.ByID(1812568899, mode);
 }
@@ -268,6 +283,13 @@ export function SetWidgetUpdates(m: widgetupdate$0.Manager | null): $Cancellable
     return $Call.ByID(2775870054, m);
 }
 
+/**
+ * SpectrumAvailable : l'égaliseur peut suivre le vrai son (Mac, macOS 14.2 et plus).
+ */
+export function SpectrumAvailable(): $CancellablePromise<boolean> {
+    return $Call.ByID(335306570);
+}
+
 export function SpotifyLogin(): $CancellablePromise<void> {
     return $Call.ByID(3553867523);
 }
@@ -281,10 +303,24 @@ export function SpotifyStatus(): $CancellablePromise<boolean> {
 }
 
 /**
+ * StartSpectrum lance la capture du son pour l'égaliseur (la première fois, macOS demande l'autorisation).
+ */
+export function StartSpectrum(): $CancellablePromise<void> {
+    return $Call.ByID(2550886855);
+}
+
+/**
  * Stats renvoie le compteur « Morceaux lus depuis ».
  */
 export function Stats(): $CancellablePromise<stats$0.Snapshot> {
     return $Call.ByID(2236823759);
+}
+
+/**
+ * StopSpectrum arrête la capture du son.
+ */
+export function StopSpectrum(): $CancellablePromise<void> {
+    return $Call.ByID(93151819);
 }
 
 /**

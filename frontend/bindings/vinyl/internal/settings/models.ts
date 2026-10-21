@@ -12,6 +12,7 @@ export interface Patch {
     "crackle"?: boolean | null;
     "spotifyClientId"?: string | null;
     "betaCode"?: string | null;
+    "eqAudio"?: boolean | null;
 }
 
 export interface Settings {
@@ -34,4 +35,9 @@ export interface Settings {
      * code contributeur (bêtas)
      */
     "betaCode"?: string;
+
+    /**
+     * l'égaliseur suit le vrai son (capture, Mac)
+     */
+    "eqAudio": boolean;
 }

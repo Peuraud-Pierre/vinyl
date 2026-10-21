@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { filterItems, PILE_SIZE, PILE_STEP, pileCurrent, pilePad, settleWithin, spineColors, unavailableLibraryMessage } from "./shelf";
+import { filterItems, matchingTracks, PILE_SIZE, PILE_STEP, pileCurrent, pilePad, settleWithin, spineColors, unavailableLibraryMessage } from "./shelf";
 
 const items = [
   { id: "1", kind: "album", title: "Lumen", subtitle: "Aurore Vale", artworkUrl: "", url: "" },
@@ -13,6 +13,19 @@ test("recherche : titre ou artiste, sans tenir compte des accents ni de la casse
   expect(filterItems(items, "PAVES").map((i) => i.id)).toEqual(["2"]);
   expect(filterItems(items, "echo").map((i) => i.id)).toEqual(["3"]);
   expect(filterItems(items, "zzz")).toEqual([]);
+});
+
+test("recherche dans une playlist : titre, artiste ou album ; renvoie les positions d'origine", () => {
+  const tracks = [
+    { id: "a", number: 1, title: "Lumière", artist: "Aurore Vale", album: "Lumen", durationMs: 0, loved: false },
+    { id: "b", number: 2, title: "Pavés", artist: "Gambi Sud", album: "Rue", durationMs: 0, loved: false },
+    { id: "c", number: 3, title: "Nuit", artist: "Sable", album: "Écho", durationMs: 0, loved: false },
+  ];
+  expect(matchingTracks(tracks, " ")).toEqual([0, 1, 2]);
+  expect(matchingTracks(tracks, "lumiere")).toEqual([0]);
+  expect(matchingTracks(tracks, "GAMBI")).toEqual([1]);
+  expect(matchingTracks(tracks, "echo")).toEqual([2]);
+  expect(matchingTracks(tracks, "zzz")).toEqual([]);
 });
 
 test("couleur de tranche stable pour un même titre, encre lisible", () => {

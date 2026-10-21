@@ -23,6 +23,7 @@ type Settings struct {
 	SpotifyClientID  string    `json:"spotifyClientId"`
 	WidgetProjectDir string    `json:"widgetProjectDir,omitempty"` // dossier du dépôt (widget/), facultatif
 	BetaCode         string    `json:"betaCode,omitempty"`         // code contributeur (bêtas)
+	EqAudio          bool      `json:"eqAudio"`                    // l'égaliseur suit le vrai son (capture, Mac)
 }
 
 func Defaults() Settings {
@@ -32,6 +33,7 @@ func Defaults() Settings {
 		DiscColors: [2]string{"#ffb300", "#fff3d6"},
 		Accent:     "#f5c542",
 		Crackle:    true,
+		EqAudio:    true,
 	}
 }
 
@@ -110,6 +112,7 @@ type Patch struct {
 	Crackle         *bool      `json:"crackle,omitempty"`
 	SpotifyClientID *string    `json:"spotifyClientId,omitempty"`
 	BetaCode        *string    `json:"betaCode,omitempty"`
+	EqAudio         *bool      `json:"eqAudio,omitempty"`
 }
 
 // Update applique un Patch aux réglages courants, sous verrou, et renvoie le résultat.
@@ -134,6 +137,9 @@ func (s *Store) Update(p Patch) (Settings, error) {
 	}
 	if p.SpotifyClientID != nil {
 		v.SpotifyClientID = *p.SpotifyClientID
+	}
+	if p.EqAudio != nil {
+		v.EqAudio = *p.EqAudio
 	}
 	if p.BetaCode != nil {
 		v.BetaCode = strings.TrimSpace(*p.BetaCode)

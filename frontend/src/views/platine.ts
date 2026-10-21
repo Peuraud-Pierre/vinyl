@@ -1,8 +1,9 @@
-import { activeSource, api, onHistory, onSettings, onSnapshot, onStats, type Item, type Snapshot, type StatsSnapshot } from "../api";
+import { activeSource, api, onHistory, onSettings, onSnapshot, onSpectrum, onStats, type Item, type Snapshot, type StatsSnapshot } from "../api";
 import { go, type Route } from "../router";
 import { openShareCard } from "../share/sharecard";
 import { Turntable } from "../turntable/turntable";
 import { mountDeck } from "../ui/deck";
+import { mountEqualizer } from "../ui/equalizer";
 import { platform } from "../ui/platform";
 import { icons } from "../ui/icons";
 import { mountRecentPile, type RecentPile } from "../ui/recentpile";
@@ -11,7 +12,7 @@ import { mountRoomTable } from "../ui/roomtable";
 import { toCss } from "../ui/pile3d";
 import { mountSleeveStand, SLEEVE_S, sleeveAtScale, sleeveInStage, standGeometry } from "../ui/sleevestand";
 import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
-import { DECK_IN_STAGE, layoutScene } from "./scene";
+import { DECK_IN_STAGE, EQ_IN_STAGE, layoutScene } from "./scene";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
 const CONTROLS_W = 140;
@@ -28,6 +29,7 @@ export function mount(el: HTMLElement): () => void {
           <div id="pl-deck" class="absolute" style="left:${DECK_IN_STAGE.x}px;top:${DECK_IN_STAGE.y}px"></div>
         </div>
         <div id="pl-stand"></div>
+        <div id="pl-eq" class="absolute"></div>
         <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>
         <div id="pl-shelf"></div>
         <p id="pl-recent-msg" class="glass pointer-events-none absolute hidden rounded-full px-5 py-2 text-[14px]" role="status"></p>
@@ -66,6 +68,9 @@ export function mount(el: HTMLElement): () => void {
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const roomTable = mountRoomTable($("pl-table"));
   const stand = mountSleeveStand($("pl-stand-back"), $("pl-stand"));
+  const eq = mountEqualizer($("pl-eq"), { start: () => api.StartSpectrum(), stop: () => api.StopSpectrum(), onSpectrum });
+  const canHear = api.SpectrumAvailable().catch(() => false);
+  const setEqLive = (on: boolean) => void canHear.then((ok) => eq.setLive(ok && on));
   const fit = () => {
     const wrap = $("pl-wrap").getBoundingClientRect();
     const L = layoutScene(wrap.width, wrap.height);
@@ -99,6 +104,9 @@ export function mount(el: HTMLElement): () => void {
       });
     }
     roomTable.setScale(L.k);
+    // Égaliseur hors de la platine mise à l'échelle : dessiné à sa taille d'affichage (net), même place.
+    Object.assign($("pl-eq").style, { left: `${L.stage.x + EQ_IN_STAGE.x * L.stage.scale}px`, top: `${L.stage.y + EQ_IN_STAGE.y * L.stage.scale}px` });
+    eq.setScale(L.stage.scale);
   };
   let recent: RecentPile | null = null;
   // Message bref au-dessus de la pile (morceau introuvable…).
@@ -151,6 +159,7 @@ export function mount(el: HTMLElement): () => void {
     // Aléatoire relu à chaque changement de morceau (il a pu être réglé dans Musique ou Spotify).
     if (!s.problem && s.nowPlaying.trackId !== deckTrack) { deckTrack = s.nowPlaying.trackId; deck.refresh(); }
     tt.update(s);
+    eq.setPlaying(!s.problem && s.nowPlaying.state === "playing", s.nowPlaying.trackId);
     $("pl-mini").style.backgroundImage = s.nowPlaying.artworkUrl ? `url("${s.nowPlaying.artworkUrl.replace(/["\\]/g, "\\$&")}")` : "";
     $("pl-title").textContent = s.problem ? "Vinyl" : `${s.nowPlaying.title} — ${s.nowPlaying.artist}`;
     const p = $("pl-problem");
@@ -172,9 +181,9 @@ export function mount(el: HTMLElement): () => void {
   };
 
   const offSnap = onSnapshot(render);
-  const offSet = onSettings((s) => tt.setAppearance(s));
+  const offSet = onSettings((s) => { tt.setAppearance(s); setEqLive(s.eqAudio); });
   api.GetSnapshot().then(render);
-  api.GetSettings().then((s) => tt.setAppearance(s));
+  api.GetSettings().then((s) => { tt.setAppearance(s); setEqLive(s.eqAudio); });
 
   return () => {
     offStats();
@@ -185,6 +194,7 @@ export function mount(el: HTMLElement): () => void {
     offSet();
     ro.disconnect();
     tt.destroy();
+    eq.destroy();
     shelf.destroy();
   };
 }

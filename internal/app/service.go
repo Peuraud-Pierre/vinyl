@@ -45,10 +45,12 @@ type VinylService struct {
 	version     string      // numéro de la release, « dev » pour une fabrication à la main
 	upd         Updater     // système de mise à jour (nil en « dev »)
 	exePath     func() (string, error)
+	spec        *spectrum // capture du son pour l'égaliseur (remplacée dans les tests)
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
-	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}, openLink: openURL, version: "dev", exePath: os.Executable}
+	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}, openLink: openURL, version: "dev", exePath: os.Executable,
+		spec: newSpectrum(systemTap{}, func(b []float32) { application.Get().Event.Emit("spectrum", b) })}
 	if music != nil { // bibliothèque Apple Music : Mac seulement
 		s.catalogs["applemusic"] = music
 	}
@@ -163,6 +165,25 @@ func (s *VinylService) OpenAutomationSettings() error {
 		return nil // réglage propre au Mac
 	}
 	return exec.Command("open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation").Run()
+}
+
+// LaunchAtLogin : Vinyl s'ouvre à l'ouverture de session (état tenu par le système : éléments
+// d'ouverture du Mac, clé Run de Windows).
+func (s *VinylService) LaunchAtLogin() bool {
+	on, _ := application.Get().Autostart.IsEnabled()
+	return on
+}
+
+// SetLaunchAtLogin active ou retire le lancement au démarrage et renvoie l'état obtenu.
+func (s *VinylService) SetLaunchAtLogin(on bool) (bool, error) {
+	a := application.Get().Autostart
+	var err error
+	if on {
+		err = a.Enable()
+	} else {
+		err = a.Disable()
+	}
+	return s.LaunchAtLogin(), err
 }
 
 func (s *VinylService) catalog(source string) (catalog.Catalog, error) {

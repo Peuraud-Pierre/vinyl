@@ -127,6 +127,25 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-key:disabled { opacity: .5; cursor: default; }
 .vy-led { position: absolute; top: 16px; left: 9px; width: 6px; height: 6px; border-radius: 50%; background: #4a1412; box-shadow: inset 0 1px 1px rgba(0,0,0,.6); transition: background .2s, box-shadow .2s; }
 .vy-key[aria-pressed="true"] .vy-led { background: #ff3b30; box-shadow: 0 0 6px 2px rgba(255,59,48,.75), inset 0 -1px 1px rgba(0,0,0,.25); }
+/* Égaliseur rétro sur le socle (ui/equalizer.ts) : joues en bois, façade en métal brossé, vitre sombre où
+   montent des barres à segments de la couleur d'accent, chacune avec sa crête. */
+.vy-eq { position: relative; width: 250px; height: 50px; padding: 7px 24px; border-radius: 7px;
+  background: linear-gradient(90deg, #5e3b27, #7a4f35 8px, #5a3825 16px, transparent 16px calc(100% - 16px), #5a3825 calc(100% - 16px), #7a4f35 calc(100% - 8px), #5e3b27),
+    linear-gradient(180deg, #d9d6d0, #a9a59e 55%, #8f8b84),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 1px, transparent 1px 3px);
+  box-shadow: 0 0 0 1px #1a0f09, 0 3px 0 #22150d, 0 10px 16px rgba(10,4,2,.55), inset 0 1px 0 rgba(255,255,255,.35); }
+.vy-eq-screw { position: absolute; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f2f0ec, #77736c); box-shadow: 0 1px 1px rgba(0,0,0,.5); left: 19px; }
+.vy-eq-screw + .vy-eq-screw { left: auto; right: 19px; }
+.vy-eq-glass { display: flex; gap: 4px; height: 100%; margin: 0 6px; padding: 4px 6px; border-radius: 3px; background: #120c09;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.4); }
+.vy-eq-bar { position: relative; flex: 1; }
+.vy-eq-bar b, .vy-eq-bar i { position: absolute; inset: 0; will-change: transform; }
+.vy-eq-bar b { transform-origin: 50% 100%; transform: scaleY(0);
+  background: linear-gradient(0deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #fff));
+  -webkit-mask-image: repeating-linear-gradient(0deg, #000 0 2px, transparent 2px 3px); mask-image: repeating-linear-gradient(0deg, #000 0 2px, transparent 2px 3px);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent)); }
+.vy-eq-bar i::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: color-mix(in srgb, var(--accent) 45%, #fff); opacity: .85; }
 /* Pile des derniers écoutés (à droite du disque) : disques couchés vus un peu d'en haut. Chaque face
    (tranche, côté, pochette) reçoit sa matrice de projection calculée (ui/pile3d.ts) : pas de preserve-3d,
    qui s'aplatissait dans WebKit. Toutes les faces partent du coin haut gauche de la pile. */

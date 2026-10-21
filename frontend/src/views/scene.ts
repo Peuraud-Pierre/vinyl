@@ -29,6 +29,8 @@ const PANEL_AT = { x: 16, y: 120, w: 444, bottom: 640 };
 // Touches précédent / aléatoire / suivant sur le socle, en bas à gauche (px de platine) ; taille du bloc.
 export const DECK_IN_STAGE = { x: 420, y: 600 };
 export const DECK_SIZE = { w: 202, h: 42 };
+// Égaliseur rétro (ui/equalizer), posé sur le socle à droite des touches (px de platine).
+export const EQ_IN_STAGE = { x: 660, y: 594 };
 const SHELF_AT = { x: ROOM.w - SHELF_W - 30, y: 90 };
 
 export function layoutScene(w: number, h: number): SceneLayout {

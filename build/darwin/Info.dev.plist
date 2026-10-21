@@ -27,6 +27,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Vinyl écoute le son du Mac pendant la lecture pour que l'égaliseur suive le rythme de la musique. Rien n'est enregistré.</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Vinyl pilote Musique et Spotify pour afficher le morceau en cours et contrôler la lecture.</string>
 	<key>NSHighResolutionCapable</key>

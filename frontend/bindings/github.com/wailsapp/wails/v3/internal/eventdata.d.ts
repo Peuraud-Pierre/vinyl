@@ -27,6 +27,7 @@ declare module "@wailsio/runtime" {
             "history": history$0.Entry[] | null;
             "nowplaying": player$0.Snapshot;
             "settings": settings$0.Settings;
+            "spectrum": number[] | null;
             "stats": stats$0.Snapshot;
             "widgetupdate": widgetupdate$0.Status;
         }

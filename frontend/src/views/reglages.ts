@@ -23,6 +23,18 @@ export function mount(el: HTMLElement): () => void {
           <h2>Son</h2>
           <label class="flex cursor-pointer items-center justify-between text-[17px]">Craquement quand l'aiguille se pose
             <input type="checkbox" id="crackle" class="h-5 w-5" style="accent-color:#2a1d1b"></label>
+          <div id="eq-row" class="hidden flex-col gap-1">
+            <label class="flex cursor-pointer items-center justify-between text-[17px]">Égaliseur au rythme de la musique
+              <input type="checkbox" id="eq-audio" class="h-5 w-5" style="accent-color:#2a1d1b"></label>
+            <p class="text-[14px] leading-relaxed" style="color:rgba(42,29,27,.8)">Vinyl écoute le son du Mac pendant la lecture, sans rien enregistrer.
+              macOS demande l'autorisation la première fois. Désactivé, les barres bougent sans suivre le son.</p>
+          </div>
+        </section>
+        <section class="flex flex-col gap-3 border-t py-5" style="border-color:rgba(42,29,27,.14)">
+          <h2>Démarrage</h2>
+          <label class="flex cursor-pointer items-center justify-between text-[17px]">Ouvrir Vinyl à l'ouverture de session
+            <input type="checkbox" id="login" class="h-5 w-5" style="accent-color:#2a1d1b"></label>
+          <p id="login-msg" class="text-[14px]" style="color:rgba(42,29,27,.8)"></p>
         </section>
         <section id="version-section" class="flex flex-col gap-3 border-t py-5" style="border-color:rgba(42,29,27,.14)"></section>
       </div>
@@ -142,14 +154,34 @@ export function mount(el: HTMLElement): () => void {
     };
   };
 
+  const eqAudio = el.querySelector<HTMLInputElement>("#eq-audio")!;
+  api.SpectrumAvailable().then((ok) => { if (ok) el.querySelector("#eq-row")!.classList.replace("hidden", "flex"); }).catch(() => {});
+  eqAudio.onchange = async () => {
+    cur = await api.UpdateSettings({ eqAudio: eqAudio.checked });
+  };
   api.GetSettings().then((s) => {
     cur = s;
     crackle.checked = s.crackle;
+    eqAudio.checked = s.eqAudio;
     renderSources();
     renderSpotify();
   });
   crackle.onchange = async () => {
     cur = await api.UpdateSettings({ crackle: crackle.checked });
+  };
+
+  // Lancement au démarrage : état tenu par le système (éléments d'ouverture du Mac, clé Run de Windows).
+  const login = el.querySelector<HTMLInputElement>("#login")!;
+  const loginMsg = el.querySelector<HTMLElement>("#login-msg")!;
+  api.LaunchAtLogin().then((on) => (login.checked = on));
+  login.onchange = async () => {
+    loginMsg.textContent = "";
+    try {
+      login.checked = await api.SetLaunchAtLogin(login.checked);
+    } catch (e) {
+      login.checked = await api.LaunchAtLogin();
+      loginMsg.textContent = String(e);
+    }
   };
   return () => {};
 }

@@ -15,6 +15,7 @@ export interface Settings {
   texture: string; // black | picture | yolk | split | solid
   discColors: string[]; accent: string; crackle: boolean;
   widgetX: number; widgetY: number; widgetPlaced: boolean; spotifyClientId: string;
+  eqAudio: boolean; // l'égaliseur suit le vrai son (capture, Mac)
 }
 
 // Morceau posé sur la pile des derniers écoutés (à droite du disque).
@@ -54,6 +55,10 @@ export function onSettings(cb: (s: Settings) => void): () => void {
 }
 export function onHistory(cb: (l: HistoryEntry[]) => void): () => void {
   return Events.On("history", (ev) => cb((ev.data as HistoryEntry[] | null) ?? []));
+}
+// Bandes de fréquences du son capté (dB), des graves aux aigus, pour l'égaliseur.
+export function onSpectrum(cb: (db: number[]) => void): () => void {
+  return Events.On("spectrum", (ev) => cb((ev.data as number[] | null) ?? []));
 }
 export function onWidgetUpdate(cb: (s: WidgetStatus) => void): () => void {
   return Events.On("widgetupdate", (ev) => cb(ev.data as WidgetStatus));

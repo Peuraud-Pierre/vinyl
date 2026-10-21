@@ -39,6 +39,7 @@ func init() {
 	application.RegisterEvent[widgetupdate.Status]("widgetupdate")
 	application.RegisterEvent[stats.Snapshot]("stats")
 	application.RegisterEvent[[]history.Entry]("history")
+	application.RegisterEvent[[]float32]("spectrum")
 }
 
 func main() {
@@ -194,6 +195,7 @@ func main() {
 	wailsApp.Menu.Set(menu)
 
 	wailsApp.OnShutdown(func() {
+		service.StopSpectrum() // rend la sortie audio intacte
 		x, y := widget.Position()
 		v := store.Get()
 		v.WidgetX, v.WidgetY, v.WidgetPlaced = x, y, true

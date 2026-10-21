@@ -1,5 +1,5 @@
 // Logique pure de l'étagère : recherche et couleurs des tranches.
-import type { Item } from "../api";
+import type { Item, Track } from "../api";
 import { hexToRgb, luminance, rgbToHex } from "../ui/theme";
 
 export const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -8,6 +8,12 @@ export function filterItems(items: Item[], query: string): Item[] {
   const q = normalize(query.trim());
   if (!q) return items;
   return items.filter((i) => normalize(`${i.title} ${i.subtitle}`).includes(q));
+}
+
+/** Positions des titres d'une playlist qui correspondent à la recherche (titre, artiste ou album). */
+export function matchingTracks(tracks: Track[], query: string): number[] {
+  const q = normalize(query.trim());
+  return tracks.flatMap((t, i) => (!q || normalize(`${t.title} ${t.artist} ${t.album}`).includes(q) ? [i] : []));
 }
 
 function hashHue(s: string): number {
