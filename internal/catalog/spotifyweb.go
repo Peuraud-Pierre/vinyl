@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -87,6 +88,11 @@ func (c *SpotifyWeb) get(ctx context.Context, path string, q url.Values, out any
 
 // do envoie une requête à l'API ; out nil : la réponse (2xx) n'est pas lue.
 func (c *SpotifyWeb) do(ctx context.Context, method, path string, q url.Values, out any) error {
+	return c.send(ctx, method, path, q, nil, out)
+}
+
+// send : comme do, avec un corps JSON (nil : aucun).
+func (c *SpotifyWeb) send(ctx context.Context, method, path string, q url.Values, body, out any) error {
 	tok, err := c.Token(ctx)
 	if err != nil {
 		return err
@@ -95,11 +101,22 @@ func (c *SpotifyWeb) do(ctx context.Context, method, path string, q url.Values, 
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, method, u, nil)
+	var rd io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		rd = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, rd)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+tok)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return err
@@ -445,6 +462,59 @@ func (c *SpotifyWeb) PlayNext(ctx context.Context, id string) error {
 		return err
 	}
 	return c.do(ctx, "POST", "/me/player/next", nil, nil)
+}
+
+// EditablePlaylists : playlists où l'utilisateur peut ajouter des titres (les siennes et les
+// collaboratives), 200 au plus.
+func (c *SpotifyWeb) EditablePlaylists(ctx context.Context) ([]Item, error) {
+	var me struct {
+		ID string `json:"id"`
+	}
+	if err := c.get(ctx, "/me", nil, &me); err != nil {
+		return nil, err
+	}
+	var items []Item
+	for offset := 0; offset < 200; offset += 50 {
+		var body struct {
+			Items []struct {
+				URI           string    `json:"uri"`
+				Name          string    `json:"name"`
+				Collaborative bool      `json:"collaborative"`
+				Images        []spImage `json:"images"`
+				Owner         struct {
+					ID string `json:"id"`
+				} `json:"owner"`
+			} `json:"items"`
+			Next *string `json:"next"`
+		}
+		if err := c.get(ctx, "/me/playlists", url.Values{"limit": {"50"}, "offset": {strconv.Itoa(offset)}}, &body); err != nil {
+			return nil, err
+		}
+		for _, p := range body.Items {
+			if p.Owner.ID == me.ID || p.Collaborative {
+				items = append(items, Item{ID: p.URI, Kind: "playlist", Title: p.Name, ArtworkURL: shelfImage(p.Images)})
+			}
+		}
+		if body.Next == nil || *body.Next == "" {
+			break
+		}
+	}
+	return items, nil
+}
+
+// AddToPlaylist ajoute le titre à la fin d'une playlist (février 2026 : /playlists/{id}/items ; repli sur
+// l'ancien /tracks).
+func (c *SpotifyWeb) AddToPlaylist(ctx context.Context, playlistURI, trackID string) error {
+	pid := strings.TrimPrefix(playlistURI, "spotify:playlist:")
+	body := map[string][]string{"uris": {trackURI(trackID)}}
+	err := c.send(ctx, "POST", "/playlists/"+pid+"/items", nil, body, nil)
+	if err != nil && strings.Contains(err.Error(), "HTTP 404") {
+		err = c.send(ctx, "POST", "/playlists/"+pid+"/tracks", nil, body, nil)
+	}
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "scope") {
+		return fmt.Errorf("reconnecte Spotify dans les réglages pour autoriser Vinyl à modifier tes playlists")
+	}
+	return err
 }
 
 // Queue renvoie les titres de la file Spotify (30 au plus).

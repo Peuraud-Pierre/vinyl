@@ -8,6 +8,7 @@
 import type { NowPlaying, Snapshot } from "../api";
 import { estimatePosition } from "../turntable/clock";
 import { escapeHtml } from "../views/grid";
+import { mountAddToPlaylist, type AddToPlaylistDeps } from "./addtoplaylist";
 import { mountFavorite, type FavoriteDeps } from "./favorite";
 
 export const LYRICS_W = 330; // px de scène
@@ -26,13 +27,21 @@ export function currentLine(lines: LyricLine[], posMs: number): number {
   return found;
 }
 
+/** Défilement à la main (molette, trackpad, glisser) : borné au texte. */
+export function clampScroll(y: number, max: number): number {
+  return Math.min(Math.max(0, max), Math.max(0, y));
+}
+
+/** Après un défilement à la main, le suivi automatique reprend au bout de ce délai (ms). */
+export const MANUAL_MS = 4000;
+
 /** Part du texte simple à faire défiler (0 à 1) : on attend un peu au début, on finit un peu avant la fin. */
 export function plainProgress(posMs: number, durationMs: number): number {
   if (durationMs <= 0) return 0;
   return Math.min(1, Math.max(0, (posMs / durationMs - 0.06) / 0.86));
 }
 
-export interface LyricsBoardDeps { lyrics(np: NowPlaying): Promise<LyricsData>; favorite?: FavoriteDeps; }
+export interface LyricsBoardDeps { lyrics(np: NowPlaying): Promise<LyricsData>; favorite?: FavoriteDeps; playlist?: AddToPlaylistDeps; }
 
 const readOpen = () => { try { return localStorage.getItem("vinyl.lyrics") === "open"; } catch { return false; } };
 const saveOpen = (open: boolean) => { try { localStorage.setItem("vinyl.lyrics", open ? "open" : "closed"); } catch { /* stockage indisponible */ } };
@@ -48,6 +57,8 @@ export function mountLyricsBoard(root: HTMLElement, deps: LyricsBoardDeps): Lyri
   root.innerHTML = `
     <div class="vy-lyr" aria-live="off">
       <button class="vy-lyr-fav" hidden></button>
+      <button class="vy-lyr-add" hidden></button>
+      <div class="vy-lyr-menu"></div>
       <button class="vy-lyr-close" aria-label="Cacher les paroles" title="Cacher les paroles">×</button>
       <div class="vy-lyr-slate">
         <p class="vy-lyr-head"><b></b><span></span></p>
@@ -73,6 +84,10 @@ export function mountLyricsBoard(root: HTMLElement, deps: LyricsBoardDeps): Lyri
   const closeBtn = root.querySelector<HTMLElement>(".vy-lyr-close")!;
   // Cœur du morceau en cours, en haut à gauche (pochette baissée ou paroles).
   const fav = deps.favorite ? mountFavorite(root.querySelector<HTMLButtonElement>(".vy-lyr-fav")!, deps.favorite) : null;
+  // « + » : ajouter le morceau en cours à une playlist (menu au-dessus du bouton).
+  const addTo = deps.playlist
+    ? mountAddToPlaylist(root.querySelector<HTMLButtonElement>(".vy-lyr-add")!, root.querySelector<HTMLElement>(".vy-lyr-menu")!, deps.playlist)
+    : null;
   let artUrl: string | null = null;
   let open = readOpen();
   let wanted: NowPlaying | null = null; // morceau dont il faudra chercher les paroles à l'ouverture
@@ -91,12 +106,21 @@ export function mountLyricsBoard(root: HTMLElement, deps: LyricsBoardDeps): Lyri
     const np = snap!.nowPlaying;
     return estimatePosition(np.positionMs, np.durationMs, np.state === "playing", receivedAt, performance.now());
   };
+  // Position du texte (px défilés). auto : suivi du morceau (transition CSS) ; sinon à la main (immédiat).
+  let curY = 0;
+  let manualUntil = 0; // suivi automatique suspendu jusque-là (défilement à la main)
+  let resumeTimer = 0;
+  const scrollTo = (y: number, auto = true) => {
+    curY = Math.max(0, y);
+    text.style.transition = auto ? "" : "none";
+    text.style.transform = `translateY(${-curY}px)`;
+  };
+  const manual = () => performance.now() < manualUntil;
   // Défile pour amener la ligne i au milieu de l'ardoise.
   const center = (i: number) => {
     const row = rows[Math.max(0, i)];
-    if (!row) return;
-    const y = row.offsetTop + row.offsetHeight / 2 - view.clientHeight / 2;
-    text.style.transform = `translateY(${-Math.max(0, y)}px)`;
+    if (!row || manual()) return;
+    scrollTo(row.offsetTop + row.offsetHeight / 2 - view.clientHeight / 2);
   };
   let plainMax = -1; // défilement maximal du texte simple (mesuré une fois par mise en page)
   const tick = () => {
@@ -114,7 +138,7 @@ export function mountLyricsBoard(root: HTMLElement, deps: LyricsBoardDeps): Lyri
       }
     } else if (rows.length) {
       if (plainMax < 0) plainMax = Math.max(0, text.scrollHeight - view.clientHeight);
-      text.style.transform = `translateY(${-plainProgress(position(), snap.nowPlaying.durationMs) * plainMax}px)`;
+      if (!manual()) scrollTo(plainProgress(position(), snap.nowPlaying.durationMs) * plainMax);
     }
   };
   // Minuterie : 200 ms pour suivre les lignes synchronisées, 1 s sinon (texte simple, transition de 1 s ; barre) ;
@@ -132,10 +156,41 @@ export function mountLyricsBoard(root: HTMLElement, deps: LyricsBoardDeps): Lyri
   };
   const onVisibility = () => run();
   document.addEventListener("visibilitychange", onVisibility);
+
+  // Défilement à la main : molette / trackpad, ou glisser. Le suivi du morceau reprend MANUAL_MS après.
+  const scrollBy = (dy: number) => {
+    if (!rows.length) return;
+    manualUntil = performance.now() + MANUAL_MS;
+    scrollTo(clampScroll(curY + dy, text.scrollHeight - view.clientHeight / 2), false);
+    clearTimeout(resumeTimer);
+    resumeTimer = window.setTimeout(() => { shown = -2; tick(); }, MANUAL_MS + 50);
+  };
+  view.addEventListener("wheel", (e) => {
+    if (!open || !rows.length) return;
+    e.preventDefault();
+    scrollBy(e.deltaMode === 1 ? e.deltaY * 18 : e.deltaY);
+  }, { passive: false });
+  let dragY: number | null = null;
+  view.addEventListener("pointerdown", (e) => {
+    if (!open || !rows.length || e.button !== 0) return;
+    dragY = e.clientY;
+    view.setPointerCapture(e.pointerId);
+    view.classList.add("vy-lyr-drag");
+  });
+  view.addEventListener("pointermove", (e) => {
+    if (dragY === null) return;
+    const k = Number(box.style.zoom) || 1; // le tableau est agrandi par zoom : px d'écran → px du tableau
+    scrollBy((dragY - e.clientY) / k);
+    dragY = e.clientY;
+  });
+  const endDrag = () => { dragY = null; view.classList.remove("vy-lyr-drag"); };
+  view.addEventListener("pointerup", endDrag);
+  view.addEventListener("pointercancel", endDrag);
   const show = (d: LyricsData) => {
     data = d;
     shown = -2;
-    text.style.transform = "";
+    manualUntil = 0;
+    scrollTo(0);
     const lines = d.synced?.length ? d.synced.map((l) => l.text) : d.plain.split("\n");
     if (d.instrumental && !d.synced?.length && !d.plain.trim()) return say("Instrumental");
     if (!lines.some((l) => l.trim())) return say("Pas de paroles pour ce morceau");
@@ -204,6 +259,7 @@ export function mountLyricsBoard(root: HTMLElement, deps: LyricsBoardDeps): Lyri
       paintCover(s.problem ? "" : np.artworkUrl);
       paintTitle(s.problem ? "" : np.title, s.problem ? "" : np.artist);
       fav?.update(s.problem || !np.trackId ? null : np);
+      addTo?.update(s.problem || !np.trackId ? null : np);
       const key = s.problem || !np.title ? "" : `${np.source}|${np.trackId}|${np.title}`;
       if (key !== trackKey) {
         trackKey = key;
@@ -219,6 +275,6 @@ export function mountLyricsBoard(root: HTMLElement, deps: LyricsBoardDeps): Lyri
       plainMax = -1;
       tick();
     },
-    destroy() { clearInterval(timer); gen++; document.removeEventListener("visibilitychange", onVisibility); },
+    destroy() { clearInterval(timer); clearTimeout(resumeTimer); addTo?.destroy(); gen++; document.removeEventListener("visibilitychange", onVisibility); },
   };
 }

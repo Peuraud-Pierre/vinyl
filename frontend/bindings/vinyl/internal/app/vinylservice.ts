@@ -37,6 +37,13 @@ import * as widgetupdate$0 from "../widgetupdate/models.js";
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+/**
+ * AddToPlaylist ajoute le morceau à la playlist ; false s'il y était déjà (Musique).
+ */
+export function AddToPlaylist(source: string, trackID: string, playlistID: string): $CancellablePromise<boolean> {
+    return $Call.ByID(2848113388, source, trackID, playlistID);
+}
+
 export function Artist(source: string, name: string, trackID: string): $CancellablePromise<catalog$0.ArtistPage> {
     return $Call.ByID(610413143, source, name, trackID);
 }
@@ -62,6 +69,14 @@ export function CheckForUpdate(): $CancellablePromise<$models.UpdateInfo> {
  */
 export function CurrentPlaylist(source: string): $CancellablePromise<string> {
     return $Call.ByID(2102783, source);
+}
+
+/**
+ * EditablePlaylists : playlists où l'on peut ajouter le morceau en cours (les siennes, pas les
+ * intelligentes ; Spotify : les siennes et les collaboratives), triées par nom.
+ */
+export function EditablePlaylists(source: string): $CancellablePromise<catalog$0.Item[] | null> {
+    return $Call.ByID(681299503, source);
 }
 
 export function GetSettings(): $CancellablePromise<settings$0.Settings> {

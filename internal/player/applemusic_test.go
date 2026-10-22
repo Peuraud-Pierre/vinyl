@@ -390,6 +390,9 @@ func TestAppleMusicFavorite(t *testing.T) {
 // Réécoute depuis la pile : « Lire ensuite » au menu de Musique puis « suivant » ; jamais de « play »
 // (la file serait vidée) ni de « précédent ».
 func TestAppleMusicPlayNext(t *testing.T) {
+	old := axTrusted
+	defer func() { axTrusted = old }()
+	axTrusted = func(bool) bool { return true }
 	r := &fakeRunner{outputs: []string{"OK", "NOTFOUND"}}
 	m := NewAppleMusic(r, t.TempDir())
 	if err := m.PlayNext(context.Background(), "T"); err != nil {
@@ -411,5 +414,39 @@ func TestAppleMusicPlayNext(t *testing.T) {
 	}
 	if err := m.PlayNext(context.Background(), "T"); err != ErrNotInPlaylist {
 		t.Errorf("introuvable : %v", err)
+	}
+}
+
+// Sans l'autorisation Accessibilité : rien n'est lancé, l'erreur le dit.
+func TestAppleMusicPlayNextNeedsAccessibility(t *testing.T) {
+	old := axTrusted
+	defer func() { axTrusted = old }()
+	axTrusted = func(bool) bool { return false }
+	r := &fakeRunner{}
+	if err := NewAppleMusic(r, t.TempDir()).PlayNext(context.Background(), "T"); err != ErrNeedsAccessibility || len(r.calls) != 0 {
+		t.Errorf("err=%v appels=%d", err, len(r.calls))
+	}
+}
+
+// Playlists modifiables (ni intelligentes ni spéciales) ; ajout sans doublon.
+func TestAppleMusicPlaylistsAndAdd(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"Ma liste" + Sep + "P1" + "\x1e" + "Autre" + Sep + "P2" + "\x1e", "OK", "ALREADY"}}
+	m := NewAppleMusic(r, t.TempDir())
+	ctx := context.Background()
+	ps, err := m.EditablePlaylists(ctx)
+	if err != nil || len(ps) != 2 || ps[0] != (PlaylistRef{ID: "P1", Name: "Ma liste"}) {
+		t.Fatalf("playlists = %+v, %v", ps, err)
+	}
+	if !strings.Contains(r.calls[0].script, "smart is false") {
+		t.Error("les playlists intelligentes doivent être exclues")
+	}
+	if added, err := m.AddToPlaylist(ctx, "T", "P1"); err != nil || !added {
+		t.Errorf("ajout : %v, %v", added, err)
+	}
+	if a := r.calls[1].args; len(a) != 2 || a[0] != "T" || a[1] != "P1" || !strings.Contains(r.calls[1].script, "duplicate t to p") {
+		t.Errorf("appel : %+v", r.calls[1])
+	}
+	if added, _ := m.AddToPlaylist(ctx, "T", "P1"); added {
+		t.Error("déjà dans la playlist : rien d'ajouté")
 	}
 }

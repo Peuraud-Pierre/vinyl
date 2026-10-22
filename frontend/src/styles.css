@@ -187,7 +187,10 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-lyr-head span, .vy-lyr-cover-cap span { font: 600 9px/1.2 ui-sans-serif, system-ui; letter-spacing: .22em; text-transform: uppercase;
   color: rgba(240,232,220,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vy-lyr-head:has(b:empty) { visibility: hidden; }
-.vy-lyr-view { position: relative; flex: 1; overflow: hidden; }
+.vy-lyr-view { position: relative; flex: 1; overflow: hidden; touch-action: none; }
+.vy-lyr-open .vy-lyr-view { cursor: grab; }
+.vy-lyr-view.vy-lyr-drag { cursor: grabbing; }
+.vy-lyr-view.vy-lyr-drag .vy-lyr-text p { user-select: none; }
 /* Les lignes s'effacent en haut et en bas de la fenêtre (masque : la fenêtre n'a pas de fond, l'ardoise reste nette). */
 .vy-lyr-view { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22%, #000 74%, transparent 100%);
   mask-image: linear-gradient(180deg, transparent 0, #000 22%, #000 74%, transparent 100%); }
@@ -204,7 +207,7 @@ html, body { margin: 0; height: 100%; background: transparent; }
   font: italic 500 15px/1.3 Georgia, serif; color: rgba(240,232,220,.45); pointer-events: none; }
 .vy-lyr-note:empty { display: none; }
 /* Avancement du morceau : un trait de craie en bas de l'ardoise. */
-.vy-lyr-bar { flex: none; height: 2px; margin: 0 18px 12px; transform: scaleX(0); transform-origin: 0 50%; transition: transform 1s linear;
+.vy-lyr-bar { flex: none; height: 2px; margin: 0 58px 29px; transform: scaleX(0); transform-origin: 0 50%; transition: transform 1s linear;
   background: color-mix(in srgb, var(--accent) 60%, #fff6ea); box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent); border-radius: 1px; }
 .vy-lyr-plate { position: absolute; left: 50%; bottom: -26px; translate: -50% 0; padding: 0;
   font: 600 9px/1 ui-sans-serif, system-ui; letter-spacing: .32em; text-transform: uppercase; color: rgba(42,29,27,.55); }
@@ -232,11 +235,33 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-lyr-open:hover .vy-lyr-close, .vy-lyr-open .vy-lyr-close:focus-visible { opacity: 1; }
 .vy-lyr-close:active { transform: scale(.92); }
 /* Cœur du morceau en cours (ui/favorite), en haut à gauche de l'ardoise, au-dessus de la pochette. */
-.vy-lyr-fav { position: absolute; left: 14px; top: 14px; z-index: 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+.vy-lyr-fav { position: absolute; right: 16px; bottom: 16px; z-index: 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
   cursor: pointer; color: rgba(255,255,255,.88); background: rgba(20,20,22,.45); backdrop-filter: blur(8px);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 2px 6px rgba(0,0,0,.3); transition: background .2s, color .2s, transform .15s; }
 .vy-lyr-fav[hidden] { display: none; }
-.vy-lyr:not(.vy-lyr-open) .vy-lyr-fav { top: auto; left: auto; right: 21px; bottom: 23px; } /* pochette baissée : à côté du titre */
+/* « + » : ajouter à une playlist (ui/addtoplaylist), en bas à gauche, et son menu au-dessus. */
+.vy-lyr-add { position: absolute; left: 16px; bottom: 16px; z-index: 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  cursor: pointer; color: rgba(255,255,255,.88); background: rgba(20,20,22,.45); backdrop-filter: blur(8px);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 2px 6px rgba(0,0,0,.3); transition: background .2s, transform .15s; }
+.vy-lyr-add[hidden] { display: none; }
+.vy-lyr-add svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.vy-lyr-add:hover, .vy-lyr-add[aria-expanded="true"] { background: rgba(20,20,22,.7); }
+.vy-lyr-add:active { transform: scale(.9); }
+.vy-lyr-menu { position: absolute; left: 12px; bottom: 52px; z-index: 3; width: 236px; max-height: 270px; display: flex; flex-direction: column;
+  padding: 8px; border-radius: 12px; background: rgba(28,27,30,.94); backdrop-filter: blur(14px);
+  box-shadow: 0 14px 32px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.1); color: #f3ece2; font: 500 13px/1.3 ui-sans-serif, system-ui; }
+.vy-lyr-menu[hidden] { display: none; }
+.vy-pl-title { margin: 2px 8px 6px; font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgba(243,236,226,.55); }
+.vy-pl-filter { margin: 0 2px 6px; padding: 6px 10px; border-radius: 8px; border: 0; outline: none; color: inherit; font: inherit;
+  background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+.vy-pl-filter:focus { box-shadow: inset 0 0 0 1px var(--accent); }
+.vy-pl-list { overflow-y: auto; display: flex; flex-direction: column; }
+.vy-pl-list button { padding: 7px 10px; border-radius: 7px; text-align: left; color: inherit; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vy-pl-list button:hover:not(:disabled), .vy-pl-list button:focus-visible { background: color-mix(in srgb, var(--accent) 35%, transparent); outline: none; }
+.vy-pl-list button:disabled { opacity: .5; cursor: default; }
+.vy-pl-status { margin: 4px 8px 2px; font-size: 12px; color: rgba(243,236,226,.7); }
+.vy-pl-status:empty { display: none; }
 .vy-lyr-fav svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
 .vy-lyr-fav:hover { background: rgba(20,20,22,.65); }
 .vy-lyr-fav:active { transform: scale(.9); }

@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -309,5 +310,40 @@ func TestSpotifyPlayNext(t *testing.T) {
 	}
 	if strings.Join(got, "|") != "POST /me/player/queue spotify:track:7|POST /me/player/next " {
 		t.Errorf("got %q", got)
+	}
+}
+
+// Playlists modifiables : les siennes et les collaboratives ; ajout en JSON, repli sur /tracks.
+func TestSpotifyEditablePlaylistsAndAdd(t *testing.T) {
+	var posted []string
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/me":
+			w.Write([]byte(`{"id":"moi"}`))
+		case r.URL.Path == "/me/playlists":
+			w.Write([]byte(`{"items":[
+				{"uri":"spotify:playlist:A","name":"Mienne","owner":{"id":"moi"},"images":[]},
+				{"uri":"spotify:playlist:B","name":"Autre","owner":{"id":"x"},"images":[]},
+				{"uri":"spotify:playlist:C","name":"Collab","collaborative":true,"owner":{"id":"x"},"images":[]}],"next":null}`))
+		case r.Method == "POST" && r.URL.Path == "/playlists/A/items":
+			http.Error(w, `{"error":{"message":"not found"}}`, 404)
+		case r.Method == "POST" && r.URL.Path == "/playlists/A/tracks":
+			b, _ := io.ReadAll(r.Body)
+			posted = append(posted, r.Header.Get("Content-Type")+" "+string(b))
+			w.WriteHeader(201)
+		default:
+			http.Error(w, r.URL.Path, 400)
+		}
+	})
+	ctx := context.Background()
+	ps, err := c.EditablePlaylists(ctx)
+	if err != nil || len(ps) != 2 || ps[0].Title != "Mienne" || ps[1].Title != "Collab" {
+		t.Fatalf("playlists = %+v, %v", ps, err)
+	}
+	if err := c.AddToPlaylist(ctx, "spotify:playlist:A", "7"); err != nil {
+		t.Fatal(err)
+	}
+	if len(posted) != 1 || posted[0] != `application/json {"uris":["spotify:track:7"]}` {
+		t.Errorf("envoyé : %q", posted)
 	}
 }

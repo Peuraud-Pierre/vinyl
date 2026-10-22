@@ -373,7 +373,10 @@ type fakeNext struct {
 	next []string
 }
 
-func (f *fakeNext) PlayNext(_ context.Context, id string) error { f.next = append(f.next, id); return nil }
+func (f *fakeNext) PlayNext(_ context.Context, id string) error {
+	f.next = append(f.next, id)
+	return nil
+}
 
 func TestReplayUsesPlayNextWhenAvailable(t *testing.T) {
 	p := &fakeNext{}

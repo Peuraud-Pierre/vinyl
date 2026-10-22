@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -425,7 +427,6 @@ type vinylQueue struct {
 
 // nearEnd : le morceau était dans ses dernières secondes au dernier sondage.
 func (q *vinylQueue) nearEnd() bool { return q.seen && q.dur > 0 && q.lastPos >= q.dur-4000 }
-
 
 func (s *VinylService) setQueue(q *vinylQueue) {
 	s.queueMu.Lock()
@@ -943,7 +944,9 @@ func (s *VinylService) favorites(source string) (favoriter, error) {
 
 type likesFavoriter struct{ c spotifyLikes }
 
-func (l likesFavoriter) Favorite(ctx context.Context, id string) (bool, error) { return l.c.Loved(ctx, id) }
+func (l likesFavoriter) Favorite(ctx context.Context, id string) (bool, error) {
+	return l.c.Loved(ctx, id)
+}
 func (l likesFavoriter) SetFavorite(ctx context.Context, id string, on bool) error {
 	return l.c.SetLoved(ctx, id, on)
 }
@@ -968,4 +971,66 @@ func (s *VinylService) SetFavorite(source, trackID string, on bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), callLimit)
 	defer cancel()
 	return f.SetFavorite(ctx, trackID, on)
+}
+
+// EditablePlaylists : playlists où l'on peut ajouter le morceau en cours (les siennes, pas les
+// intelligentes ; Spotify : les siennes et les collaboratives), triées par nom.
+func (s *VinylService) EditablePlaylists(source string) ([]catalog.Item, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	var items []catalog.Item
+	switch source {
+	case "applemusic":
+		am, ok := s.watcher.Player(source).(interface {
+			EditablePlaylists(ctx context.Context) ([]player.PlaylistRef, error)
+		})
+		if !ok {
+			return nil, catalog.ErrUnsupported
+		}
+		ps, err := am.EditablePlaylists(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range ps {
+			if !slices.Contains(catalog.OldVinylPlaylists, p.Name) {
+				items = append(items, catalog.Item{ID: p.ID, Kind: "playlist", Title: p.Name})
+			}
+		}
+	case "spotify":
+		web, ok := s.catalogs["spotify"].(*catalog.SpotifyWeb)
+		if !ok || s.spotifyAuth == nil || !s.spotifyAuth.LoggedIn() {
+			return nil, errors.New("connecte Spotify dans les réglages pour ajouter à une playlist")
+		}
+		var err error
+		if items, err = web.EditablePlaylists(ctx); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, catalog.ErrUnsupported
+	}
+	sort.SliceStable(items, func(i, j int) bool { return strings.ToLower(items[i].Title) < strings.ToLower(items[j].Title) })
+	return items, nil
+}
+
+// AddToPlaylist ajoute le morceau à la playlist ; false s'il y était déjà (Musique).
+func (s *VinylService) AddToPlaylist(source, trackID, playlistID string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	switch source {
+	case "applemusic":
+		am, ok := s.watcher.Player(source).(interface {
+			AddToPlaylist(ctx context.Context, trackID, playlistID string) (bool, error)
+		})
+		if !ok {
+			return false, catalog.ErrUnsupported
+		}
+		return am.AddToPlaylist(ctx, trackID, playlistID)
+	case "spotify":
+		web, ok := s.catalogs["spotify"].(*catalog.SpotifyWeb)
+		if !ok || s.spotifyAuth == nil || !s.spotifyAuth.LoggedIn() {
+			return false, errors.New("connecte Spotify dans les réglages pour ajouter à une playlist")
+		}
+		return true, web.AddToPlaylist(ctx, playlistID, trackID)
+	}
+	return false, catalog.ErrUnsupported
 }

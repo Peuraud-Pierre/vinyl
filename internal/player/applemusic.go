@@ -391,26 +391,60 @@ func (m *AppleMusic) PlayAlone(ctx context.Context, trackID string) error {
 
 // argv : persistent ID. « Lire ensuite » comme à la main, la seule façon de jouer un morceau sans
 // remplacer la file de Musique (aucune commande AppleScript ne le fait) : le morceau est sélectionné
-// dans la liste de la playlist en cours (fenêtre de Musique), Song › Play Next (Morceau › Lire ensuite)
+// dans la liste de la playlist en cours (fenêtre de Musique ; la liste doit suivre l'ordre de la playlist), Song › Play Next (Morceau › Lire ensuite)
 // est choisi au menu, puis « suivant » : le morceau en cours est sauté, le morceau choisi joue et la
 // file continue ensuite. Musique passe au premier plan le temps du clic, puis l'app d'avant y revient.
 // Demande l'autorisation Accessibilité.
-const musicPlayNextScript = `on rowHas(r, nm)
-	tell application "System Events"
-		repeat with c in (UI elements of r)
-			repeat with x in (static texts of c)
-				try
-					if ((value of x) as text) starts with nm then return true
-				end try
-			end repeat
+const musicPlayNextScript = `-- Sélectionne la ligne i et vérifie auprès de Musique (rapide) que c'est bien le morceau : la liste peut
+-- être triée autrement que la playlist, ou pas encore prête (la sélection ne prend pas). Lire la ligne
+-- par l'accessibilité coûterait ~0,8 s sur une grande liste.
+on selectRow(tb, i, target)
+	repeat 2 times
+		try
+			tell application "System Events" to set selected of row i of tb to true
+			tell application id "com.apple.Music" to if (persistent ID of item 1 of (get selection)) is target then return true
+		end try
+		delay 0.05
+	end repeat
+	return false
+end selectRow
+
+-- La fenêtre est-elle en vue « bibliothèque » (barre latérale et liste), et pas en vue « Now Playing » ?
+on mainView()
+	tell application "System Events" to tell process "Music"
+		try
+			return (count of splitter groups of window 1) > 0
+		on error
+			return false
+		end try
+	end tell
+end mainView
+
+on waitView(want)
+	repeat 100 times
+		if my mainView() is want then return true
+		delay 0.05
+	end repeat
+	return false
+end waitView
+
+-- Entrée du menu Fenêtre (9e menu de la barre), par son nom anglais ou français.
+on windowItem(names)
+	tell application "System Events" to tell process "Music"
+		set m to menu 1 of menu bar item 9 of menu bar 1
+		repeat with nm in names
+			if exists menu item (nm as text) of m then return menu item (nm as text) of m
 		end repeat
 	end tell
-	return false
-end rowHas
+	return missing value
+end windowItem
 
 -- Liste des morceaux affichée (directement dans la fenêtre, ou dans un groupe selon la page).
 on trackTable()
 	tell application "System Events" to tell process "Music"
+		try
+			return table 1 of scroll area 2 of splitter group 1 of window 1
+		end try
 		repeat with g in (UI elements of splitter group 1 of window 1)
 			try
 				if role of g is "AXScrollArea" then
@@ -426,107 +460,159 @@ on trackTable()
 	return missing value
 end trackTable
 
-on run argv
-	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	set target to item 1 of argv
-	tell application "System Events" to set prev to name of first application process whose frontmost is true
-	tell application id "com.apple.Music"
-		try
-			set t to (first track of current playlist whose persistent ID is target)
-		on error
-			return "NOTFOUND"
-		end try
-		set idx to index of t
-		set nm to name of t
-		set plName to name of current playlist
-		try
-			set minimized of front browser window to false
-		end try
-	end tell
-	-- Ouvre la playlist en cours : clic sur son nom dans la barre latérale (« set view » ne change plus
-	-- de page dans les versions récentes de Musique).
-	tell application "System Events" to tell process "Music"
-		repeat with r in (rows of outline 1 of scroll area 1 of splitter group 1 of window 1)
-			try
-				if (name of UI element 1 of r) is plName then
-					set selected of r to true
-					exit repeat
-				end if
-			end try
-		end repeat
-	end tell
-	set tb to missing value
-	repeat 50 times
-		set tb to my trackTable()
-		if tb is not missing value then
-			tell application "System Events" to if (count of rows of tb) ≥ idx then exit repeat
-		end if
-		delay 0.1
-	end repeat
-	if tb is missing value then return "NOTFOUND"
-	set res to "OK"
-	tell application "System Events" to tell process "Music"
-		set r to missing value
-		if idx ≤ (count of rows of tb) then
-			if my rowHas(row idx of tb, nm) then set r to row idx of tb
-		end if
-		if r is missing value then
-			repeat with x in (rows of tb)
-				if my rowHas(x, nm) then
-					set r to x
-					exit repeat
-				end if
-			end repeat
-		end if
-		if r is missing value then return "NOTFOUND"
-		set selected of r to true
-		set frontmost to true
-		delay 0.3
-		set m to menu 1 of menu bar item 5 of menu bar 1
-		set mi to missing value
-		repeat with label in {"Play Next", "Lire ensuite"}
-			if exists menu item (label as text) of m then
-				set mi to menu item (label as text) of m
-				exit repeat
-			end if
-		end repeat
-		if mi is missing value then set mi to menu item 5 of m
-		if enabled of mi then
-			click mi
-		else
-			set res to "DISABLED"
-		end if
-	end tell
-	if res is "OK" then
-		delay 0.3
-		tell application id "com.apple.Music" to next track
+-- Remet la vue « Now Playing » si elle était là, et l'app d'avant au premier plan.
+on restore(npWasOn, prev)
+	if npWasOn then
+		set np to my windowItem({"Now Playing", "À l'écoute"})
+		if np is not missing value then tell application "System Events" to click np
 	end if
 	if prev is not "Music" then
 		try
 			tell application "System Events" to set frontmost of process prev to true
 		end try
 	end if
+end restore
+
+on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	set target to item 1 of argv
+	tell application "System Events" to set prev to name of first application process whose frontmost is true
+	tell application id "com.apple.Music"
+		try
+			set idx to index of (first track of current playlist whose persistent ID is target)
+		on error
+			return "NOTFOUND"
+		end try
+		try
+			set minimized of front browser window to false
+		end try
+	end tell
+	-- Musique au premier plan : ses menus n'agissent que sur la fenêtre active.
+	tell application id "com.apple.Music" to activate
+	tell application "System Events" to tell process "Music" to set frontmost to true
+	repeat 40 times
+		tell application "System Events" to if frontmost of process "Music" then exit repeat
+		delay 0.05
+	end repeat
+	set npWasOn to false
+	set res to "OK"
+	try
+		if not my mainView() then
+			set np to my windowItem({"Now Playing", "À l'écoute"})
+			set mk to missing value
+			if np is not missing value then
+				try
+					tell application "System Events" to set mk to value of attribute "AXMenuItemMarkChar" of np
+				end try
+			end if
+			if mk is not missing value and mk is not "" then
+				tell application "System Events" to click np
+				set npWasOn to true
+			else
+				set mw to my windowItem({"Music", "Musique"})
+				if mw is not missing value then tell application "System Events" to click mw
+			end if
+			if not my waitView(true) then error "la fenêtre de Musique n'affiche pas la bibliothèque"
+		end if
+		-- La playlist en cours est souvent déjà affichée (Musique garde la dernière page) : sinon, clic sur
+		-- son nom dans la barre latérale (« set view » ne change plus de page dans Musique).
+		set tb to my trackTable()
+		set found to false
+		if tb is not missing value then set found to my selectRow(tb, idx, target)
+		if not found then
+			tell application id "com.apple.Music" to set plName to name of current playlist
+			tell application "System Events" to tell process "Music"
+				repeat with sr in (rows of outline 1 of scroll area 1 of splitter group 1 of window 1)
+					try
+						if (name of UI element 1 of sr) is plName then
+							set selected of sr to true
+							exit repeat
+						end if
+					end try
+				end repeat
+			end tell
+			repeat 50 times
+				set tb to my trackTable()
+				if tb is not missing value then
+					tell application "System Events" to set ready to exists row idx of tb
+					if ready then exit repeat
+				end if
+				delay 0.05
+			end repeat
+			if tb is not missing value then set found to my selectRow(tb, idx, target)
+		end if
+		set r to missing value
+		if found then set r to idx
+		if r is missing value then
+			set res to "NOTFOUND"
+		else
+			tell application "System Events" to tell process "Music"
+				-- Le morceau est sélectionné ; la liste prend le focus (sinon le menu Morceau vise la barre
+				-- latérale).
+				try
+					set focused of tb to true
+				end try
+				set m to menu 1 of menu bar item 5 of menu bar 1
+				set mi to missing value
+				repeat with label in {"Play Next", "Lire ensuite"}
+					if exists menu item (label as text) of m then
+						set mi to menu item (label as text) of m
+						exit repeat
+					end if
+				end repeat
+				if mi is missing value then set mi to menu item 5 of m
+				-- Le menu se met à jour un peu après la sélection (changement de vue en cours).
+				repeat 60 times
+					if enabled of mi then exit repeat
+					delay 0.05
+				end repeat
+				if enabled of mi then
+					click mi
+				else
+					set res to "DISABLED" & (character id 31) & (frontmost as text)
+				end if
+			end tell
+			if res is "OK" then
+				delay 0.08
+				tell application id "com.apple.Music" to next track
+			end if
+		end if
+	on error e number n
+		my restore(npWasOn, prev)
+		error e number n
+	end try
+	my restore(npWasOn, prev)
 	return res
 end run`
 
-// ErrNotInPlaylist : le morceau n'est pas dans la playlist en cours (« Lire ensuite » impossible).
-var ErrNotInPlaylist = errors.New("ce morceau n'est pas dans la playlist en cours")
+// ErrNotInPlaylist : le morceau n'est pas dans la playlist en cours, ou la liste de Musique n'est pas
+// dans l'ordre de la playlist (« Lire ensuite » impossible).
+var ErrNotInPlaylist = errors.New("ce morceau n'est pas dans la playlist en cours (ou la liste de Musique n'est pas triée dans l'ordre de la playlist)")
 
 // ErrNeedsAccessibility : Vinyl n'a pas l'autorisation Accessibilité (pilotage de la fenêtre de Musique).
 var ErrNeedsAccessibility = errors.New("autorise Vinyl dans Réglages Système › Confidentialité et sécurité › Accessibilité")
 
+// axTrusted : autorisation Accessibilité de Vinyl (remplacée dans les tests).
+var axTrusted = AccessibilityTrusted
+
 // PlayNext joue le morceau tout de suite sans vider la file de Musique (Lire ensuite, puis suivant).
 func (m *AppleMusic) PlayNext(ctx context.Context, trackID string) error {
+	if !axTrusted(true) { // macOS affiche sa demande, avec un bouton vers le bon réglage
+		return ErrNeedsAccessibility
+	}
 	out, err := m.simpleRun(ctx, musicPlayNextScript, trackID)
 	switch {
-	case err != nil && (strings.Contains(err.Error(), "-25211") || strings.Contains(err.Error(), "-1719") || strings.Contains(err.Error(), "assistive")):
+	case err != nil && (strings.Contains(err.Error(), "-25211") || strings.Contains(err.Error(), "assistive")):
 		return ErrNeedsAccessibility
 	case err != nil:
 		return err
 	case out == "NOTFOUND":
 		return ErrNotInPlaylist
-	case out == "DISABLED":
-		return errors.New("Musique n'a pas accepté « Lire ensuite »")
+	case strings.HasPrefix(out, "DISABLED"):
+		if strings.HasSuffix(out, "false") {
+			return errors.New("Musique n'a pas accepté « Lire ensuite » (Musique n'est pas passé au premier plan)")
+		}
+		return errors.New("Musique n'a pas accepté « Lire ensuite » (menu grisé)")
 	}
 	return nil
 }
@@ -597,6 +683,64 @@ const musicFavoriteScript = `on run argv
 		end try
 	end tell
 end run`
+
+// Playlists où l'on peut ajouter des morceaux : celles de l'utilisateur, ni intelligentes ni spéciales.
+const musicEditablePlaylistsScript = musicGuard + `tell application id "com.apple.Music"
+	set us to character id 31
+	set rs to character id 30
+	set out to ""
+	repeat with p in (every user playlist whose special kind is none and smart is false)
+		set out to out & (name of p) & us & (persistent ID of p) & rs
+	end repeat
+	return out
+end tell`
+
+// argv : morceau, playlist. "ALREADY" s'il y est déjà ; sinon il est ajouté à la fin. Le morceau en cours
+// de préférence (il peut ne pas être dans la bibliothèque).
+const musicAddToPlaylistScript = `on run argv
+	if application id "com.apple.Music" is not running then return "NOTRUNNING"
+	tell application id "com.apple.Music"
+		set p to (first user playlist whose persistent ID is (item 2 of argv))
+		if (count of (tracks of p whose persistent ID is (item 1 of argv))) > 0 then return "ALREADY"
+		set t to missing value
+		try
+			if (persistent ID of current track) is (item 1 of argv) then set t to current track
+		end try
+		if t is missing value then set t to (first track of library playlist 1 whose persistent ID is (item 1 of argv))
+		duplicate t to p
+	end tell
+	return "OK"
+end run`
+
+// PlaylistRef : une playlist (identifiant, nom).
+type PlaylistRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// EditablePlaylists liste les playlists de l'utilisateur où l'on peut ajouter un morceau.
+func (m *AppleMusic) EditablePlaylists(ctx context.Context) ([]PlaylistRef, error) {
+	out, err := m.simpleRun(ctx, musicEditablePlaylistsScript)
+	if err != nil {
+		return nil, err
+	}
+	var ps []PlaylistRef
+	for _, rec := range strings.Split(out, "\x1e") {
+		if name, id, ok := strings.Cut(rec, Sep); ok && id != "" {
+			ps = append(ps, PlaylistRef{ID: id, Name: name})
+		}
+	}
+	return ps, nil
+}
+
+// AddToPlaylist ajoute le morceau à la playlist ; false s'il y était déjà (rien n'est ajouté).
+func (m *AppleMusic) AddToPlaylist(ctx context.Context, trackID, playlistID string) (bool, error) {
+	out, err := m.simpleRun(ctx, musicAddToPlaylistScript, trackID, playlistID)
+	if err != nil {
+		return false, err
+	}
+	return out != "ALREADY", nil
+}
 
 // Favorite dit si le morceau est en favori dans Musique.
 func (m *AppleMusic) Favorite(ctx context.Context, trackID string) (bool, error) {

@@ -70,6 +70,10 @@ export function mount(el: HTMLElement): () => void {
   const lyrics = mountLyricsBoard($("pl-lyrics"), {
     lyrics: (np) => api.Lyrics(np.source, np.trackId, np.title, np.artist, np.album, np.durationMs),
     favorite: { get: (np) => api.IsFavorite(np.source, np.trackId), set: (np, on) => api.SetFavorite(np.source, np.trackId, on) },
+    playlist: {
+      playlists: (source) => api.EditablePlaylists(source).then((l) => l ?? []),
+      add: (np, id) => api.AddToPlaylist(np.source, np.trackId, id),
+    },
   });
   // Volume de l'ordinateur : molette en haut à gauche du socle (pas de bouton).
   const volume = mountVolume($("pl-vol"), { get: () => api.Volume(), set: (v) => api.SetVolume(v) });
@@ -114,7 +118,7 @@ export function mount(el: HTMLElement): () => void {
     m.style.top = `${parseFloat(r.style.top) - 10}px`;
     m.classList.remove("hidden");
     clearTimeout(msgTimer);
-    msgTimer = window.setTimeout(() => m.classList.add("hidden"), 3500);
+    msgTimer = window.setTimeout(() => m.classList.add("hidden"), 8000);
   };
   const ro = new ResizeObserver(fit);
   ro.observe($("pl-wrap"));
@@ -137,7 +141,8 @@ export function mount(el: HTMLElement): () => void {
           showRecentMsg(msg.includes("plus dans la file") ? "Ce morceau n'est plus dans la file de lecture"
             : msg.includes("connecte Spotify") ? "Connecte Spotify dans les réglages pour réécouter ce morceau"
             : msg.includes("Accessibilité") ? "Autorise Vinyl dans Réglages Système › Confidentialité et sécurité › Accessibilité"
-            : msg.includes("playlist en cours") ? "Ce morceau n'est pas dans la playlist en cours" : "Lecture impossible");
+            : msg.includes("playlist en cours") ? "Morceau introuvable dans la playlist en cours (triée autrement dans Musique ?)"
+            : `Lecture impossible : ${msg.replace(/^Error: |osascript: /g, "").slice(-160)}`); // la fin : l'erreur et son code
         })
         .finally(() => api.History().then((l) => recent?.update(l ?? [])).catch(() => {}));
     },
