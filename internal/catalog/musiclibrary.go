@@ -343,7 +343,8 @@ func parseTrackRecord(r []string) (t player.Track, disc int, genre, year string,
 		genre = ""
 	}
 	loved := strings.TrimSpace(r[6]) == "true"
-	t = player.Track{ID: r[0], Number: num, Title: r[3], Artist: r[4], DurationMs: player.ParseSeconds(r[5]), Loved: loved}
+	y, _ := strconv.Atoi(year)
+	t = player.Track{ID: r[0], Number: num, Title: r[3], Artist: r[4], DurationMs: player.ParseSeconds(r[5]), Loved: loved, Year: y}
 	return t, disc, genre, year, true
 }
 

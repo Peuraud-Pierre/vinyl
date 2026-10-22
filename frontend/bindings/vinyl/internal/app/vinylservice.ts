@@ -19,6 +19,9 @@ import * as catalog$0 from "../catalog/models.js";
 import * as history$0 from "../history/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as lyrics$0 from "../lyrics/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as player$0 from "../player/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -85,6 +88,13 @@ export function InstallUpdate(): $CancellablePromise<boolean> {
 }
 
 /**
+ * IsFavorite dit si le morceau est en favori (cœur de Musique, titre liké sur Spotify).
+ */
+export function IsFavorite(source: string, trackID: string): $CancellablePromise<boolean> {
+    return $Call.ByID(2616124864, source, trackID);
+}
+
+/**
  * ItemArtwork renvoie la pochette d'un élément de la bibliothèque Musique (chargée à la demande).
  */
 export function ItemArtwork(source: string, id: string): $CancellablePromise<string> {
@@ -101,6 +111,15 @@ export function LaunchAtLogin(): $CancellablePromise<boolean> {
 
 export function Library(source: string, kind: string, offset: number): $CancellablePromise<catalog$0.Page> {
     return $Call.ByID(1851563471, source, kind, offset);
+}
+
+/**
+ * Lyrics renvoie les paroles d'un morceau : synchronisées (LRCLIB) de préférence, sinon celles enregistrées
+ * dans Musique, sinon le texte simple de LRCLIB. Un résultat (même vide) est gardé pour ce morceau ; une
+ * erreur réseau ne l'est pas (nouvel essai au prochain affichage).
+ */
+export function Lyrics(source: string, trackID: string, title: string, artist: string, album: string, durationMs: number): $CancellablePromise<lyrics$0.Lyrics> {
+    return $Call.ByID(2257080556, source, trackID, title, artist, album, durationMs);
 }
 
 /**
@@ -165,9 +184,9 @@ export function PlayFrom(source: string, collectionID: string, trackID: string, 
 }
 
 /**
- * PlayFromHistory réécoute un morceau de la pile comme Apple Music : la pile n'est pas touchée, le
- * morceau est joué une fois, puis la lecture reprend là où elle en était (playlist de l'utilisateur ou
- * album joué par Vinyl). Lecteur sans cette possibilité (Spotify) : le morceau est simplement lancé.
+ * PlayFromHistory réécoute un morceau de la pile sans vider la file du lecteur : le morceau en cours est
+ * sauté, le morceau choisi est joué, puis la file continue normalement (au morceau qui suivait celui
+ * qu'on a sauté). La pile n'est pas touchée.
  */
 export function PlayFromHistory(source: string, trackID: string): $CancellablePromise<void> {
     return $Call.ByID(1509244506, source, trackID);
@@ -236,6 +255,13 @@ export function SetCatalog(source: string, c: catalog$0.Catalog): $CancellablePr
 }
 
 /**
+ * SetFavorite met le morceau en favori, ou l'en retire.
+ */
+export function SetFavorite(source: string, trackID: string, on: boolean): $CancellablePromise<void> {
+    return $Call.ByID(37013056, source, trackID, on);
+}
+
+/**
  * SetHistory branche la pile des derniers morceaux écoutés et sa diffusion (notify peut être nil).
  */
 export function SetHistory(h: history$0.Store | null, notify: any): $CancellablePromise<void> {
@@ -274,6 +300,13 @@ export function SetUpdater(u: $models.Updater): $CancellablePromise<void> {
  */
 export function SetVersion(v: string): $CancellablePromise<void> {
     return $Call.ByID(1710665952, v);
+}
+
+/**
+ * SetVolume règle le volume de sortie de l'ordinateur (0 à 100) et rétablit le son.
+ */
+export function SetVolume(level: number): $CancellablePromise<void> {
+    return $Call.ByID(584263406, level);
 }
 
 /**
@@ -356,6 +389,13 @@ export function UpdateWidget(): $CancellablePromise<void> {
  */
 export function Version(): $CancellablePromise<string> {
     return $Call.ByID(3934402648);
+}
+
+/**
+ * Volume renvoie le volume de sortie de l'ordinateur (0 à 100, 0 si le son est coupé).
+ */
+export function Volume(): $CancellablePromise<number> {
+    return $Call.ByID(1257044406);
 }
 
 /**

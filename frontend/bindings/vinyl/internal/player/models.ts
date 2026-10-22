@@ -44,4 +44,9 @@ export interface Track {
     "album": string;
     "durationMs": number;
     "loved": boolean;
+
+    /**
+     * année de sortie, 0 si inconnue (tri plus ancien / plus récent)
+     */
+    "year": number;
 }

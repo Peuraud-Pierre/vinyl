@@ -2,7 +2,8 @@ import type { Settings, Snapshot } from "../api";
 import { api, playPause } from "../api";
 import { ARM_GEOMETRY, ARM_LIFT, ARM_REST, CLICK_TOLERANCE, angleForProgress, armRelease, dragAngleFromPointer } from "./arm";
 import { estimatePosition } from "./clock";
-import { playCrackle } from "./crackle";
+import { playCrackle, startScratch } from "./crackle";
+import { pointerAngle, scratchTarget, turnDelta } from "./scratch";
 import { FULL_SPEED, Spinner } from "./spin";
 import { discBackground, type Texture } from "./textures";
 import { labelColorFor, labelMarkup } from "./label";
@@ -35,14 +36,17 @@ const TEMPLATE_STAGE = `
       <div class="tt-sleeve-empty absolute inset-0 flex items-end p-7 text-[26px] font-semibold" style="color:#e9d6c9;background:radial-gradient(circle at 70% 62%, var(--accent) 0 18%, color-mix(in srgb, var(--accent) 50%, #15100f) 36%, #15100f 60%)"></div>
     </div>
     <div class="absolute rounded-full" style="left:${DISC_LEFT}px;top:${DISC_TOP}px;width:${DISC_SIZE}px;height:${DISC_SIZE}px;box-shadow:0 26px 50px rgba(20,8,6,.55)">
+      <div class="tt-scratch absolute inset-0 rounded-full" style="cursor:grab;touch-action:none">
       <div class="tt-disc absolute inset-0 overflow-hidden rounded-full">
         <div class="tt-base absolute inset-0 rounded-full"></div>
         <div class="absolute rounded-full pointer-events-none" style="inset:1px;box-shadow:inset 0 0 0 10px rgba(255,255,255,.03),inset 0 0 0 54px rgba(0,0,0,.12)"></div>
         <button class="tt-label no-drag absolute rounded-full" style="left:27.5%;top:27.5%;width:45%;height:45%;container-type:inline-size" aria-label="Lecture / pause"></button>
       </div>
+      </div>
       <div class="absolute inset-0 rounded-full pointer-events-none" style="background:conic-gradient(from 20deg, transparent 0deg, rgba(255,255,255,.07) 24deg, transparent 50deg, transparent 180deg, rgba(255,255,255,.05) 206deg, transparent 236deg)"></div>
     </div>
-    <div class="glass absolute pointer-events-none" style="left:${G.pivot.x - 48}px;top:${G.pivot.y - 48}px;width:96px;height:200px;border-radius:48px;background:rgba(255,236,230,.16)"></div>
+    <!-- Pas de flou d'arrière-plan (.glass) : la pastille chevauche le disque, le flou serait recalculé à chaque image. -->
+    <div class="absolute pointer-events-none" style="left:${G.pivot.x - 48}px;top:${G.pivot.y - 48}px;width:96px;height:200px;border-radius:48px;background:rgba(255,236,230,.16);border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)"></div>
     <div class="tt-arm absolute cursor-grab" style="left:${G.pivot.x - ARM_BOX.ox}px;top:${G.pivot.y - ARM_BOX.oy}px;width:120px;height:${ARM_BOX.oy + G.length + 20}px;transform-origin:${ARM_BOX.ox}px ${ARM_BOX.oy}px">
       <svg width="120" height="${ARM_BOX.oy + G.length + 20}" style="overflow:visible" aria-hidden="true">
         <defs><linearGradient id="tt-chrome" x1="0" x2="1"><stop offset="0" stop-color="#6d6a68"/><stop offset=".45" stop-color="#e6e3e0"/><stop offset="1" stop-color="#7c7876"/></linearGradient></defs>
@@ -77,6 +81,7 @@ export class Turntable {
   private raf = 0;
   private last = performance.now();
   private armWasDown = false;
+  private scratching = false; // disque tenu à la main : le bras reste posé où il est
   // Économie d'énergie : la rotation est une animation du compositeur (aucun calcul par image) ; une
   // boucle d'images ne tourne que pendant le démarrage / l'arrêt du plateau. Le bras, qui avance de
   // quelques degrés par minute, est mis à jour une fois par seconde avec une transition linéaire.
@@ -96,6 +101,8 @@ export class Turntable {
     this.arm = root.querySelector(".tt-arm");
     this.label.addEventListener("click", () => void playPause().catch(() => {}));
     if (this.arm) this.bindArm(this.arm);
+    const scratch = root.querySelector<HTMLElement>(".tt-scratch");
+    if (scratch) this.bindScratch(scratch);
     // Pochette de la platine : un clic la fait glisser puis revenir, avec un ressort.
     const sleeve = root.querySelector<HTMLElement>(".tt-sleeve");
     if (sleeve) {
@@ -205,7 +212,7 @@ export class Turntable {
 
   // Position du bras : suit la progression du morceau ; pendant un glissé, suit le doigt sans transition.
   private applyArm(transition = "transform 1s linear"): void {
-    if (!this.arm) return;
+    if (!this.arm || this.scratching) return;
     let angle = ARM_REST;
     if (this.dragAngle !== null) angle = this.dragAngle;
     else if (this.playing && this.snap) {
@@ -269,5 +276,79 @@ export class Turntable {
         // Aucun lecteur actif : la platine affiche déjà le message adéquat.
       }
     });
+  }
+
+  // Mode DJ : le disque suit la main (rotation ajoutée par-dessus celle du plateau). Tenu, le morceau est mis
+  // en pause ; relâché, il reprend à la position où on l'a amené. Un simple clic reste lecture / pause.
+  private bindScratch(el: HTMLElement): void {
+    let held = false, moved = 0, turned = 0, offset = 0, last = 0, lastT = 0, fromMs = 0, wasPlaying = false;
+    let start = { x: 0, y: 0 };
+    let sound: ReturnType<typeof startScratch> | null = null;
+    let swallowClick = false;
+    let c = { x: 0, y: 0 }; // centre du disque, mesuré au début du geste (pas de mise en page à chaque mouvement)
+    let raf = 0;
+    const angleOf = (e: PointerEvent) => pointerAngle(c.x, c.y, e.clientX, e.clientY);
+    const paintTurn = () => { raf = 0; el.style.transform = `rotate(${offset}deg)`; };
+    el.addEventListener("pointerdown", (e) => {
+      if (!this.snap || this.snap.problem || e.button !== 0) return;
+      held = true;
+      moved = 0;
+      turned = 0;
+      start = { x: e.clientX, y: e.clientY };
+      const r = el.getBoundingClientRect();
+      c = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      last = angleOf(e);
+      lastT = performance.now();
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!held) return;
+      moved = Math.max(moved, Math.hypot(e.clientX - start.x, e.clientY - start.y));
+      if (moved < CLICK_TOLERANCE * 2) return;
+      if (!sound && turned === 0 && el.style.cursor !== "grabbing") {
+        // Début du scratch : on retient le plateau et la position du morceau.
+        el.style.cursor = "grabbing";
+        this.scratching = true;
+        const np = this.snap!.nowPlaying;
+        wasPlaying = this.playing;
+        fromMs = estimatePosition(np.positionMs, np.durationMs, wasPlaying, this.receivedAt, performance.now());
+        this.spin?.pause();
+        if (wasPlaying) void playPause().catch(() => {});
+        if (this.appearance?.crackle) sound = startScratch();
+      }
+      const a = angleOf(e), now = performance.now();
+      const d = turnDelta(last, a);
+      turned += d;
+      offset += d;
+      sound?.speed(d / Math.max(1, now - lastT));
+      last = a;
+      lastT = now;
+      raf ||= requestAnimationFrame(paintTurn);
+    });
+    const release = async () => {
+      if (!held) return;
+      held = false;
+      const scratched = el.style.cursor === "grabbing";
+      el.style.cursor = "grab";
+      sound?.stop();
+      sound = null;
+      if (!scratched) return; // simple clic : lecture / pause par l'étiquette
+      swallowClick = true;
+      setTimeout(() => (swallowClick = false), 0);
+      const np = this.snap?.nowPlaying;
+      try {
+        if (np) await api.SeekMs(scratchTarget(fromMs, turned, np.durationMs));
+        if (wasPlaying) await playPause();
+      } catch {
+        // Aucun lecteur actif : la platine affiche déjà le message adéquat.
+      }
+      this.scratching = false;
+      this.applyArm("transform .6s ease");
+      if (this.playing) this.spin?.play();
+    };
+    el.addEventListener("pointerup", () => void release());
+    el.addEventListener("pointercancel", () => void release());
+    // Le clic qui suit un scratch ne doit pas mettre en pause.
+    el.addEventListener("click", (e) => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); } }, true);
   }
 }

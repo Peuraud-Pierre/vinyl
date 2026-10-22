@@ -18,9 +18,11 @@ import (
 	"vinyl/internal/auth"
 	"vinyl/internal/catalog"
 	"vinyl/internal/history"
+	"vinyl/internal/lyrics"
 	"vinyl/internal/player"
 	"vinyl/internal/settings"
 	"vinyl/internal/stats"
+	"vinyl/internal/sysvolume"
 	"vinyl/internal/widgetupdate"
 )
 
@@ -41,15 +43,19 @@ type VinylService struct {
 	spotifyPlay func(ctx context.Context, contextURI, trackURI string, shuffle bool) error
 	queueMu     sync.Mutex
 	queue       *vinylQueue // morceaux enchaînés par Vinyl (album, réécoute depuis la pile)
-	back        *backReplay // réécoute par « précédent » dans la file de Musique
+	back        *backReplay // réécoute par « précédent » dans la file du lecteur (Windows)
 	version     string      // numéro de la release, « dev » pour une fabrication à la main
 	upd         Updater     // système de mise à jour (nil en « dev »)
 	exePath     func() (string, error)
 	spec        *spectrum // capture du son pour l'égaliseur (remplacée dans les tests)
+	lyricsFind  func(ctx context.Context, title, artist, album string, durationMs int64) (lyrics.Lyrics, error)
+	lyricsMu    sync.Mutex
+	lyricsCache map[string]lyrics.Lyrics // par source et morceau (la dernière trentaine)
 }
 
 func New(store *settings.Store, watcher *player.Watcher, music *catalog.MusicLibrary) *VinylService {
 	s := &VinylService{store: store, watcher: watcher, music: music, catalogs: map[string]catalog.Catalog{}, openLink: openURL, version: "dev", exePath: os.Executable,
+		lyricsFind: lyrics.NewLRCLib("dev").Find, lyricsCache: map[string]lyrics.Lyrics{},
 		spec: newSpectrum(systemTap{}, func(b []float32) { application.Get().Event.Emit("spectrum", b) })}
 	if music != nil { // bibliothèque Apple Music : Mac seulement
 		s.catalogs["applemusic"] = music
@@ -69,6 +75,7 @@ func (s *VinylService) SetCatalog(source string, c catalog.Catalog) {
 func (s *VinylService) SetVersion(v string) {
 	if v != "" {
 		s.version = v
+		s.lyricsFind = lyrics.NewLRCLib(v).Find
 	}
 }
 
@@ -308,62 +315,64 @@ func (s *VinylService) SetHistory(h *history.Store, notify func([]history.Entry)
 	s.history, s.onHistory = h, notify
 }
 
-// PlayFromHistory réécoute un morceau de la pile comme Apple Music : la pile n'est pas touchée, le
-// morceau est joué une fois, puis la lecture reprend là où elle en était (playlist de l'utilisateur ou
-// album joué par Vinyl). Lecteur sans cette possibilité (Spotify) : le morceau est simplement lancé.
+// PlayFromHistory réécoute un morceau de la pile sans vider la file du lecteur : le morceau en cours est
+// sauté, le morceau choisi est joué, puis la file continue normalement (au morceau qui suivait celui
+// qu'on a sauté). La pile n'est pas touchée.
 func (s *VinylService) PlayFromHistory(source, trackID string) error {
 	p := s.watcher.Player(source)
 	if p == nil {
 		return errors.New("source inconnue")
 	}
-	// D'abord directement : le morceau est lancé seul, puis à sa fin la playlist reprend au morceau
-	// interrompu (voir ObservePlayback). Si c'est impossible (morceau absent de la bibliothèque) ou que
-	// le lecteur ne sait pas le faire (Windows) : « précédent » jusqu'au morceau, puis « suivant » au
-	// retour, sans toucher à la file du lecteur.
-	b, back := p.(player.BackReplayer)
-	cs, saves := p.(player.ContextSaver)
-	r, ok := p.(player.ReplayResumer)
-	if ok {
-		err := s.replayAlone(r, source, trackID)
-		if err == nil || !back {
-			return err
+	// Album enchaîné par Vinyl : c'est sa propre file, le morceau y est glissé à la place du morceau en cours.
+	if r, ok := p.(player.ReplayResumer); ok {
+		if q := s.activeQueue(); q != nil && q.source == source {
+			return s.replaceCurrent(r, q, trackID)
 		}
 	}
-	if back && saves && s.activeQueue() == nil {
+	// Spotify : le morceau est mis en tête de la file, puis « suivant ».
+	if source == "spotify" {
+		web, ok := s.catalogs["spotify"].(*catalog.SpotifyWeb)
+		if !ok || s.spotifyAuth == nil || !s.spotifyAuth.LoggedIn() {
+			return errors.New("connecte Spotify dans les réglages pour réécouter un morceau de la pile")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+		defer cancel()
+		defer s.watcher.Wake()
+		return web.PlayNext(ctx, trackID)
+	}
+	// Musique : « Lire ensuite » puis « suivant » (voir AppleMusic.PlayNext).
+	if np, ok := p.(player.NextPlayer); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		defer s.watcher.Wake()
+		return np.PlayNext(ctx, trackID)
+	}
+	// Lecteur qui ne sait que reculer / avancer dans sa file (Windows) : « précédent » jusqu'au morceau
+	// (son coupé, morceaux traversés ni affichés ni posés sur la pile) ; à sa fin, « suivant » jusqu'au
+	// morceau qui suivait celui qu'on a sauté (voir observeBack).
+	b, back := p.(player.BackReplayer)
+	cs, saves := p.(player.ContextSaver)
+	if back && saves {
 		if steps := s.stepsBack(source, trackID); steps > 0 {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // un pas peut prendre 2,5 s
 			defer cancel()
 			saved, err := cs.SaveContext(ctx)
 			if err == nil && saved.TrackID != "" {
-				s.watcher.Hold(true) // morceaux traversés : ni affichés ni posés sur la pile
+				s.watcher.Hold(true)
 				taken, err := b.ReplayBack(ctx, trackID, steps, saved.PositionSec)
 				s.watcher.Hold(false)
 				s.watcher.Wake()
 				if err != nil {
 					return err
 				}
-				if taken == 0 {
-					// Surtout pas de nouveau « play » : la file du lecteur serait remplacée.
-					return errors.New("ce morceau n'est plus dans la file de lecture")
+				if taken > 0 {
+					s.queueMu.Lock()
+					s.back = &backReplay{source: source, trackID: trackID, steps: taken, saved: saved, started: time.Now()}
+					s.queueMu.Unlock()
+					return nil
 				}
-				s.queueMu.Lock()
-				s.back = &backReplay{source: source, trackID: trackID, steps: taken, saved: saved, started: time.Now()}
-				s.queueMu.Unlock()
-				return nil
 			}
 		}
-	}
-	if !ok && back {
-		// Lecteur qui ne sait que reculer / avancer (Windows) : son identifiant de morceau est une
-		// empreinte, inutilisable pour lancer le morceau autrement ; surtout pas de nouveau « play ».
-		return errors.New("ce morceau n'est plus dans la file de lecture")
-	}
-	if !ok {
-		id := trackID
-		if source == "applemusic" && runtime.GOOS == "darwin" {
-			id = "track:" + trackID // Musique attend un identifiant typé
-		}
-		return s.PlayItem(source, id)
 	}
 	return errors.New("ce morceau n'est plus dans la file de lecture")
 }
@@ -394,50 +403,29 @@ func (s *VinylService) CurrentPlaylist(source string) (string, error) {
 	return "", nil
 }
 
-// replayAlone lance le morceau seul puis, à sa fin, reprend la lecture interrompue (Vinyl enchaîne).
-func (s *VinylService) replayAlone(r player.ReplayResumer, source, trackID string) error {
-	q := &vinylQueue{source: source, tracks: []player.Track{{ID: trackID}}}
-	if prev := s.activeQueue(); prev != nil && prev.source == source {
-		// Déjà en train d'enchaîner : on reprendra là où on en était (morceau interrompu compris).
-		s.queueMu.Lock()
-		q.tracks = append(q.tracks, prev.tracks[prev.idx:]...)
-		q.resume = prev.resume
-		s.queueMu.Unlock()
-	} else {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		saved, err := r.SaveContext(ctx)
-		cancel()
-		if err == nil && saved.TrackID != "" && saved.TrackID != trackID {
-			saved.After = true // comme un clic dans l'Historique : la file reprend après le morceau interrompu
-			q.resume = &saved
-			_, q.inContext = r.(player.ContextPlayer)
-		}
-	}
+// replaceCurrent : dans la file de Vinyl, le morceau choisi prend la place du morceau en cours, la suite
+// reste la même.
+func (s *VinylService) replaceCurrent(r player.ReplayResumer, prev *vinylQueue, trackID string) error {
+	s.queueMu.Lock()
+	q := &vinylQueue{source: prev.source, tracks: append([]player.Track{{ID: trackID}}, prev.tracks[prev.idx+1:]...)}
+	s.queueMu.Unlock()
 	return s.startQueue(r, q)
 }
 
 // vinylQueue : morceaux que Vinyl enchaîne lui-même, chacun joué « une fois » dans Musique (aucune
-// playlist créée) : un album, ou un morceau réécouté depuis la pile, puis éventuellement la playlist
-// de l'utilisateur à reprendre là où elle en était.
+// playlist créée) : un album.
 type vinylQueue struct {
 	source       string
 	tracks       []player.Track
 	idx          int
-	resume       *player.PlaybackContext // à reprendre après le dernier morceau
 	started      time.Time
 	seen         bool  // le morceau en cours a bien démarré
 	lastPos, dur int64 // dernière position vue (ms) et durée
-	inContext    bool  // morceau lancé dans la playlist (file de Musique remplie) : Musique enchaîne seule
 }
 
 // nearEnd : le morceau était dans ses dernières secondes au dernier sondage.
 func (q *vinylQueue) nearEnd() bool { return q.seen && q.dur > 0 && q.lastPos >= q.dur-4000 }
 
-// endedNaturally : le morceau a changé à sa fin. Lancé dans la playlist, Musique enchaîne lui-même, et
-// avec AutoMix le fondu commence bien avant la fin : les 20 dernières secondes comptent.
-func (q *vinylQueue) endedNaturally() bool {
-	return q.nearEnd() || (q.inContext && q.seen && q.dur > 0 && q.lastPos >= q.dur-20000)
-}
 
 func (s *VinylService) setQueue(q *vinylQueue) {
 	s.queueMu.Lock()
@@ -500,7 +488,7 @@ func (s *VinylService) observeBack(np player.NowPlaying) bool {
 	s.queueMu.Unlock()
 	if steps >= 0 {
 		if j, ok := s.watcher.Player(b.source).(player.BackReplayer); ok {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 			defer cancel()
 			j.JumpForward(ctx, steps, "", 0)
 			s.watcher.Wake()
@@ -529,16 +517,8 @@ func (s *VinylService) startQueue(r player.ReplayResumer, q *vinylQueue) error {
 	s.queueMu.Lock()
 	q.started, q.seen, q.lastPos, q.dur = time.Now(), false, 0, 0
 	id := q.tracks[q.idx].ID
-	inContext, playlist := q.inContext, ""
-	if q.resume != nil {
-		playlist = q.resume.PlaylistID
-	}
 	s.queueMu.Unlock()
-	play := func() error { return r.PlayAlone(ctx, id) }
-	if cp, ok := r.(player.ContextPlayer); ok && inContext {
-		play = func() error { return cp.PlayInContext(ctx, playlist, id) } // la file de Musique reste remplie
-	}
-	if err := play(); err != nil {
+	if err := r.PlayAlone(ctx, id); err != nil {
 		return err
 	}
 	s.setQueue(q)
@@ -547,8 +527,7 @@ func (s *VinylService) startQueue(r player.ReplayResumer, q *vinylQueue) error {
 }
 
 // step passe au morceau suivant (+1) ou précédent (-1). natural : fin du morceau (la répétition du
-// lecteur s'applique). Après le dernier : bouclage si « tout répéter », reprise de la playlist d'origine
-// s'il y en a une, sinon fin.
+// lecteur s'applique). Après le dernier : bouclage si « tout répéter », sinon fin.
 func (s *VinylService) step(q *vinylQueue, delta int, natural bool) error {
 	p := s.watcher.Player(q.source)
 	r, ok := p.(player.ReplayResumer)
@@ -571,20 +550,12 @@ func (s *VinylService) step(q *vinylQueue, delta int, natural bool) error {
 		next = 0
 	}
 	if next >= len(q.tracks) {
-		if q.resume == nil && rep == player.RepeatAll {
-			next = 0
-		} else {
-			resume := q.resume
+		if rep != player.RepeatAll {
 			s.queue = nil
 			s.queueMu.Unlock()
-			if resume == nil {
-				return nil
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			defer s.watcher.Wake()
-			return r.Resume(ctx, *resume)
+			return nil
 		}
+		next = 0
 	}
 	q.idx = next
 	s.queueMu.Unlock()
@@ -610,8 +581,6 @@ func (s *VinylService) ObservePlayback(snap player.Snapshot) {
 	switch {
 	case np.Source != "" && np.Source != q.source:
 		drop = q.seen
-	case np.TrackID == cur && q.inContext && np.DurationMs > 0 && np.PositionMs >= np.DurationMs-1500:
-		advance = true // dernière seconde : reprise avant que Musique n'enchaîne la suite de la playlist
 	case np.TrackID == cur:
 		if q.nearEnd() && np.PositionMs < 3000 {
 			advance = true // revenu au début : fini puis relancé
@@ -621,7 +590,7 @@ func (s *VinylService) ObservePlayback(snap player.Snapshot) {
 	case !q.seen:
 		drop = time.Since(q.started) > 15*time.Second // n'a jamais démarré
 	default:
-		advance, drop = q.endedNaturally(), !q.endedNaturally()
+		advance, drop = q.nearEnd(), !q.nearEnd()
 	}
 	if drop {
 		s.queue = nil
@@ -776,23 +745,11 @@ func (s *VinylService) Queue() (QueueState, error) {
 		return QueueState{Upcoming: []player.Track{}}, err
 	}
 	q := QueueState{Shuffle: sh, Repeat: string(rep), Upcoming: []player.Track{}}
-	// Morceaux enchaînés par Vinyl (album, réécoute depuis la pile) : la suite est la sienne, puis la
-	// playlist qui reprendra ensuite (comme Apple Music).
+	// Album enchaîné par Vinyl : la suite est la sienne.
 	if vq := s.activeQueue(); vq != nil {
 		s.queueMu.Lock()
 		q.Upcoming = append(q.Upcoming, vq.tracks[vq.idx+1:]...)
-		resume := vq.resume
 		s.queueMu.Unlock()
-		if u, ok := m.(interface {
-			UpcomingFrom(ctx context.Context, playlistID, trackID string, limit int, wrap bool) ([]player.Track, error)
-		}); ok && resume != nil {
-			if ts, err := u.UpcomingFrom(ctx, resume.PlaylistID, resume.TrackID, 30, rep == player.RepeatAll); err == nil {
-				if resume.After && len(ts) > 0 {
-					ts = ts[1:] // le morceau interrompu n'est pas repris
-				}
-				q.Upcoming = append(q.Upcoming, ts...)
-			}
-		}
 		return q, nil
 	}
 	if _, mac := m.(*player.Spotify); !mac && sourceOf(m) == "spotify" {
@@ -908,4 +865,107 @@ func pollIntervalFor(np player.NowPlaying, tracked bool) time.Duration {
 		return 250 * time.Millisecond
 	}
 	return time.Second
+}
+
+// Volume renvoie le volume de sortie de l'ordinateur (0 à 100, 0 si le son est coupé).
+func (s *VinylService) Volume() (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+	defer cancel()
+	return sysvolume.Get(ctx)
+}
+
+// SetVolume règle le volume de sortie de l'ordinateur (0 à 100) et rétablit le son.
+func (s *VinylService) SetVolume(level int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+	defer cancel()
+	return sysvolume.Set(ctx, level)
+}
+
+// Lyrics renvoie les paroles d'un morceau : synchronisées (LRCLIB) de préférence, sinon celles enregistrées
+// dans Musique, sinon le texte simple de LRCLIB. Un résultat (même vide) est gardé pour ce morceau ; une
+// erreur réseau ne l'est pas (nouvel essai au prochain affichage).
+func (s *VinylService) Lyrics(source, trackID, title, artist, album string, durationMs int64) (lyrics.Lyrics, error) {
+	key := source + "\x1f" + trackID
+	s.lyricsMu.Lock()
+	l, ok := s.lyricsCache[key]
+	s.lyricsMu.Unlock()
+	if ok {
+		return l, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	l, err := s.lyricsFind(ctx, title, artist, album, durationMs)
+	if len(l.Synced) == 0 && source == "applemusic" {
+		if p, ok := s.watcher.Active().(interface {
+			Lyrics(ctx context.Context, trackID string) (string, error)
+		}); ok {
+			if plain, e := p.Lyrics(ctx, trackID); e == nil && plain != "" {
+				l, err = lyrics.Lyrics{Plain: plain}, nil
+			}
+		}
+	}
+	if err != nil {
+		return lyrics.Lyrics{}, err
+	}
+	s.lyricsMu.Lock()
+	if len(s.lyricsCache) >= 30 {
+		clear(s.lyricsCache)
+	}
+	s.lyricsCache[key] = l
+	s.lyricsMu.Unlock()
+	return l, nil
+}
+
+type favoriter interface {
+	Favorite(ctx context.Context, trackID string) (bool, error)
+	SetFavorite(ctx context.Context, trackID string, on bool) error
+}
+
+type spotifyLikes interface {
+	Loved(ctx context.Context, id string) (bool, error)
+	SetLoved(ctx context.Context, id string, on bool) error
+}
+
+// favorites : Musique par le lecteur actif (AppleScript), Spotify par l'API web (titres likés).
+func (s *VinylService) favorites(source string) (favoriter, error) {
+	switch source {
+	case "applemusic":
+		if p, ok := s.watcher.Active().(favoriter); ok {
+			return p, nil
+		}
+	case "spotify":
+		if c, ok := s.catalogs[source].(spotifyLikes); ok {
+			return likesFavoriter{c}, nil
+		}
+	}
+	return nil, catalog.ErrUnsupported
+}
+
+type likesFavoriter struct{ c spotifyLikes }
+
+func (l likesFavoriter) Favorite(ctx context.Context, id string) (bool, error) { return l.c.Loved(ctx, id) }
+func (l likesFavoriter) SetFavorite(ctx context.Context, id string, on bool) error {
+	return l.c.SetLoved(ctx, id, on)
+}
+
+// IsFavorite dit si le morceau est en favori (cœur de Musique, titre liké sur Spotify).
+func (s *VinylService) IsFavorite(source, trackID string) (bool, error) {
+	f, err := s.favorites(source)
+	if err != nil {
+		return false, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+	defer cancel()
+	return f.Favorite(ctx, trackID)
+}
+
+// SetFavorite met le morceau en favori, ou l'en retire.
+func (s *VinylService) SetFavorite(source, trackID string, on bool) error {
+	f, err := s.favorites(source)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+	defer cancel()
+	return f.SetFavorite(ctx, trackID, on)
 }

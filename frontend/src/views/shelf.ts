@@ -16,6 +16,31 @@ export function matchingTracks(tracks: Track[], query: string): number[] {
   return tracks.flatMap((t, i) => (!q || normalize(`${t.title} ${t.artist} ${t.album}`).includes(q) ? [i] : []));
 }
 
+export type TrackOrder = "" | "oldest" | "newest" | "longest" | "shortest";
+export const TRACK_ORDERS: Array<{ order: TrackOrder; label: string }> = [
+  { order: "", label: "Ordre d'origine" },
+  { order: "oldest", label: "Plus ancien" },
+  { order: "newest", label: "Plus récent" },
+  { order: "longest", label: "Plus long" },
+  { order: "shortest", label: "Plus court" },
+];
+
+/** Positions d'origine des titres dans l'ordre demandé (année de sortie ou durée) ; à égalité, l'ordre
+ *  d'origine. Une année inconnue va en fin de liste dans les deux sens. */
+export function sortTracks(tracks: Track[], order: TrackOrder): number[] {
+  const idx = tracks.map((_, i) => i);
+  const year = (i: number) => tracks[i]!.year || 0;
+  const by: Record<Exclude<TrackOrder, "">, (a: number, b: number) => number> = {
+    oldest: (a, b) => (year(a) || Infinity) - (year(b) || Infinity),
+    newest: (a, b) => year(b) - year(a),
+    longest: (a, b) => tracks[b]!.durationMs - tracks[a]!.durationMs,
+    shortest: (a, b) => tracks[a]!.durationMs - tracks[b]!.durationMs,
+  };
+  if (!order) return idx;
+  const cmp = by[order];
+  return idx.sort((a, b) => (cmp(a, b) || 0) || a - b);
+}
+
 function hashHue(s: string): number {
   let h = 0;
   for (const c of s) h = (h * 31 + c.codePointAt(0)!) >>> 0;

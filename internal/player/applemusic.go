@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -333,47 +334,6 @@ func parseUpcoming(out string) ([]Track, error) {
 	return tracks, nil
 }
 
-// argv : playlist, morceau, limite, boucle (1/0). Titres d'une playlist à partir d'un morceau (inclus) :
-// la suite qui reprendra après une réécoute.
-const musicUpcomingFromScript = `on run argv
-	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	set us to character id 31
-	set rs to character id 30
-	set lim to (item 3 of argv) as integer
-	tell application id "com.apple.Music"
-		try
-			set cp to (first playlist whose persistent ID is (item 1 of argv))
-			set idx to index of (first track of cp whose persistent ID is (item 2 of argv))
-		on error
-			return "NONE"
-		end try
-		set n to count of tracks of cp
-		set out to (idx as string) & us & (n as string) & rs
-		set k to 0
-		set i to idx
-		repeat while k < lim and k < n
-			if i > n then
-				if (item 4 of argv) is not "1" then exit repeat
-				set i to 1
-			end if
-			set t to track i of cp
-			set out to out & (persistent ID of t) & us & (name of t) & us & (artist of t) & us & ((duration of t) as string) & us & (album of t) & rs
-			set k to k + 1
-			set i to i + 1
-		end repeat
-		return out
-	end tell
-end run`
-
-// UpcomingFrom renvoie les titres d'une playlist à partir d'un morceau (inclus).
-func (m *AppleMusic) UpcomingFrom(ctx context.Context, playlistID, trackID string, limit int, wrap bool) ([]Track, error) {
-	out, err := m.run.Run(ctx, musicUpcomingFromScript, playlistID, trackID, strconv.Itoa(limit), flag(wrap))
-	if err != nil {
-		return nil, err
-	}
-	return parseUpcoming(out)
-}
-
 // Où en est la lecture : playlist en cours, morceau, position. Lu avant une réécoute pour reprendre
 // ensuite là où on en était.
 const musicSaveContextScript = `if application id "com.apple.Music" is not running then return "NOTRUNNING"
@@ -387,58 +347,19 @@ tell application id "com.apple.Music"
 end tell`
 
 // argv : persistent ID. Joue le morceau une seule fois puis s'arrête (« with once ») : aucune playlist
-// n'est créée, Vinyl enchaîne lui-même la suite.
+// n'est créée, Vinyl enchaîne lui-même la suite. Absent de la bibliothèque (écouté en streaming) : pris
+// dans la playlist en cours.
 const musicPlayAloneScript = `on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
 	tell application id "com.apple.Music"
-		play (first track of library playlist 1 whose persistent ID is (item 1 of argv)) with once
+		try
+			set t to (first track of library playlist 1 whose persistent ID is (item 1 of argv))
+		on error
+			set t to (first track of current playlist whose persistent ID is (item 1 of argv))
+		end try
+		play t with once
 	end tell
 	return "OK"
-end run`
-
-// argv : playlist, morceau, position (s). Reprend la playlist là où elle en était ; si elle n'existe
-// plus, le morceau est lancé depuis la bibliothèque.
-const musicResumeScript = `on run argv
-	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	tell application id "com.apple.Music"
-		try
-			set p to (first playlist whose persistent ID is (item 1 of argv))
-			play (first track of p whose persistent ID is (item 2 of argv))
-		on error
-			play (first track of library playlist 1 whose persistent ID is (item 2 of argv))
-		end try
-		set player position to ((item 3 of argv) as integer)
-	end tell
-	return "OK"
-end run`
-
-// argv : playlist, morceau interrompu. Lance le morceau qui le suit dans la playlist (en aléatoire : la
-// playlist entière, pour que la file de Musique se remplisse) ; "END" s'il était
-// le dernier, "NOTFOUND" si la playlist ou le morceau n'y sont plus.
-const musicResumeAfterScript = `on run argv
-	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	tell application id "com.apple.Music"
-		try
-			set p to (first playlist whose persistent ID is (item 1 of argv))
-		on error
-			return "NOTFOUND"
-		end try
-		-- En aléatoire, la playlist entière : seule commande qui remplit la file de Musique.
-		if shuffle enabled then
-			play p
-			return "OK"
-		end if
-		set ids to persistent ID of every track of p
-		set n to count of ids
-		repeat with i from 1 to n
-			if item i of ids is (item 2 of argv) then
-				if i is n then return "END"
-				play track (i + 1) of p
-				return "OK"
-			end if
-		end repeat
-	end tell
-	return "NOTFOUND"
 end run`
 
 func (m *AppleMusic) simpleRun(ctx context.Context, script string, args ...string) (string, error) {
@@ -468,136 +389,146 @@ func (m *AppleMusic) PlayAlone(ctx context.Context, trackID string) error {
 	return err
 }
 
-// argv : playlist, morceau. Lance le morceau dans la playlist, sinon dans la bibliothèque : la file de
-// Musique reste remplie (la suite de la playlist ou de la bibliothèque).
-const musicPlayInContextScript = `on run argv
-	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	tell application id "com.apple.Music"
-		try
-			play (first track of (first playlist whose persistent ID is (item 1 of argv)) whose persistent ID is (item 2 of argv))
-		on error
-			play (first track of library playlist 1 whose persistent ID is (item 2 of argv))
-		end try
+// argv : persistent ID. « Lire ensuite » comme à la main, la seule façon de jouer un morceau sans
+// remplacer la file de Musique (aucune commande AppleScript ne le fait) : le morceau est sélectionné
+// dans la liste de la playlist en cours (fenêtre de Musique), Song › Play Next (Morceau › Lire ensuite)
+// est choisi au menu, puis « suivant » : le morceau en cours est sauté, le morceau choisi joue et la
+// file continue ensuite. Musique passe au premier plan le temps du clic, puis l'app d'avant y revient.
+// Demande l'autorisation Accessibilité.
+const musicPlayNextScript = `on rowHas(r, nm)
+	tell application "System Events"
+		repeat with c in (UI elements of r)
+			repeat with x in (static texts of c)
+				try
+					if ((value of x) as text) starts with nm then return true
+				end try
+			end repeat
+		end repeat
 	end tell
-	return "OK"
-end run`
+	return false
+end rowHas
 
-// PlayInContext lance le morceau sans vider la file de Musique.
-func (m *AppleMusic) PlayInContext(ctx context.Context, playlistID, trackID string) error {
-	_, err := m.simpleRun(ctx, musicPlayInContextScript, playlistID, trackID)
-	return err
-}
+-- Liste des morceaux affichée (directement dans la fenêtre, ou dans un groupe selon la page).
+on trackTable()
+	tell application "System Events" to tell process "Music"
+		repeat with g in (UI elements of splitter group 1 of window 1)
+			try
+				if role of g is "AXScrollArea" then
+					if (count of tables of g) > 0 then return table 1 of g
+				else if role of g is "AXGroup" then
+					repeat with sa in (scroll areas of g)
+						if (count of tables of sa) > 0 then return table 1 of sa
+					end repeat
+				end if
+			end try
+		end repeat
+	end tell
+	return missing value
+end trackTable
 
-// Resume reprend la playlist là où elle en était ; avec After, au morceau qui suit (repli : là où elle
-// en était si le morceau n'y est plus).
-func (m *AppleMusic) Resume(ctx context.Context, c PlaybackContext) error {
-	if c.After {
-		out, err := m.simpleRun(ctx, musicResumeAfterScript, c.PlaylistID, c.TrackID)
-		if err != nil || out == "OK" || out == "END" {
-			return err
-		}
-	}
-	_, err := m.simpleRun(ctx, musicResumeScript, c.PlaylistID, c.TrackID, strconv.Itoa(c.PositionSec))
-	return err
-}
-
-// argv : morceau visé, nombre de morceaux en arrière (d'après la pile), position du morceau en cours (s).
-// Réécoute sans jamais remplacer la file de Musique : uniquement « précédent ». On attend que Musique
-// ait vraiment changé de morceau (fondus, AutoMix) et on recule d'un ou deux morceaux de plus si la
-// pile est décalée. Introuvable : retour par « suivant » au morceau de départ, à sa position ; « MISS ».
-const musicReplayBackScript = `on run argv
+on run argv
 	if application id "com.apple.Music" is not running then return "NOTRUNNING"
 	set target to item 1 of argv
-	set us to character id 31
+	tell application "System Events" to set prev to name of first application process whose frontmost is true
 	tell application id "com.apple.Music"
-		set vol to sound volume
-		set sound volume to 0
 		try
-			set taken to 0
-			repeat ((item 2 of argv) as integer) times
-				previous track
-				set taken to taken + 1
-				delay 0.1
-			end repeat
-			repeat with extra from 0 to 2
-				if extra > 0 then
-					previous track
-					set taken to taken + 1
-				end if
-				repeat 15 times
-					try
-						if (persistent ID of current track) is target then
-							set player position to 0
-							if player state is not playing then playpause
-							set sound volume to vol
-							return "BACK" & us & taken
-						end if
-					end try
-					delay 0.1
-				end repeat
-			end repeat
-			repeat taken times
-				next track
-				delay 0.1
-			end repeat
-			delay 0.3
+			set t to (first track of current playlist whose persistent ID is target)
+		on error
+			return "NOTFOUND"
+		end try
+		set idx to index of t
+		set nm to name of t
+		set plName to name of current playlist
+		try
+			set minimized of front browser window to false
+		end try
+	end tell
+	-- Ouvre la playlist en cours : clic sur son nom dans la barre latérale (« set view » ne change plus
+	-- de page dans les versions récentes de Musique).
+	tell application "System Events" to tell process "Music"
+		repeat with r in (rows of outline 1 of scroll area 1 of splitter group 1 of window 1)
 			try
-				set player position to ((item 3 of argv) as integer)
+				if (name of UI element 1 of r) is plName then
+					set selected of r to true
+					exit repeat
+				end if
 			end try
-		on error e
-			set sound volume to vol
-			error e
-		end try
-		set sound volume to vol
+		end repeat
 	end tell
-	return "MISS"
-end run`
-
-// argv : nombre de morceaux, morceau à replacer (vide : aucun), position (s). Avance par « suivant »,
-// sans toucher à la file, son coupé pendant les sauts.
-const musicJumpForwardScript = `on run argv
-	if application id "com.apple.Music" is not running then return "NOTRUNNING"
-	tell application id "com.apple.Music"
-		set vol to sound volume
-		set sound volume to 0
-		try
-			repeat ((item 1 of argv) as integer) times
-				next track
-				delay 0.15
+	set tb to missing value
+	repeat 50 times
+		set tb to my trackTable()
+		if tb is not missing value then
+			tell application "System Events" to if (count of rows of tb) ≥ idx then exit repeat
+		end if
+		delay 0.1
+	end repeat
+	if tb is missing value then return "NOTFOUND"
+	set res to "OK"
+	tell application "System Events" to tell process "Music"
+		set r to missing value
+		if idx ≤ (count of rows of tb) then
+			if my rowHas(row idx of tb, nm) then set r to row idx of tb
+		end if
+		if r is missing value then
+			repeat with x in (rows of tb)
+				if my rowHas(x, nm) then
+					set r to x
+					exit repeat
+				end if
 			end repeat
-			delay 0.2
-			if (item 2 of argv) is not "" then
-				if (persistent ID of current track) is (item 2 of argv) then set player position to ((item 3 of argv) as integer)
-			else
-				set player position to 0
+		end if
+		if r is missing value then return "NOTFOUND"
+		set selected of r to true
+		set frontmost to true
+		delay 0.3
+		set m to menu 1 of menu bar item 5 of menu bar 1
+		set mi to missing value
+		repeat with label in {"Play Next", "Lire ensuite"}
+			if exists menu item (label as text) of m then
+				set mi to menu item (label as text) of m
+				exit repeat
 			end if
-		on error e
-			set sound volume to vol
-			error e
-		end try
-		set sound volume to vol
+		end repeat
+		if mi is missing value then set mi to menu item 5 of m
+		if enabled of mi then
+			click mi
+		else
+			set res to "DISABLED"
+		end if
 	end tell
-	return "OK"
+	if res is "OK" then
+		delay 0.3
+		tell application id "com.apple.Music" to next track
+	end if
+	if prev is not "Music" then
+		try
+			tell application "System Events" to set frontmost of process prev to true
+		end try
+	end if
+	return res
 end run`
 
-// ReplayBack recule dans la file de Musique jusqu'au morceau ; renvoie le nombre de « précédent »
-// réellement faits (0 : introuvable, la lecture est revenue où elle était).
-func (m *AppleMusic) ReplayBack(ctx context.Context, trackID string, steps, posSec int) (int, error) {
-	out, err := m.simpleRun(ctx, musicReplayBackScript, trackID, strconv.Itoa(steps), strconv.Itoa(posSec))
-	if err != nil {
-		return 0, err
-	}
-	if n, ok := strings.CutPrefix(out, "BACK"+Sep); ok {
-		taken, _ := strconv.Atoi(n)
-		return taken, nil
-	}
-	return 0, nil
-}
+// ErrNotInPlaylist : le morceau n'est pas dans la playlist en cours (« Lire ensuite » impossible).
+var ErrNotInPlaylist = errors.New("ce morceau n'est pas dans la playlist en cours")
 
-// JumpForward avance de steps morceaux ; si trackID est donné et atteint, le replace à posSec.
-func (m *AppleMusic) JumpForward(ctx context.Context, steps int, trackID string, posSec int) error {
-	_, err := m.simpleRun(ctx, musicJumpForwardScript, strconv.Itoa(steps), trackID, strconv.Itoa(posSec))
-	return err
+// ErrNeedsAccessibility : Vinyl n'a pas l'autorisation Accessibilité (pilotage de la fenêtre de Musique).
+var ErrNeedsAccessibility = errors.New("autorise Vinyl dans Réglages Système › Confidentialité et sécurité › Accessibilité")
+
+// PlayNext joue le morceau tout de suite sans vider la file de Musique (Lire ensuite, puis suivant).
+func (m *AppleMusic) PlayNext(ctx context.Context, trackID string) error {
+	out, err := m.simpleRun(ctx, musicPlayNextScript, trackID)
+	switch {
+	case err != nil && (strings.Contains(err.Error(), "-25211") || strings.Contains(err.Error(), "-1719") || strings.Contains(err.Error(), "assistive")):
+		return ErrNeedsAccessibility
+	case err != nil:
+		return err
+	case out == "NOTFOUND":
+		return ErrNotInPlaylist
+	case out == "DISABLED":
+		return errors.New("Musique n'a pas accepté « Lire ensuite »")
+	}
+	return nil
 }
 
 // upgradeHD cherche une fois, en arrière-plan, la pochette HD du morceau (sans retarder le sondage).
@@ -613,4 +544,75 @@ func (m *AppleMusic) upgradeHD(trackID, artist, album string) {
 		defer cancel()
 		m.HD(ctx, artist, album, filepath.Join(m.artworkDir, HDFileName(trackID)))
 	}()
+}
+
+// argv : persistent ID. Paroles enregistrées dans Musique pour ce morceau (en cours, sinon dans la
+// bibliothèque) ; "" s'il n'y en a pas.
+const musicLyricsScript = `on run argv
+	if application id "com.apple.Music" is not running then return ""
+	tell application id "com.apple.Music"
+		try
+			set t to current track
+			if (persistent ID of t) is (item 1 of argv) then return (lyrics of t) as text
+		end try
+		try
+			return (lyrics of (first track of library playlist 1 whose persistent ID is (item 1 of argv))) as text
+		end try
+	end tell
+	return ""
+end run`
+
+// Lyrics renvoie les paroles (texte simple) enregistrées dans Musique pour un morceau.
+func (m *AppleMusic) Lyrics(ctx context.Context, trackID string) (string, error) {
+	out, err := m.run.Run(ctx, musicLyricsScript, trackID)
+	if err != nil || out == "missing value" {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// Favori d'un morceau (cœur de Musique : « favorited », « loved » sur les anciennes versions). Avec un
+// 2e argument ("1" ou "0"), le règle d'abord. Le morceau en cours de préférence (il peut ne pas être
+// dans la bibliothèque), sinon celui de la bibliothèque.
+const musicFavoriteScript = `on run argv
+	if application id "com.apple.Music" is not running then return "false"
+	tell application id "com.apple.Music"
+		set t to missing value
+		try
+			if (persistent ID of current track) is (item 1 of argv) then set t to current track
+		end try
+		if t is missing value then set t to (first track of library playlist 1 whose persistent ID is (item 1 of argv))
+		if (count of argv) > 1 then
+			set v to ((item 2 of argv) is "1")
+			try
+				set favorited of t to v
+			on error
+				set loved of t to v
+			end try
+		end if
+		try
+			return (favorited of t) as text
+		on error
+			return (loved of t) as text
+		end try
+	end tell
+end run`
+
+// Favorite dit si le morceau est en favori dans Musique.
+func (m *AppleMusic) Favorite(ctx context.Context, trackID string) (bool, error) {
+	out, err := m.run.Run(ctx, musicFavoriteScript, trackID)
+	return strings.TrimSpace(out) == "true", err
+}
+
+// SetFavorite met le morceau en favori dans Musique, ou l'en retire.
+func (m *AppleMusic) SetFavorite(ctx context.Context, trackID string, on bool) error {
+	v := "0"
+	if on {
+		v = "1"
+	}
+	out, err := m.run.Run(ctx, musicFavoriteScript, trackID, v)
+	if err == nil && (strings.TrimSpace(out) == "true") != on {
+		return errors.New("Musique n'a pas pris le favori en compte")
+	}
+	return err
 }

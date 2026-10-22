@@ -83,7 +83,7 @@ export function onStats(cb: (s: StatsSnapshot) => void): () => void {
   return Events.On("stats", (ev) => cb(ev.data as StatsSnapshot));
 }
 
-export interface Track { id: string; number: number; title: string; artist: string; album: string; durationMs: number; loved: boolean; }
+export interface Track { id: string; number: number; title: string; artist: string; album: string; durationMs: number; loved: boolean; year?: number /* 0 = inconnue */; }
 export interface Collection { id: string; kind: string; title: string; artist: string; genre: string; year: string; artworkUrl: string; source: string; tracks: Track[] | null; }
 
 export interface QueueState { shuffle: boolean; repeat: string; upcoming: Track[] | null; note: string; }

@@ -4,13 +4,12 @@ import { openShareCard } from "../share/sharecard";
 import { Turntable } from "../turntable/turntable";
 import { mountDeck } from "../ui/deck";
 import { mountEqualizer } from "../ui/equalizer";
-import { platform } from "../ui/platform";
 import { icons } from "../ui/icons";
 import { mountRecentPile, type RecentPile } from "../ui/recentpile";
 import { mountOdometer } from "../ui/odometer";
 import { mountRoomTable } from "../ui/roomtable";
-import { toCss } from "../ui/pile3d";
-import { mountSleeveStand, SLEEVE_S, sleeveAtScale, sleeveInStage, standGeometry } from "../ui/sleevestand";
+import { mountVolume } from "../ui/volume";
+import { mountLyricsBoard } from "../ui/lyricsboard";
 import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
 import { DECK_IN_STAGE, EQ_IN_STAGE, layoutScene } from "./scene";
 
@@ -24,19 +23,18 @@ export function mount(el: HTMLElement): () => void {
       <div id="pl-table" aria-hidden="true"></div>
       <div id="pl-wrap" class="absolute" style="left:0;top:0;bottom:0;right:${CONTROLS_W}px">
         <div id="pl-panel" class="vy-plinth" aria-hidden="true"></div>
-        <div id="pl-stand-back"></div>
         <div id="pl-scaled" class="absolute" style="transform-origin:0 0"><div id="tt"></div>
           <div id="pl-deck" class="absolute" style="left:${DECK_IN_STAGE.x}px;top:${DECK_IN_STAGE.y}px"></div>
         </div>
-        <div id="pl-stand"></div>
         <div id="pl-eq" class="absolute"></div>
+        <div id="pl-vol" class="absolute" style="translate:-50% -50%"></div>
+        <div id="pl-lyrics" class="absolute"></div>
         <div id="pl-recent" class="absolute" aria-label="Derniers morceaux écoutés"></div>
         <div id="pl-shelf"></div>
         <p id="pl-recent-msg" class="glass pointer-events-none absolute hidden rounded-full px-5 py-2 text-[14px]" role="status"></p>
       </div>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
       <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
-      <button id="pl-mini" class="vy-drop fixed z-30 h-[58px] w-[58px] overflow-hidden rounded-[16px] bg-cover bg-center" style="left:44px;bottom:32px;box-shadow:0 0 0 2px rgba(255,255,255,.45),0 8px 20px rgba(0,0,0,.35);background-color:#2a2220" aria-label="Mini-platine" title="Mini-platine (⌘⇧M)"></button>
       <div id="pl-problem" class="glass absolute bottom-10 left-1/2 hidden -translate-x-1/2 rounded-[28px] px-7 py-4 text-center text-[15px]" style="margin-left:-${CONTROLS_W / 2}px"></div>
     </section>
     <footer class="relative flex flex-col items-center gap-7 pb-20 pt-16" style="background:#1b1b1b">
@@ -47,8 +45,9 @@ export function mount(el: HTMLElement): () => void {
     </footer>
     </div>`;
   const $ = (id: string) => el.querySelector<HTMLElement>("#" + id)!;
-  platform().then((p) => ($("pl-mini").title = p === "darwin" ? "Mini-platine (⌘⇧M)" : "Mini-platine (Ctrl+Maj+M)"));
   const tt = new Turntable($("tt"), { variant: "stage" });
+  // Plus de pochette sur la table : elle est sur le tableau du mur (ui/lyricsboard).
+  $("tt").querySelector<HTMLElement>(".tt-sleeve")?.style.setProperty("display", "none");
   let snap: Snapshot | null = null;
 
   // Bande « Morceaux lus depuis » sous la platine.
@@ -67,7 +66,13 @@ export function mount(el: HTMLElement): () => void {
 
   // Mise à l'échelle de la scène dans la place disponible, centrée.
   const roomTable = mountRoomTable($("pl-table"));
-  const stand = mountSleeveStand($("pl-stand-back"), $("pl-stand"));
+  // Tableau des paroles au mur.
+  const lyrics = mountLyricsBoard($("pl-lyrics"), {
+    lyrics: (np) => api.Lyrics(np.source, np.trackId, np.title, np.artist, np.album, np.durationMs),
+    favorite: { get: (np) => api.IsFavorite(np.source, np.trackId), set: (np, on) => api.SetFavorite(np.source, np.trackId, on) },
+  });
+  // Volume de l'ordinateur : molette en haut à gauche du socle (pas de bouton).
+  const volume = mountVolume($("pl-vol"), { get: () => api.Volume(), set: (v) => api.SetVolume(v) });
   const eq = mountEqualizer($("pl-eq"), { start: () => api.StartSpectrum(), stop: () => api.StopSpectrum(), onSpectrum });
   const canHear = api.SpectrumAvailable().catch(() => false);
   const setEqLive = (on: boolean) => void canHear.then((ok) => eq.setLive(ok && on));
@@ -90,20 +95,11 @@ export function mount(el: HTMLElement): () => void {
     sh.style.transform = `scale(${L.shelf.scale})`;
     $("pl-table").style.top = `${L.tableTop}px`;
     Object.assign($("pl-panel").style, { left: `${L.panel.x}px`, top: `${L.panel.y}px`, width: `${L.panel.w}px`, height: `${L.panel.h}px` });
-    // Pochette sur son support : vus avec la caméra de la pile (ui/sleevestand). Le support est placé et mis à
-    // l'échelle comme la pile ; la pochette reste dans la platine (image, clic), sa matrice est convertie.
-    for (const id of ["pl-stand-back", "pl-stand"]) Object.assign($(id).style, { left: `${L.pile.x}px`, top: `${L.pile.y}px` });
-    stand.setScale(L.pile.scale); // dessiné à sa taille d'affichage (net)
-    const sl = $("tt").querySelector<HTMLElement>(".tt-sleeve");
-    if (sl) {
-      // Dessinée à la taille où elle s'affiche (q = échelle de la pile) : image nette, même projection.
-      const q = L.pile.scale;
-      Object.assign(sl.style, {
-        left: "0px", top: "0px", width: `${SLEEVE_S * q}px`, height: `${SLEEVE_S * q}px`, transformOrigin: "0 0",
-        transform: toCss(sleeveAtScale(sleeveInStage(standGeometry().sleeve, L.pile, L.stage), q)),
-      });
-    }
     roomTable.setScale(L.k);
+    Object.assign($("pl-lyrics").style, { left: `${L.lyrics.x}px`, top: `${L.lyrics.y}px` });
+    lyrics.place(L.lyrics.scale);
+    Object.assign($("pl-vol").style, { left: `${L.knob.x}px`, top: `${L.knob.y}px` });
+    volume.setScale(L.k);
     // Égaliseur hors de la platine mise à l'échelle : dessiné à sa taille d'affichage (net), même place.
     Object.assign($("pl-eq").style, { left: `${L.stage.x + EQ_IN_STAGE.x * L.stage.scale}px`, top: `${L.stage.y + EQ_IN_STAGE.y * L.stage.scale}px` });
     eq.setScale(L.stage.scale);
@@ -130,12 +126,19 @@ export function mount(el: HTMLElement): () => void {
   });
   let deckTrack = "";
 
-  // Pile des derniers morceaux écoutés : un clic relance le morceau et retire ceux posés au-dessus.
+  // Pile des derniers morceaux écoutés : un clic saute le morceau en cours et joue celui-ci, sans vider la
+  // file du lecteur ; la file continue ensuite normalement.
   recent = mountRecentPile($("pl-recent"), {
     // Puis la pile est relue : elle reste juste même si un événement s'est perdu.
     play: (e) => {
       api.PlayFromHistory(e.source, e.trackId)
-        .catch((err) => showRecentMsg(String(err).includes("plus dans la file") ? "Ce morceau n'est plus dans la file de lecture" : "Lecture impossible"))
+        .catch((err) => {
+          const msg = String(err);
+          showRecentMsg(msg.includes("plus dans la file") ? "Ce morceau n'est plus dans la file de lecture"
+            : msg.includes("connecte Spotify") ? "Connecte Spotify dans les réglages pour réécouter ce morceau"
+            : msg.includes("Accessibilité") ? "Autorise Vinyl dans Réglages Système › Confidentialité et sécurité › Accessibilité"
+            : msg.includes("playlist en cours") ? "Ce morceau n'est pas dans la playlist en cours" : "Lecture impossible");
+        })
         .finally(() => api.History().then((l) => recent?.update(l ?? [])).catch(() => {}));
     },
   });
@@ -159,8 +162,8 @@ export function mount(el: HTMLElement): () => void {
     // Aléatoire relu à chaque changement de morceau (il a pu être réglé dans Musique ou Spotify).
     if (!s.problem && s.nowPlaying.trackId !== deckTrack) { deckTrack = s.nowPlaying.trackId; deck.refresh(); }
     tt.update(s);
+    lyrics.update(s);
     eq.setPlaying(!s.problem && s.nowPlaying.state === "playing", s.nowPlaying.trackId);
-    $("pl-mini").style.backgroundImage = s.nowPlaying.artworkUrl ? `url("${s.nowPlaying.artworkUrl.replace(/["\\]/g, "\\$&")}")` : "";
     $("pl-title").textContent = s.problem ? "Vinyl" : `${s.nowPlaying.title} — ${s.nowPlaying.artist}`;
     const p = $("pl-problem");
     p.classList.toggle("hidden", !s.problem);
@@ -174,7 +177,6 @@ export function mount(el: HTMLElement): () => void {
   };
 
   $("pl-settings").onclick = () => go("reglages");
-  $("pl-mini").onclick = () => api.ToggleMiniPlatine().catch(() => {});
   $("pl-share").onclick = () => {
     const np = snap?.nowPlaying;
     if (np && !snap!.problem) openShareCard({ title: np.title, subtitle: np.artist, artworkUrl: np.artworkUrl });
@@ -195,6 +197,8 @@ export function mount(el: HTMLElement): () => void {
     ro.disconnect();
     tt.destroy();
     eq.destroy();
+    volume.destroy();
+    lyrics.destroy();
     shelf.destroy();
   };
 }

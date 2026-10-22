@@ -270,3 +270,44 @@ func TestSpotifyCurrentPlaylistNothingPlaying(t *testing.T) {
 		t.Errorf("%q, %v", got, err)
 	}
 }
+
+func TestSpotifyLovedAndSetLoved(t *testing.T) {
+	var got []string
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Method+" "+r.URL.Path+" "+r.URL.Query().Get("uris"))
+		if r.Method == "GET" {
+			w.Write([]byte(`[true]`))
+			return
+		}
+		w.WriteHeader(200)
+	})
+	ctx := context.Background()
+	if on, err := c.Loved(ctx, "spotify:track:7"); err != nil || !on {
+		t.Fatalf("Loved = %v, %v", on, err)
+	}
+	if err := c.SetLoved(ctx, "7", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetLoved(ctx, "spotify:track:7", false); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"GET /me/library/contains spotify:track:7", "PUT /me/library spotify:track:7", "DELETE /me/library spotify:track:7"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("got %q", got)
+	}
+}
+
+// Réécoute : le titre est mis en tête de la file, puis « suivant ».
+func TestSpotifyPlayNext(t *testing.T) {
+	var got []string
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Method+" "+r.URL.Path+" "+r.URL.Query().Get("uri"))
+		w.WriteHeader(204)
+	})
+	if err := c.PlayNext(context.Background(), "7"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got, "|") != "POST /me/player/queue spotify:track:7|POST /me/player/next " {
+		t.Errorf("got %q", got)
+	}
+}

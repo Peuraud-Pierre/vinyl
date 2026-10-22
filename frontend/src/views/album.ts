@@ -7,9 +7,16 @@ import { formatDuration } from "../ui/format";
 import { icons } from "../ui/icons";
 import { imageTint, paletteFor } from "../ui/theme";
 import { escapeHtml } from "./grid";
-import { matchingTracks } from "./shelf";
+import { matchingTracks, sortTracks, TRACK_ORDERS, type TrackOrder } from "./shelf";
 
 const cssUrl = (u: string) => `url("${u.replace(/["\\]/g, "\\$&")}")`;
+const readOrder = (): TrackOrder => {
+  try {
+    const v = localStorage.getItem("vinyl.trackOrder") ?? "";
+    return TRACK_ORDERS.some((o) => o.order === v) ? (v as TrackOrder) : "";
+  } catch { return ""; }
+};
+const saveOrder = (o: TrackOrder) => { try { localStorage.setItem("vinyl.trackOrder", o); } catch { /* stockage indisponible */ } };
 
 export function mount(el: HTMLElement, param: string): () => void {
   const { source, id } = parseAlbumParam(param);
@@ -19,13 +26,44 @@ export function mount(el: HTMLElement, param: string): () => void {
       <button id="al-back" class="glass round-btn vy-drop fixed z-30" style="left:92px;top:28px" aria-label="Fermer">${icons.up}</button>
       <div class="vy-drop fixed z-30 flex items-center gap-3" style="right:51px;top:28px">
         <input id="al-q" type="search" class="field glass h-10 w-48" placeholder="Rechercher un titre" aria-label="Rechercher dans les titres" autocomplete="off" spellcheck="false">
+        <button id="al-sort" class="glass round-btn" aria-label="Trier les titres" aria-expanded="false">${icons.sort}</button>
         <button id="al-share" class="glass round-btn" aria-label="Partager">${icons.share}</button>
+      </div>
+      <div id="al-sort-pop" class="glass fixed z-30 hidden w-56 rounded-[30px] p-2" style="right:113px;top:88px" role="menu" aria-label="Trier les titres">
+        ${TRACK_ORDERS.map((o) => `<button data-order="${o.order}" class="menu-item" role="menuitemradio" aria-checked="false"><span class="w-4">✓</span>${o.label}</button>`).join("")}
       </div>
       <h1 id="al-bar" class="pointer-events-none absolute left-0 z-20 truncate px-40 text-center text-[24px] font-semibold opacity-0 transition-opacity duration-300" style="right:130px;top:34px"></h1>
       <div id="al-body" class="absolute inset-0 text-[15px]" style="right:130px;padding-top:110px;color:var(--ink-soft)"><p class="px-[92px]">Chargement…</p></div>
     </section>`;
   const $ = (q: string) => el.querySelector<HTMLElement>("#" + q)!;
   $("al-back").onclick = () => (history.length > 1 ? history.back() : go("bibliotheque", "albums"));
+  // Tri des titres (année de sortie, durée) : retenu d'une page à l'autre ; appliqué dès que la liste est là.
+  let order = readOrder();
+  let applyOrder = () => {};
+  const paintOrder = () => {
+    $("al-sort").style.background = order ? "#15100e" : "";
+    $("al-sort").style.color = order ? "#f6ece6" : "";
+    el.querySelectorAll<HTMLElement>("[data-order]").forEach((b) => {
+      const on = b.dataset.order === order;
+      b.setAttribute("aria-checked", String(on));
+      b.querySelector("span")!.style.visibility = on ? "visible" : "hidden";
+    });
+  };
+  const toggleSort = (open = $("al-sort-pop").classList.contains("hidden")) => {
+    $("al-sort-pop").classList.toggle("hidden", !open);
+    $("al-sort").setAttribute("aria-expanded", String(open));
+  };
+  $("al-sort").onclick = (e) => { e.stopPropagation(); toggleSort(); };
+  el.querySelectorAll<HTMLElement>("[data-order]").forEach((b) => (b.onclick = () => {
+    order = b.dataset.order as TrackOrder;
+    saveOrder(order);
+    paintOrder();
+    toggleSort(false);
+    applyOrder();
+  }));
+  const closeSort = (e: MouseEvent) => { if (!(e.target instanceof Element && e.target.closest("#al-sort-pop"))) toggleSort(false); };
+  document.addEventListener("click", closeSort);
+  paintOrder();
 
   const play = async (trackID: string, shuffle: boolean) => {
     try {
@@ -60,7 +98,7 @@ export function mount(el: HTMLElement, param: string): () => void {
             </div>
             <p id="al-err" class="text-[14px] opacity-80"></p>
           </header>
-          <ol class="px-2">${tracks.map((t, i) => `
+          <ol id="al-list" class="px-2">${tracks.map((t, i) => `
             <li data-row="${i}"><button data-i="${i}" class="flex w-full items-center gap-5 border-b py-6 text-left text-[22px] hover:opacity-75" style="border-color:${line}">
               <span class="w-6 text-right text-[18px]">${t.loved ? "♥" : ""}</span>
               <span class="w-9 tabular-nums font-light opacity-80">${String(t.number || i + 1).padStart(2, "0")}</span>
@@ -89,6 +127,12 @@ export function mount(el: HTMLElement, param: string): () => void {
       $("al-none").classList.toggle("hidden", keep.size > 0 || tracks.length === 0);
       if (q.value.trim()) sc.scrollTop = Math.max(sc.scrollTop, $("al-head").offsetHeight - 60);
     };
+    // Tri : les lignes sont replacées dans l'ordre choisi (numéros de piste inchangés).
+    applyOrder = () => {
+      const list = $("al-list");
+      sortTracks(tracks, order).forEach((i) => list.appendChild(rows[i]!));
+    };
+    applyOrder();
     q.oninput = filter;
     q.onkeydown = (e) => { if (e.key === "Escape" && q.value) { q.value = ""; filter(); } };
     if (q.value) filter(); // texte tapé pendant le chargement
@@ -113,5 +157,5 @@ export function mount(el: HTMLElement, param: string): () => void {
     });
   };
   load();
-  return () => { alive = false; };
+  return () => { alive = false; document.removeEventListener("click", closeSort); };
 }

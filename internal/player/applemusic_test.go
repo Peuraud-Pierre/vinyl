@@ -263,38 +263,10 @@ func TestSaveContext(t *testing.T) {
 	}
 }
 
-func TestResumePlaysTheSavedTrackAtItsPosition(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"OK"}}
-	err := NewAppleMusic(r, t.TempDir()).Resume(context.Background(), PlaybackContext{PlaylistID: "PL1", TrackID: "TR9", PositionSec: 83})
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := r.calls[0]
-	if strings.Join(c.args, "|") != "PL1|TR9|83" || !strings.Contains(c.script, "player position") {
-		t.Errorf("argv %v", c.args)
-	}
-}
-
 func TestPlayAloneNotRunning(t *testing.T) {
 	r := &fakeRunner{outputs: []string{"NOTRUNNING"}}
 	if err := NewAppleMusic(r, t.TempDir()).PlayAlone(context.Background(), "X"); err != ErrNotRunning {
 		t.Errorf("err = %v", err)
-	}
-}
-
-// Pendant une réécoute, la file affiche la suite de la playlist qui sera reprise, à partir du morceau
-// interrompu (comme Apple Music), et non la playlist interne qui ne contient que le morceau réécouté.
-func TestUpcomingFromSavedPlaylist(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"5" + Sep + "9\x1e" + join("T5", "Cinq", "A", "200", "Alb") + "\x1e" + join("T6", "Six", "A", "180", "Alb") + "\x1e"}}
-	ts, err := NewAppleMusic(r, t.TempDir()).UpcomingFrom(context.Background(), "PL", "T5", 30, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(ts) != 2 || ts[0].ID != "T5" || ts[1].Title != "Six" {
-		t.Errorf("file = %+v", ts)
-	}
-	if strings.Join(r.calls[0].args, "|") != "PL|T5|30|0" {
-		t.Errorf("argv %v", r.calls[0].args)
 	}
 }
 
@@ -319,44 +291,6 @@ func TestPlayAloneUsesOnceWithoutPlaylist(t *testing.T) {
 	}
 }
 
-// Réécoute sans toucher à la file de Musique : « précédent » N fois, attente du changement de morceau
-// (AutoMix, fondus), un ou deux morceaux de plus si la pile est décalée ; sinon retour où on était.
-func TestReplayBackWalksThroughTheQueue(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"BACK" + Sep + "4"}}
-	taken, err := NewAppleMusic(r, t.TempDir()).ReplayBack(context.Background(), "T2", 3, 61)
-	if err != nil || taken != 4 {
-		t.Fatalf("taken=%d err=%v", taken, err)
-	}
-	c := r.calls[0]
-	if strings.Join(c.args, "|") != "T2|3|61" {
-		t.Errorf("argv %v", c.args)
-	}
-	for _, want := range []string{"previous track", "next track", "player position", "delay"} {
-		if !strings.Contains(c.script, want) {
-			t.Errorf("script sans %q", want)
-		}
-	}
-	if strings.Contains(c.script, "play (") || strings.Contains(c.script, "with once") {
-		t.Error("jamais de nouveau « play » : la file de Musique ne doit pas être remplacée")
-	}
-	r = &fakeRunner{outputs: []string{"MISS"}}
-	if taken, _ := NewAppleMusic(r, t.TempDir()).ReplayBack(context.Background(), "T2", 3, 61); taken != 0 {
-		t.Error("morceau introuvable : 0 attendu")
-	}
-}
-
-// Retour au morceau interrompu : « suivant » N fois puis position retrouvée.
-func TestJumpForwardBackToTheInterruptedTrack(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"OK"}}
-	if err := NewAppleMusic(r, t.TempDir()).JumpForward(context.Background(), 3, "T5", 61); err != nil {
-		t.Fatal(err)
-	}
-	c := r.calls[0]
-	if strings.Join(c.args, "|") != "3|T5|61" || !strings.Contains(c.script, "next track") || !strings.Contains(c.script, "player position") {
-		t.Errorf("argv %v", c.args)
-	}
-}
-
 // Économie d'énergie : une app qui n'est pas lancée n'est pas interrogée (aucun osascript lancé).
 func TestNotRunningAppIsNotQueried(t *testing.T) {
 	old := IsRunning
@@ -371,63 +305,16 @@ func TestNotRunningAppIsNotQueried(t *testing.T) {
 	}
 }
 
-// Les sauts de morceaux se font son coupé, et le volume d'origine est toujours remis (même en cas d'erreur).
-func TestAppleMusicSkipsAreMuted(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"MISS", "OK"}}
-	m := NewAppleMusic(r, t.TempDir())
-	m.ReplayBack(context.Background(), "T", 2, 0)
-	m.JumpForward(context.Background(), 3, "", 0)
-	for _, c := range r.calls {
-		if !strings.Contains(c.script, "set sound volume to 0") || strings.Count(c.script, "set sound volume to vol") < 2 {
-			t.Errorf("son non coupé ou non rétabli :\n%s", c.script)
-		}
-	}
-}
-
-// Reprise « au morceau suivant » : la playlist reprend au morceau qui suivait l'interrompu.
-func TestAppleMusicResumeAfter(t *testing.T) {
+// Morceau joué seul (« with once »), pris dans la playlist en cours s'il n'est pas dans la bibliothèque.
+func TestAppleMusicPlayAlone(t *testing.T) {
 	r := &fakeRunner{outputs: []string{"OK"}}
 	m := NewAppleMusic(r, t.TempDir())
-	if err := m.Resume(context.Background(), PlaybackContext{PlaylistID: "PL", TrackID: "T", PositionSec: 61, After: true}); err != nil {
-		t.Fatal(err)
-	}
-	if c := r.calls[0]; len(c.args) < 2 || c.args[0] != "PL" || c.args[1] != "T" || !strings.Contains(c.script, "i + 1") {
-		t.Errorf("appel : %+v", c)
-	}
-}
-
-// Morceau interrompu introuvable dans la playlist : on le reprend où il en était.
-func TestAppleMusicResumeAfterFallsBack(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"NOTFOUND", "OK"}}
-	m := NewAppleMusic(r, t.TempDir())
-	m.Resume(context.Background(), PlaybackContext{PlaylistID: "PL", TrackID: "T", PositionSec: 61, After: true})
-	if len(r.calls) != 2 || r.calls[1].args[2] != "61" {
-		t.Errorf("appels : %+v", r.calls)
-	}
-}
-
-// Réécoute sans vider la file : le morceau est lancé dans la playlist (repli : la bibliothèque), jamais
-// « with once ».
-func TestAppleMusicPlayInContext(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"OK"}}
-	m := NewAppleMusic(r, t.TempDir())
-	if err := m.PlayInContext(context.Background(), "PL", "T"); err != nil {
+	if err := m.PlayAlone(context.Background(), "T"); err != nil {
 		t.Fatal(err)
 	}
 	c := r.calls[0]
-	if len(c.args) != 2 || c.args[0] != "PL" || c.args[1] != "T" || strings.Contains(c.script, "with once") || !strings.Contains(c.script, "library playlist 1") {
+	if c.args[0] != "T" || !strings.Contains(c.script, "with once") || !strings.Contains(c.script, "current playlist") {
 		t.Errorf("appel : %+v", c)
-	}
-}
-
-// En aléatoire, la reprise relance la playlist entière : c'est la seule commande qui remplit la file de
-// Musique (un « play » sur un morceau précis la laisse vide).
-func TestAppleMusicResumeAfterShuffleRefillsQueue(t *testing.T) {
-	r := &fakeRunner{outputs: []string{"OK"}}
-	m := NewAppleMusic(r, t.TempDir())
-	m.Resume(context.Background(), PlaybackContext{PlaylistID: "PL", TrackID: "T", After: true})
-	if !strings.Contains(r.calls[0].script, "if shuffle enabled then") || !strings.Contains(r.calls[0].script, "play p") {
-		t.Errorf("script :\n%s", r.calls[0].script)
 	}
 }
 
@@ -465,5 +352,64 @@ func TestNowPlayingUpgradesToHDArtwork(t *testing.T) {
 	}
 	if len(calls) != 0 {
 		t.Errorf("une seule recherche HD attendue")
+	}
+}
+
+func TestAppleMusicLyrics(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"  ligne inventée\n", "missing value"}}
+	m := NewAppleMusic(r, "")
+	if got, _ := m.Lyrics(context.Background(), "ABC"); got != "ligne inventée" {
+		t.Errorf("got %q", got)
+	}
+	if r.calls[0].args[0] != "ABC" {
+		t.Errorf("args %v", r.calls[0].args)
+	}
+	if got, _ := m.Lyrics(context.Background(), "ABC"); got != "" {
+		t.Errorf("missing value : got %q", got)
+	}
+}
+
+func TestAppleMusicFavorite(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"true\n", "false", "true"}}
+	m := NewAppleMusic(r, "")
+	ctx := context.Background()
+	if on, err := m.Favorite(ctx, "ABC"); err != nil || !on {
+		t.Fatalf("Favorite = %v, %v", on, err)
+	}
+	if err := m.SetFavorite(ctx, "ABC", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SetFavorite(ctx, "ABC", false); err == nil {
+		t.Error("Musique a gardé le favori : erreur attendue")
+	}
+	if a := r.calls[1].args; len(a) != 2 || a[0] != "ABC" || a[1] != "0" {
+		t.Errorf("args %v", a)
+	}
+}
+
+// Réécoute depuis la pile : « Lire ensuite » au menu de Musique puis « suivant » ; jamais de « play »
+// (la file serait vidée) ni de « précédent ».
+func TestAppleMusicPlayNext(t *testing.T) {
+	r := &fakeRunner{outputs: []string{"OK", "NOTFOUND"}}
+	m := NewAppleMusic(r, t.TempDir())
+	if err := m.PlayNext(context.Background(), "T"); err != nil {
+		t.Fatal(err)
+	}
+	c := r.calls[0]
+	if c.args[0] != "T" {
+		t.Errorf("args %v", c.args)
+	}
+	for _, want := range []string{"Play Next", "Lire ensuite", "next track", "set frontmost of process prev"} {
+		if !strings.Contains(c.script, want) {
+			t.Errorf("script sans %q", want)
+		}
+	}
+	for _, never := range []string{"play (", "with once", "previous track", "play t"} {
+		if strings.Contains(c.script, never) {
+			t.Errorf("le script ne doit pas contenir %q", never)
+		}
+	}
+	if err := m.PlayNext(context.Background(), "T"); err != ErrNotInPlaylist {
+		t.Errorf("introuvable : %v", err)
 	}
 }

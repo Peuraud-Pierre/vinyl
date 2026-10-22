@@ -101,7 +101,7 @@ export function mountEqualizer(root: HTMLElement, source?: EqSource): Equalizer 
     input = r.levels;
   });
   const capture = () => {
-    const want = !!source && live && playing;
+    const want = !!source && live && playing && !document.hidden;
     if (want === capturing) return;
     capturing = want;
     (want ? source!.start() : source!.stop()).catch(() => { capturing = false; });
@@ -120,6 +120,9 @@ export function mountEqualizer(root: HTMLElement, source?: EqSource): Equalizer 
     raf = state.idle ? 0 : requestAnimationFrame(frame);
   };
   const wake = () => { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } };
+  // Fenêtre cachée : plus de capture du son (ni d'événements « spectrum ») ; reprise au retour.
+  const onVisibility = () => { capture(); if (!document.hidden && (playing || !state.idle)) wake(); };
+  document.addEventListener("visibilitychange", onVisibility);
   paint();
   return {
     setPlaying(on, trackId) {
@@ -132,6 +135,7 @@ export function mountEqualizer(root: HTMLElement, source?: EqSource): Equalizer 
     // zoom plutôt qu'une mise à l'échelle : le boîtier est dessiné à sa taille d'affichage, donc net.
     setScale(k) { box.style.zoom = String(k); },
     destroy() {
+      document.removeEventListener("visibilitychange", onVisibility);
       cancelAnimationFrame(raf);
       raf = 0;
       offSpectrum?.();

@@ -63,6 +63,7 @@ type Track struct {
 	Album      string `json:"album"`
 	DurationMs int64  `json:"durationMs"`
 	Loved      bool   `json:"loved"`
+	Year       int    `json:"year"` // année de sortie, 0 si inconnue (tri plus ancien / plus récent)
 }
 
 // ParseSeconds est exporté pour les autres paquets (catalog) : secondes AppleScript → ms.
@@ -81,7 +82,6 @@ type PlaybackContext struct {
 	PlaylistID  string
 	TrackID     string
 	PositionSec int
-	After       bool // reprendre au morceau qui suit TrackID (comme après un clic dans l'Historique)
 }
 
 // ContextSaver est implémentée par les lecteurs qui savent dire où en est la lecture (morceau,
@@ -90,18 +90,16 @@ type ContextSaver interface {
 	SaveContext(ctx context.Context) (PlaybackContext, error)
 }
 
-// ReplayResumer est implémentée par les lecteurs qui savent réécouter un morceau comme Apple Music :
-// retenir où en est la playlist, jouer le morceau seul, puis reprendre la playlist là où elle en était.
+// ReplayResumer est implémentée par les lecteurs qui savent jouer un morceau « une fois » (sans
+// playlist) : Vinyl enchaîne lui-même les morceaux d'un album.
 type ReplayResumer interface {
-	SaveContext(ctx context.Context) (PlaybackContext, error)
 	PlayAlone(ctx context.Context, trackID string) error
-	Resume(ctx context.Context, c PlaybackContext) error
 }
 
-// ContextPlayer est implémentée par les lecteurs qui savent lancer un morceau sans vider leur file : dans
-// une playlist (repli : la bibliothèque), comme un clic dans Musique.
-type ContextPlayer interface {
-	PlayInContext(ctx context.Context, playlistID, trackID string) error
+// NextPlayer est implémentée par les lecteurs qui savent jouer un morceau tout de suite sans vider leur
+// file (« Lire ensuite » puis « suivant »).
+type NextPlayer interface {
+	PlayNext(ctx context.Context, trackID string) error
 }
 
 // Modes est implémentée par les lecteurs qui savent lire et régler l'aléatoire et la répétition.

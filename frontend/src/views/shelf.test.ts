@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { filterItems, matchingTracks, PILE_SIZE, PILE_STEP, pileCurrent, pilePad, settleWithin, spineColors, unavailableLibraryMessage } from "./shelf";
+import { filterItems, matchingTracks, PILE_SIZE, PILE_STEP, pileCurrent, pilePad, settleWithin, sortTracks, spineColors, unavailableLibraryMessage } from "./shelf";
 
 const items = [
   { id: "1", kind: "album", title: "Lumen", subtitle: "Aurore Vale", artworkUrl: "", url: "" },
@@ -73,4 +73,14 @@ test("vue pile : tout en bas, le dernier élément est au milieu", () => {
 test("Apple Music sans bibliothèque : message selon la plateforme", () => {
   expect(unavailableLibraryMessage("windows")).toBe("La bibliothèque Apple Music n'est disponible que sur Mac.");
   expect(unavailableLibraryMessage("darwin")).toBe("Non disponible pour Apple Music.");
+});
+
+test("tri des titres : année de sortie ou durée, ordre d'origine à égalité, année inconnue en dernier", () => {
+  const t = (id: string, year: number, durationMs: number) => ({ id, number: 0, title: id, artist: "", album: "", durationMs, loved: false, year });
+  const tracks = [t("a", 1999, 200), t("b", 0, 300), t("c", 1975, 200), t("d", 2021, 100), t("e", 1999, 400)];
+  expect(sortTracks(tracks, "")).toEqual([0, 1, 2, 3, 4]);
+  expect(sortTracks(tracks, "oldest")).toEqual([2, 0, 4, 3, 1]);
+  expect(sortTracks(tracks, "newest")).toEqual([3, 0, 4, 2, 1]);
+  expect(sortTracks(tracks, "longest")).toEqual([4, 1, 0, 2, 3]);
+  expect(sortTracks(tracks, "shortest")).toEqual([3, 0, 2, 1, 4]);
 });

@@ -1,8 +1,9 @@
 import { expect, test } from "vitest";
 import { ARM_GEOMETRY } from "../turntable/arm";
 import { STAGE_H } from "../turntable/turntable";
+import { LYRICS_H, LYRICS_W } from "../ui/lyricsboard";
 import { SHELF_H, SHELF_W } from "../ui/wallshelf";
-import { DECK_IN_STAGE, DECK_SIZE, layoutScene, PILE_SCALE, TT_SCALE } from "./scene";
+import { DECK_IN_STAGE, DECK_SIZE, KNOB_SIZE, layoutScene, PILE_SCALE, TT_SCALE } from "./scene";
 
 const PILE = { w: 500, h: 460 };
 const CONTROLS_W = 140; // colonne de commandes : libre en bas, la pile peut y déborder un peu
@@ -64,4 +65,23 @@ test.each(SIZES)("%i×%i : socle de platine sous le disque, le bras et les touch
   expect(P.y + P.h).toBeGreaterThan(L.tableTop);
   expect(P.x + P.w).toBeLessThan(L.pile.x - 300 * L.pile.scale);
   expect(P.w).toBeLessThan(w * 0.6);
+});
+
+test.each(SIZES)("%i×%i : le tableau des paroles est au mur, entre la platine et l'étagère", (w, h) => {
+  const L = layoutScene(w, h);
+  const right = L.lyrics.x + LYRICS_W * L.lyrics.scale, bottom = L.lyrics.y + LYRICS_H * L.lyrics.scale;
+  expect(L.lyrics.x).toBeGreaterThan(L.panel.x + L.panel.w);
+  expect(right).toBeLessThan(L.shelf.x);
+  expect(L.lyrics.y).toBeGreaterThanOrEqual(36 * L.k); // un peu d'air au-dessus
+  expect(bottom).toBeLessThan(L.tableTop - 40 * L.k); // au mur, au-dessus de la table
+});
+
+test.each(SIZES)("%i×%i : la molette de volume est en haut à gauche du socle, hors du disque", (w, h) => {
+  const L = layoutScene(w, h);
+  const r = (KNOB_SIZE / 2) * L.knob.scale;
+  expect(L.knob.x - r).toBeGreaterThan(L.panel.x);
+  expect(L.knob.y - r).toBeGreaterThan(L.panel.y);
+  // Le disque : centre et rayon de la platine mise à l'échelle.
+  const cx = L.stage.x + ARM_GEOMETRY.discCenter.x * L.stage.scale, cy = L.stage.y + ARM_GEOMETRY.discCenter.y * L.stage.scale;
+  expect(Math.hypot(L.knob.x - cx, L.knob.y - cy)).toBeGreaterThan(ARM_GEOMETRY.discRadius * L.stage.scale + r);
 });

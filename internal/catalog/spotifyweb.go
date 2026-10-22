@@ -82,6 +82,11 @@ func artistNames(as []spArtist) string {
 }
 
 func (c *SpotifyWeb) get(ctx context.Context, path string, q url.Values, out any) error {
+	return c.do(ctx, "GET", path, q, out)
+}
+
+// do envoie une requête à l'API ; out nil : la réponse (2xx) n'est pas lue.
+func (c *SpotifyWeb) do(ctx context.Context, method, path string, q url.Values, out any) error {
 	tok, err := c.Token(ctx)
 	if err != nil {
 		return err
@@ -90,7 +95,7 @@ func (c *SpotifyWeb) get(ctx context.Context, path string, q url.Values, out any
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, method, u, nil)
 	if err != nil {
 		return err
 	}
@@ -105,6 +110,8 @@ func (c *SpotifyWeb) get(ctx context.Context, path string, q url.Values, out any
 		return fmt.Errorf("Spotify limite les requêtes, réessaie dans %s s", resp.Header.Get("Retry-After"))
 	case resp.StatusCode == 401:
 		return fmt.Errorf("session Spotify expirée, reconnecte-toi")
+	case resp.StatusCode == 204, out == nil && resp.StatusCode/100 == 2:
+		return nil // 204 : pas de contenu (rien ne joue…)
 	case resp.StatusCode != 200:
 		return spotifyError(resp)
 	}
@@ -281,12 +288,14 @@ type spFullTrack struct {
 	DurationMs  int64      `json:"duration_ms"`
 	Artists     []spArtist `json:"artists"`
 	Album       struct {
-		Name string `json:"name"`
+		Name        string `json:"name"`
+		ReleaseDate string `json:"release_date"`
 	} `json:"album"`
 }
 
 func toTrack(t spFullTrack, number int) player.Track {
-	return player.Track{ID: t.URI, Number: number, Title: t.Name, Artist: artistNames(t.Artists), Album: t.Album.Name, DurationMs: t.DurationMs}
+	y, _ := strconv.Atoi(year(t.Album.ReleaseDate))
+	return player.Track{ID: t.URI, Number: number, Title: t.Name, Artist: artistNames(t.Artists), Album: t.Album.Name, DurationMs: t.DurationMs, Year: y}
 }
 
 // Tracks renvoie un album ou une playlist Spotify avec ses titres (cœurs = titres likés).
@@ -320,6 +329,7 @@ func (c *SpotifyWeb) albumTracks(ctx context.Context, id string) (Collection, er
 	}
 	col.Tracks = make([]player.Track, 0, len(a.Tracks.Items))
 	for _, t := range a.Tracks.Items {
+		t.Album.ReleaseDate = a.ReleaseDate // titres d'album sans « album » : l'année est celle de l'album
 		col.Tracks = append(col.Tracks, toTrack(t, t.TrackNumber))
 	}
 	c.markLoved(ctx, col.Tracks)
@@ -390,7 +400,7 @@ func (c *SpotifyWeb) markLoved(ctx context.Context, ts []player.Track) {
 		end := min(start+50, len(ts))
 		uris := make([]string, 0, end-start)
 		for _, t := range ts[start:end] {
-			uris = append(uris, "spotify:track:"+strings.TrimPrefix(t.ID, "spotify:track:"))
+			uris = append(uris, trackURI(t.ID))
 		}
 		var loved []bool // février 2026 : /me/library/contains (URI) remplace /me/tracks/contains
 		if c.get(ctx, "/me/library/contains", url.Values{"uris": {strings.Join(uris, ",")}}, &loved) != nil {
@@ -402,6 +412,39 @@ func (c *SpotifyWeb) markLoved(ctx context.Context, ts []player.Track) {
 			}
 		}
 	}
+}
+
+func trackURI(id string) string { return "spotify:track:" + strings.TrimPrefix(id, "spotify:track:") }
+
+// Loved dit si le titre est dans les titres likés.
+func (c *SpotifyWeb) Loved(ctx context.Context, id string) (bool, error) {
+	var loved []bool
+	if err := c.get(ctx, "/me/library/contains", url.Values{"uris": {trackURI(id)}}, &loved); err != nil {
+		return false, err
+	}
+	return len(loved) == 1 && loved[0], nil
+}
+
+// SetLoved ajoute le titre aux titres likés, ou l'en retire (février 2026 : /me/library, par URI).
+func (c *SpotifyWeb) SetLoved(ctx context.Context, id string, on bool) error {
+	method := "DELETE"
+	if on {
+		method = "PUT"
+	}
+	err := c.do(ctx, method, "/me/library", url.Values{"uris": {trackURI(id)}}, nil)
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "scope") {
+		return fmt.Errorf("reconnecte Spotify dans les réglages pour autoriser Vinyl à liker des titres")
+	}
+	return err
+}
+
+// PlayNext glisse le titre en tête de la file d'attente puis passe au suivant : le titre en cours est
+// sauté, le titre choisi joue, et la file continue ensuite comme avant.
+func (c *SpotifyWeb) PlayNext(ctx context.Context, id string) error {
+	if err := c.do(ctx, "POST", "/me/player/queue", url.Values{"uri": {trackURI(id)}}, nil); err != nil {
+		return err
+	}
+	return c.do(ctx, "POST", "/me/player/next", nil, nil)
 }
 
 // Queue renvoie les titres de la file Spotify (30 au plus).

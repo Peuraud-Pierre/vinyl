@@ -146,6 +146,105 @@ html, body { margin: 0; height: 100%; background: transparent; }
   -webkit-mask-image: repeating-linear-gradient(0deg, #000 0 2px, transparent 2px 3px); mask-image: repeating-linear-gradient(0deg, #000 0 2px, transparent 2px 3px);
   filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent)); }
 .vy-eq-bar i::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: color-mix(in srgb, var(--accent) 45%, #fff); opacity: .85; }
+/* Molette de volume (ui/volume.ts), en haut à gauche du socle : couronne graduée où un arc à la couleur
+   d'accent montre le niveau, bouton en aluminium brossé (dégradé conique) avec son repère, qui tourne. */
+.vy-knob { position: relative; width: 84px; height: 84px; border-radius: 50%; cursor: grab; touch-action: none; outline: none; }
+.vy-knob:active { cursor: grabbing; }
+.vy-knob[aria-disabled="true"] { cursor: default; opacity: .55; }
+.vy-knob-ring { position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from -135deg, var(--accent) 0 var(--arc, 0deg), rgba(255,240,225,.12) var(--arc, 0deg) 270deg, transparent 270deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 35px, #000 36px, #000 40px, transparent 41px); mask-image: radial-gradient(circle, transparent 35px, #000 36px, #000 40px, transparent 41px);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 60%, transparent)); }
+.vy-knob-ticks { position: absolute; inset: 0; border-radius: 50%;
+  background: repeating-conic-gradient(from -136deg, rgba(255,240,225,.35) 0 1.2deg, transparent 1.2deg 27deg);
+  -webkit-mask-image: conic-gradient(from -137deg, #000 0 274deg, transparent 274deg), radial-gradient(circle, transparent 30px, #000 31px, #000 34px, transparent 35px);
+  mask-image: conic-gradient(from -137deg, #000 0 274deg, transparent 274deg), radial-gradient(circle, transparent 30px, #000 31px, #000 34px, transparent 35px);
+  -webkit-mask-composite: source-in; mask-composite: intersect; }
+.vy-knob-cap { position: absolute; inset: 15px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.0) 0 40%, rgba(0,0,0,.12) 100%),
+    conic-gradient(from 20deg, #e9e7e3, #9d9a94, #f3f1ee, #8e8b85, #e4e2de, #a3a09a, #f1efeb, #93908a, #e9e7e3);
+  box-shadow: 0 0 0 2px #1d1612, 0 0 0 3px rgba(255,255,255,.08), 0 6px 10px rgba(0,0,0,.55), 0 2px 3px rgba(0,0,0,.5), inset 0 1px 1px rgba(255,255,255,.7), inset 0 -2px 3px rgba(0,0,0,.25);
+  transition: transform .12s ease-out; }
+.vy-knob-cap::after { content: ""; position: absolute; left: 50%; top: 5px; width: 3px; height: 13px; margin-left: -1.5px; border-radius: 2px;
+  background: #2a1d1b; box-shadow: 0 1px 0 rgba(255,255,255,.5); }
+.vy-knob:focus-visible .vy-knob-cap { box-shadow: 0 0 0 2px #1d1612, 0 0 0 4px var(--accent), 0 6px 10px rgba(0,0,0,.55); }
+.vy-knob-val { position: absolute; left: 50%; bottom: -15px; translate: -50% 0; font: 600 10px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: .08em; color: rgba(255,240,225,.55); font-variant-numeric: tabular-nums; pointer-events: none; }
+/* Tableau des paroles (ui/lyricsboard.ts) : cadre en bois accroché au mur, ardoise sombre, ligne chantée
+   éclairée à la couleur d'accent, petite plaque en laiton sous le cadre. */
+.vy-lyr { position: relative; width: 330px; height: 420px; padding: 7px; border-radius: 14px;
+  background: linear-gradient(160deg, #4a4a4c, #232325 30%, #1a1a1c 70%, #343436);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.5),
+    0 30px 50px -12px rgba(30,16,6,.55), 0 10px 18px rgba(30,16,6,.28); }
+.vy-lyr-slate { position: relative; height: 100%; overflow: hidden; border-radius: 8px; display: flex; flex-direction: column;
+  background: radial-gradient(ellipse 120% 80% at 50% 35%, #2d2c29, #1b1a18 70%, #121110);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.8), inset 0 0 0 1px rgba(255,255,255,.06); }
+/* Titre du morceau en tête de l'ardoise, à la craie. */
+.vy-lyr-head { flex: none; margin: 0 40px; padding: 14px 0 10px; text-align: center; border-bottom: 1px solid rgba(240,232,220,.12);
+  display: flex; flex-direction: column; gap: 3px; }
+.vy-lyr-head b, .vy-lyr-cover-cap b { font: italic 600 16px/1.2 Georgia, "Times New Roman", serif; color: rgba(246,238,226,.92);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vy-lyr-head span, .vy-lyr-cover-cap span { font: 600 9px/1.2 ui-sans-serif, system-ui; letter-spacing: .22em; text-transform: uppercase;
+  color: rgba(240,232,220,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vy-lyr-head:has(b:empty) { visibility: hidden; }
+.vy-lyr-view { position: relative; flex: 1; overflow: hidden; }
+/* Les lignes s'effacent en haut et en bas de la fenêtre (masque : la fenêtre n'a pas de fond, l'ardoise reste nette). */
+.vy-lyr-view { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22%, #000 74%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 22%, #000 74%, transparent 100%); }
+.vy-lyr-text { padding: 0 20px; text-align: center; transition: transform .6s cubic-bezier(.3,.7,.2,1); will-change: transform; }
+.vy-lyr-text p { margin: 0; padding: 5px 0; font: 600 16px/1.32 Georgia, "Times New Roman", serif; color: rgba(240,232,220,.3);
+  transition: color .35s, text-shadow .35s, transform .35s; text-wrap: balance; }
+/* Lignes voisines de celle chantée un peu plus lisibles. */
+.vy-lyr-text p:has(+ p.on), .vy-lyr-text p.on + p { color: rgba(240,232,220,.55); }
+.vy-lyr-text p.on { color: color-mix(in srgb, var(--accent) 35%, #fff6ea); transform: scale(1.08);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 70%, transparent); }
+.vy-lyr-text.vy-lyr-plain { padding-top: 110px; padding-bottom: 110px; transition: transform 1s linear; }
+.vy-lyr-text.vy-lyr-plain p { color: rgba(240,232,220,.72); }
+.vy-lyr-note { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 0 18px; text-align: center;
+  font: italic 500 15px/1.3 Georgia, serif; color: rgba(240,232,220,.45); pointer-events: none; }
+.vy-lyr-note:empty { display: none; }
+/* Avancement du morceau : un trait de craie en bas de l'ardoise. */
+.vy-lyr-bar { flex: none; height: 2px; margin: 0 18px 12px; transform: scaleX(0); transform-origin: 0 50%; transition: transform 1s linear;
+  background: color-mix(in srgb, var(--accent) 60%, #fff6ea); box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent); border-radius: 1px; }
+.vy-lyr-plate { position: absolute; left: 50%; bottom: -26px; translate: -50% 0; padding: 0;
+  font: 600 9px/1 ui-sans-serif, system-ui; letter-spacing: .32em; text-transform: uppercase; color: rgba(42,29,27,.55); }
+/* Pochette par-dessus les paroles : elle occupe l'ardoise (fond flou de la pochette, pochette nette au
+   centre). Un clic la fait remonter dans le cadre ; le × la fait redescendre du haut. */
+.vy-lyr-cover { position: absolute; inset: 0; z-index: 1; overflow: hidden; border-radius: inherit; cursor: pointer;
+  transform: none; transition: transform .7s cubic-bezier(.2,.85,.25,1); }
+.vy-lyr-open .vy-lyr-cover { transform: translateY(-102%); transition: transform .6s cubic-bezier(.55,0,.7,.2); pointer-events: none; }
+.vy-lyr-cover-bg { position: absolute; inset: -24px; background: center / cover #2a2220; filter: blur(18px) saturate(1.2) brightness(.55); }
+.vy-lyr-cover-art { position: absolute; top: 18px; left: 18px; right: 18px; aspect-ratio: 1; background: center / cover #2a2220; border-radius: 5px;
+  box-shadow: 0 10px 22px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08); }
+.vy-lyr-cover-cap { position: absolute; left: 46px; right: 46px; bottom: 16px; display: flex; flex-direction: column; gap: 4px; text-align: center;
+  text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.vy-lyr-cover-empty .vy-lyr-cover-bg { background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--accent) 55%, #1a1917), #1a1917 75%); filter: none; }
+.vy-lyr-cover-empty .vy-lyr-cover-art { display: none; }
+.vy-lyr-cover-hint { position: absolute; right: 24px; top: 24px; padding: 5px 10px; border-radius: 999px; font: 600 9px/1.2 ui-sans-serif, system-ui;
+  letter-spacing: .18em; text-transform: uppercase; color: #fff; opacity: 0; transform: translateY(4px); transition: opacity .2s, transform .2s;
+  background: rgba(20,20,22,.6); backdrop-filter: blur(8px); box-shadow: 0 2px 8px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.15); }
+.vy-lyr-cover:hover .vy-lyr-cover-hint, .vy-lyr-cover:focus-visible .vy-lyr-cover-hint { opacity: 1; transform: none; }
+.vy-lyr-close { position: absolute; right: 14px; top: 14px; z-index: 2; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  font: 500 16px/1 ui-sans-serif, system-ui; color: rgba(255,255,255,.85); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .2s, transform .15s, background .2s;
+  background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+.vy-lyr-close:hover { background: rgba(255,255,255,.16); }
+.vy-lyr-open .vy-lyr-close { opacity: .55; pointer-events: auto; }
+.vy-lyr-open:hover .vy-lyr-close, .vy-lyr-open .vy-lyr-close:focus-visible { opacity: 1; }
+.vy-lyr-close:active { transform: scale(.92); }
+/* Cœur du morceau en cours (ui/favorite), en haut à gauche de l'ardoise, au-dessus de la pochette. */
+.vy-lyr-fav { position: absolute; left: 14px; top: 14px; z-index: 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  cursor: pointer; color: rgba(255,255,255,.88); background: rgba(20,20,22,.45); backdrop-filter: blur(8px);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), 0 2px 6px rgba(0,0,0,.3); transition: background .2s, color .2s, transform .15s; }
+.vy-lyr-fav[hidden] { display: none; }
+.vy-lyr:not(.vy-lyr-open) .vy-lyr-fav { top: auto; left: auto; right: 21px; bottom: 23px; } /* pochette baissée : à côté du titre */
+.vy-lyr-fav svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.vy-lyr-fav:hover { background: rgba(20,20,22,.65); }
+.vy-lyr-fav:active { transform: scale(.9); }
+.vy-lyr-fav[aria-pressed="true"] { color: #ff4d5e; }
+.vy-lyr-fav[aria-pressed="true"] svg { fill: currentColor; filter: drop-shadow(0 0 4px rgba(255,77,94,.55)); }
+.vy-fav-pop svg { animation: vy-fav-pop .35s cubic-bezier(.3,1.6,.5,1); }
+@keyframes vy-fav-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .vy-fav-pop svg { animation: none; } }
 /* Pile des derniers écoutés (à droite du disque) : disques couchés vus un peu d'en haut. Chaque face
    (tranche, côté, pochette) reçoit sa matrice de projection calculée (ui/pile3d.ts) : pas de preserve-3d,
    qui s'aplatissait dans WebKit. Toutes les faces partent du coin haut gauche de la pile. */
@@ -174,19 +273,6 @@ html, body { margin: 0; height: 100%; background: transparent; }
 .vy-ws-bracket { position: absolute; bottom: 0; width: 7px; height: 14px; background: #3b2618; border-radius: 0 0 2px 2px; }
 .vy-ws-bracket-l { left: 40px; }
 .vy-ws-bracket-r { right: 40px; }
-/* Support de pochette « en écoute » (faces projetées comme la pile : ui/sleevestand) : chêne clair. */
-.vy-stand { --ps: 1; position: absolute; pointer-events: none; }
-.vy-stand > div { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.vy-stand-front { display: flex; align-items: center; justify-content: center; border-radius: 0 0 4px 4px;
-  background: linear-gradient(180deg, #e2c196 0, #cba679 14%, #b68d60 100%),
-    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 9px, rgba(0,0,0,.05) 9px 10px, transparent 10px 23px);
-  background-blend-mode: normal, overlay; box-shadow: inset 0 -2px 3px rgba(0,0,0,.22);
-  font: 700 calc(16px * var(--ps))/1 -apple-system, "SF Pro Text", sans-serif; letter-spacing: .3em; color: rgba(74,42,20,.72); text-shadow: 0 1px 0 rgba(255,236,205,.5); }
-.vy-stand-top { background: linear-gradient(180deg, #cfa97c, #e2c398); }
-/* Dessus arrière : la rainure (sombre) le long de son bord avant, où la pochette est calée. */
-.vy-stand-groove { border-radius: 4px 4px 0 0;
-  background: linear-gradient(0deg, rgba(40,20,8,.6) 0 12%, rgba(60,30,12,.25) 12% 20%, transparent 20%), linear-gradient(180deg, #caa478, #e0c094); }
-.vy-stand-side { background: linear-gradient(180deg, #b48a5c, #94703f); box-shadow: inset 0 2px 0 rgba(255,236,205,.3); }
 /* Socle de la platine : noyer foncé massif (veinage horizontal), coins arrondis, chant biseauté, posé sur
    la table (ombre portée). Le disque, le bras et les touches sont dessus. */
 .vy-plinth { position: absolute; pointer-events: none; border-radius: 16px;
