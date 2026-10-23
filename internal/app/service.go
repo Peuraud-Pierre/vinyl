@@ -361,16 +361,26 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 		}
 	}
 	// Spotify : le morceau est mis en tête de la file, puis « suivant ». Sous Windows la pile ne connaît
-	// qu'une empreinte (« w… »), jamais envoyée à l'API : le morceau est retrouvé par « précédent ».
-	if source == "spotify" && strings.HasPrefix(trackID, "spotify:track:") {
+	// qu'une empreinte (« w… »), jamais envoyée à l'API : le titre est cherché par son nom ; introuvable
+	// ou lecture refusée → « précédent » (plus bas).
+	var spotifyErr error
+	if source == "spotify" {
 		web, ok := s.catalogs["spotify"].(*catalog.SpotifyWeb)
-		if !ok || s.spotifyAuth == nil || !s.spotifyAuth.LoggedIn() {
-			return errors.New("connecte Spotify dans les réglages pour réécouter un morceau de la pile")
+		logged := ok && s.spotifyAuth != nil && s.spotifyAuth.LoggedIn()
+		if strings.HasPrefix(trackID, "spotify:track:") {
+			if !logged {
+				return errors.New("connecte Spotify dans les réglages pour réécouter un morceau de la pile")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), callLimit)
+			defer cancel()
+			defer s.watcher.Wake()
+			return web.PlayNext(ctx, trackID)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), callLimit)
-		defer cancel()
-		defer s.watcher.Wake()
-		return web.PlayNext(ctx, trackID)
+		if logged {
+			if spotifyErr = s.playNextByName(web, trackID); spotifyErr == nil {
+				return nil
+			}
+		}
 	}
 	// Musique : « Lire ensuite » puis « suivant » (voir AppleMusic.PlayNext).
 	if np, ok := p.(player.NextPlayer); ok {
@@ -406,7 +416,33 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 			}
 		}
 	}
+	if spotifyErr != nil {
+		return spotifyErr
+	}
 	return errors.New("ce morceau n'est plus dans la file de lecture")
+}
+
+// playNextByName retrouve sur Spotify le morceau de la pile (empreinte Windows) par son titre, son
+// artiste et son album, puis le joue tout de suite.
+func (s *VinylService) playNextByName(web *catalog.SpotifyWeb, trackID string) error {
+	var e *history.Entry
+	for _, h := range s.History() {
+		if h.Source == "spotify" && h.TrackID == trackID {
+			e = &h
+			break
+		}
+	}
+	if e == nil || e.Title == "" {
+		return errors.New("ce morceau n'est plus dans la file de lecture")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // recherche + file + suivant
+	defer cancel()
+	uri, err := web.FindTrack(ctx, e.Title, e.Artist, e.Album)
+	if err != nil {
+		return err
+	}
+	defer s.watcher.Wake()
+	return web.PlayNext(ctx, uri)
 }
 
 // CurrentPlaylist : playlist en cours de lecture, au format des éléments de la bibliothèque

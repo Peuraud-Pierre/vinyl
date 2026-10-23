@@ -3,10 +3,13 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"vinyl/internal/auth"
 	"vinyl/internal/catalog"
 	"vinyl/internal/history"
 	"vinyl/internal/player"
@@ -276,6 +279,42 @@ func TestReplaySpotifyFingerprintOnWindowsGoesBack(t *testing.T) {
 	}
 	if len(p.backs) != 1 || p.backs[0] != "w2" {
 		t.Fatalf("recul : %v", p.backs)
+	}
+}
+
+type memTokens struct{}
+
+func (memTokens) Load() (auth.Token, error) { return auth.Token{AccessToken: "TOK"}, nil }
+func (memTokens) Save(auth.Token) error      { return nil }
+func (memTokens) Delete() error              { return nil }
+
+// Spotify sous Windows, compte connecté : le morceau de la pile est cherché par son nom et joué tout de
+// suite, même s'il n'est plus dans la file ; l'empreinte ne part jamais vers l'API.
+func TestReplaySpotifyFingerprintFindsTrackByName(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Method+" "+r.URL.Path+" "+r.URL.Query().Get("q")+r.URL.Query().Get("uri"))
+		if r.URL.Path == "/search" {
+			w.Write([]byte(`{"tracks":{"items":[{"uri":"spotify:track:real","name":"Titre","album":{"name":"Album"}}]}}`))
+			return
+		}
+		w.WriteHeader(204)
+	}))
+	defer srv.Close()
+	p := &spotifyBackOnly{}
+	s := serviceWith(p)
+	s.SetCatalog("spotify", &catalog.SpotifyWeb{BaseURL: srv.URL, HTTP: srv.Client(), Token: func(context.Context) (string, error) { return "TOK", nil }})
+	s.SetSpotifyAuth(&auth.SpotifyAuth{Store: memTokens{}})
+	h := history.NewStore(t.TempDir() + "/h.json")
+	h.Playing(history.Entry{Source: "spotify", TrackID: "w1", Title: "Titre", Artist: "Artiste", Album: "Album"})
+	h.Playing(history.Entry{Source: "spotify", TrackID: "w2", Title: "Autre"})
+	s.SetHistory(h, nil)
+	if err := s.PlayFromHistory("spotify", "w1"); err != nil {
+		t.Fatal(err)
+	}
+	want := `GET /search track:"Titre" artist:"Artiste"|POST /me/player/queue spotify:track:real|POST /me/player/next `
+	if strings.Join(got, "|") != want || len(p.backs) != 0 {
+		t.Errorf("appels : %q, recul : %v", got, p.backs)
 	}
 }
 

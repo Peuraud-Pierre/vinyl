@@ -455,6 +455,39 @@ func (c *SpotifyWeb) SetLoved(ctx context.Context, id string, on bool) error {
 	return err
 }
 
+// FindTrack retrouve l'URI d'un titre par son nom et son artiste (Windows ne donne pas d'identifiant) ;
+// à choix égal, celui de l'album indiqué.
+func (c *SpotifyWeb) FindTrack(ctx context.Context, title, artist, album string) (string, error) {
+	var s struct {
+		Tracks struct {
+			Items []spTrack `json:"items"`
+		} `json:"tracks"`
+	}
+	q := fmt.Sprintf("track:%q artist:%q", title, artist)
+	if err := c.get(ctx, "/search", url.Values{"type": {"track"}, "q": {q}, "limit": {"10"}}, &s); err != nil {
+		return "", err
+	}
+	found := ""
+	for _, t := range s.Tracks.Items {
+		if !strings.EqualFold(t.Name, title) {
+			continue
+		}
+		if strings.EqualFold(t.Album.Name, album) {
+			return t.URI, nil
+		}
+		if found == "" {
+			found = t.URI
+		}
+	}
+	if found == "" && len(s.Tracks.Items) > 0 {
+		found = s.Tracks.Items[0].URI
+	}
+	if found == "" {
+		return "", fmt.Errorf("titre introuvable sur Spotify : %s", title)
+	}
+	return found, nil
+}
+
 // PlayNext glisse le titre en tête de la file d'attente puis passe au suivant : le titre en cours est
 // sauté, le titre choisi joue, et la file continue ensuite comme avant.
 func (c *SpotifyWeb) PlayNext(ctx context.Context, id string) error {

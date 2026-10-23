@@ -313,6 +313,22 @@ func TestSpotifyPlayNext(t *testing.T) {
 	}
 }
 
+// Windows : le titre est retrouvé par son nom et son artiste, de préférence sur le bon album.
+func TestSpotifyFindTrack(t *testing.T) {
+	c := newSpotifyTest(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/search" || r.URL.Query().Get("type") != "track" || r.URL.Query().Get("q") != `track:"Around the World" artist:"Daft Punk"` {
+			http.Error(w, r.URL.String(), 400)
+			return
+		}
+		w.Write([]byte(`{"tracks":{"items":[{"uri":"spotify:track:live","name":"Around the World","album":{"name":"Alive 1997"}},
+			{"uri":"spotify:track:hw","name":"Around the World","album":{"name":"Homework"}}]}}`))
+	})
+	uri, err := c.FindTrack(context.Background(), "Around the World", "Daft Punk", "Homework")
+	if err != nil || uri != "spotify:track:hw" {
+		t.Errorf("uri=%q err=%v", uri, err)
+	}
+}
+
 // Playlists modifiables : les siennes et les collaboratives ; ajout en JSON, repli sur /tracks.
 func TestSpotifyEditablePlaylistsAndAdd(t *testing.T) {
 	var posted []string
