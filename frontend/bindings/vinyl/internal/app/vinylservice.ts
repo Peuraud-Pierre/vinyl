@@ -176,6 +176,14 @@ export function OpenURL(u: string): $CancellablePromise<void> {
 }
 
 /**
+ * PhonePreview met la fenêtre principale à la taille d'un iPhone (la page passe en disposition
+ * téléphone) ou la remet à sa taille d'ordinateur. Version de développement seulement.
+ */
+export function PhonePreview(on: boolean): $CancellablePromise<void> {
+    return $Call.ByID(952304900, on);
+}
+
+/**
  * Platform : « darwin » ou « windows » ; le frontend masque ce qui n'existe pas sur le système.
  */
 export function Platform(): $CancellablePromise<string> {

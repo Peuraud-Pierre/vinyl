@@ -168,6 +168,35 @@ func (s *VinylService) OpenMainWindow() {
 	}
 }
 
+// Tailles de la fenêtre principale (px) : à l'ouverture, minimale, et en aperçu téléphone (iPhone 15).
+var (
+	MainWindow     = struct{ W, H int }{1100, 720}
+	MainWindowMin  = struct{ W, H int }{760, 520}
+	phoneWindow    = struct{ W, H int }{390, 844}
+	phoneWindowMin = struct{ W, H int }{320, 568}
+	errNotDevBuild = errors.New("aperçu téléphone : version de développement seulement")
+)
+
+// PhonePreview met la fenêtre principale à la taille d'un iPhone (la page passe en disposition
+// téléphone) ou la remet à sa taille d'ordinateur. Version de développement seulement.
+func (s *VinylService) PhonePreview(on bool) error {
+	if s.version != "dev" {
+		return errNotDevBuild
+	}
+	w, ok := application.Get().Window.GetByName("main")
+	if !ok {
+		return errors.New("fenêtre principale introuvable")
+	}
+	if on {
+		w.SetMinSize(phoneWindowMin.W, phoneWindowMin.H)
+		w.SetSize(phoneWindow.W, phoneWindow.H)
+	} else {
+		w.SetSize(MainWindow.W, MainWindow.H)
+		w.SetMinSize(MainWindowMin.W, MainWindowMin.H)
+	}
+	return nil
+}
+
 // OpenAutomationSettings ouvre Réglages Système > Confidentialité et sécurité > Automatisation.
 func (s *VinylService) OpenAutomationSettings() error {
 	if runtime.GOOS != "darwin" {

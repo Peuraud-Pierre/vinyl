@@ -13,6 +13,7 @@ import { animateOnce } from "./ui/animate";
 import { platform } from "./ui/platform";
 import { mountUpdateBanner, throttledCheck, type UpdateInfo } from "./ui/updatebanner";
 import { Events } from "@wailsio/runtime";
+import { initPhonePreview } from "./ui/phoneframe";
 
 type View = { mount: (el: HTMLElement, param: string) => () => void };
 const views: Record<Route, View> = { platine, bibliotheque, artiste, album, personnaliser, reglages };
@@ -22,6 +23,8 @@ let cleanup: () => void = () => {};
 let accent = "#f5c542";
 
 const shell = mountShell(document.getElementById("shell")!, () => accent);
+// Version de développement : l'aperçu téléphone reprend s'il était actif (jamais dans une release).
+api.Version().then((v) => { if (v === "dev") initPhonePreview(); }).catch(() => {});
 
 // Changement d'écran : l'ancien s'efface en flou, le nouveau apparaît (comme MD Vinyl).
 const LEAVE_MS = 200;

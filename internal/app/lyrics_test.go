@@ -35,3 +35,12 @@ func TestLyricsCachedPerTrackButNotErrors(t *testing.T) {
 		t.Errorf("%d recherches, 2 attendues (l'erreur n'est pas gardée, le résultat oui)", calls)
 	}
 }
+
+// L'aperçu téléphone n'existe que dans la version de développement.
+func TestPhonePreviewRefusedOutsideDevBuild(t *testing.T) {
+	s := New(nil, player.NewWatcher(nil, func() string { return "auto" }, func(player.Snapshot) {}, time.Now), nil)
+	s.SetVersion("1.2.0")
+	if err := s.PhonePreview(true); err != errNotDevBuild {
+		t.Errorf("err = %v", err)
+	}
+}

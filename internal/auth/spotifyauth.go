@@ -86,6 +86,11 @@ type SpotifyAuth struct {
 	Now         func() time.Time
 	OpenBrowser func(string) error
 	mu          sync.Mutex
+	// Connexion en attente du retour de Spotify (elle tient le port de RedirectURI) : une nouvelle
+	// connexion l'annule et attend qu'elle ait rendu le port.
+	loginMu   sync.Mutex
+	loginStop context.CancelFunc
+	loginDone chan struct{}
 }
 
 func NewSpotifyAuth(clientID func() string, store TokenStore) *SpotifyAuth {
@@ -107,8 +112,24 @@ func (a *SpotifyAuth) LoggedIn() bool {
 
 func (a *SpotifyAuth) Logout() error { return a.Store.Delete() }
 
-// Login ouvre la page d'autorisation Spotify et attend le retour sur RedirectURI (OAuth PKCE).
+// Login ouvre la page d'autorisation Spotify et attend le retour sur RedirectURI (OAuth PKCE). Une
+// connexion déjà en attente (clic répété sur « Se connecter ») est annulée : la nouvelle prend sa place.
 func (a *SpotifyAuth) Login(ctx context.Context) error {
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	done := make(chan struct{})
+	defer close(done)
+	a.loginMu.Lock()
+	if a.loginStop != nil {
+		a.loginStop()
+		select {
+		case <-a.loginDone: // la précédente a fermé son serveur : le port est libre
+		case <-time.After(3 * time.Second):
+		}
+	}
+	a.loginStop, a.loginDone = stop, done
+	a.loginMu.Unlock()
+
 	clientID := EffectiveClientID(a.ClientID())
 	verifier, err := NewVerifier()
 	if err != nil {
@@ -120,7 +141,7 @@ func (a *SpotifyAuth) Login(ctx context.Context) error {
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:43821")
 	if err != nil {
-		return fmt.Errorf("port 43821 occupé : %w", err)
+		return fmt.Errorf("une autre app tient le port 43821 de la connexion Spotify (Vinyl est-il ouvert deux fois ?) : %w", err)
 	}
 	codeCh := make(chan string, 1)
 	errCh := make(chan error, 1)

@@ -331,3 +331,44 @@ html, body { margin: 0; height: 100%; background: transparent; }
   background: linear-gradient(90deg, #3d2617, #5a3a25 45%, #3a2416); box-shadow: inset 0 calc(16px * var(--k)) calc(14px * var(--k)) -6px rgba(0,0,0,.55); }
 .vy-rt-leg-l { left: calc(46px * var(--k)); }
 .vy-rt-leg-r { right: calc(46px * var(--k)); }
+
+/* Téléphone en portrait (views/scene : isPhone), comme MD Vinyl sur iPhone : pas de socle, un grand disque
+   qui dépasse à gauche, le bras en haut à droite ; en bas le titre et les touches en pastilles. Table, pile,
+   étagère, tableau des paroles, égaliseur et dock latéral : masqués (ils reviendront en feuilles). */
+html.vy-phone #pl-recent, html.vy-phone #pl-shelf, html.vy-phone #pl-lyrics, html.vy-phone #pl-table, html.vy-phone #pl-panel,
+html.vy-phone #pl-eq, html.vy-phone #pl-share, html.vy-phone #pl-settings, html.vy-phone #pl-phone, html.vy-phone #shell > nav, html.vy-phone #sh-more { display: none !important; }
+html:not(.vy-phone) .vy-pbar, html:not(.vy-phone) .vy-ptop { display: none; }
+html.vy-phone #pl-scroll { overflow-x: hidden; }
+.vy-ptop { position: absolute; top: 6%; left: 88px; z-index: 20; display: flex; gap: 10px; }
+.vy-ptop .round-btn { width: 44px; height: 44px; }
+.vy-ptop .round-btn[hidden], #pl-phone[hidden] { display: none; }
+.vy-ptop .round-btn svg { width: 20px; height: 20px; }
+.vy-pbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; box-sizing: border-box; padding: 0 22px max(22px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 14px; color: var(--ink); }
+.vy-pbar-head { position: relative; display: flex; align-items: center; gap: 8px; }
+.vy-pbar-now { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.vy-pbar-now b { font: 700 22px/1.2 ui-sans-serif, -apple-system, system-ui; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vy-pbar-now span { font: 500 15px/1.3 ui-sans-serif, -apple-system, system-ui; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vy-pbar-round { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.vy-pbar-round[hidden] { display: none; }
+.vy-pbar-round svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#pb-fav[aria-pressed="true"] { color: #ff4d5e; }
+#pb-fav[aria-pressed="true"] svg { fill: currentColor; }
+.vy-pbar-menu { position: absolute; right: 0; bottom: 54px; z-index: 3; width: 240px; max-height: 300px; display: flex; flex-direction: column;
+  padding: 8px; border-radius: 14px; background: rgba(28,27,30,.95); backdrop-filter: blur(14px);
+  box-shadow: 0 14px 32px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.1); color: #f3ece2; font: 500 14px/1.3 ui-sans-serif, system-ui; }
+.vy-pbar-menu[hidden] { display: none; }
+.vy-pbar-time { display: flex; align-items: center; gap: 10px; font: 600 11px/1 ui-sans-serif, system-ui; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.vy-pbar-time i { position: relative; flex: 1; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 20%, transparent); overflow: hidden; }
+.vy-pbar-time b { position: absolute; inset: 0; border-radius: 2px; background: var(--ink); transform: scaleX(0); transform-origin: 0 50%; transition: transform .5s linear; }
+.vy-pbar-keys { display: flex; align-items: flex-start; justify-content: space-between; }
+.vy-pbar-key { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.vy-pbar-key small { font: 700 9px/1 ui-sans-serif, system-ui; letter-spacing: .14em; color: var(--ink-soft); }
+html.vy-phone #pl-deck { position: static !important; }
+
+/* Aperçu téléphone (ui/phoneframe, version de développement) : la page dans un cadre aux proportions d'un
+   iPhone, centré ; la disposition téléphone ne dépend plus de la taille de la fenêtre (plein écran). Le
+   transform fait du cadre le repère des éléments « fixed » de la page. */
+html.vy-phone-frame #view { position: fixed; left: calc(50% - var(--pf-w) / 2); top: calc(50% - var(--pf-h) / 2); width: var(--pf-w); height: var(--pf-h); transform: translateZ(0); }
+html.vy-phone-frame #view .h-screen { height: 100%; }
+html.vy-phone-framed #view { border-radius: 46px; box-shadow: 0 0 0 10px #0e0e10, 0 0 0 11px rgba(255,255,255,.12), 0 30px 80px rgba(0,0,0,.55); }

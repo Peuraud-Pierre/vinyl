@@ -168,3 +168,33 @@ func TestEffectiveClientID(t *testing.T) {
 		t.Errorf("personnel : %q", got)
 	}
 }
+
+// Clic répété sur « Se connecter » : la connexion en attente est annulée, la nouvelle reprend le port.
+func TestLoginAgainCancelsThePendingLogin(t *testing.T) {
+	a := NewSpotifyAuth(func() string { return "cid" }, &memStore{})
+	opened := make(chan struct{}, 2)
+	a.OpenBrowser = func(string) error { opened <- struct{}{}; return nil }
+	first := make(chan error, 1)
+	go func() { first <- a.Login(context.Background()) }()
+	<-opened // la première attend le retour de Spotify, port ouvert
+	ctx, cancel := context.WithCancel(context.Background())
+	second := make(chan error, 1)
+	go func() { second <- a.Login(ctx) }()
+	select {
+	case err := <-first:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("première : %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("la première connexion n'a pas été annulée")
+	}
+	select {
+	case <-opened: // la seconde a bien obtenu le port et ouvert la page
+	case err := <-second:
+		t.Fatalf("seconde : %v", err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("la seconde connexion n'a pas démarré")
+	}
+	cancel()
+	<-second
+}

@@ -3,6 +3,8 @@ const svg = (size: number, body: string, fill = false) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" ${fill ? "" : 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'} aria-hidden="true">${body}</svg>`;
 
 export const icons = {
+  phone: svg(20, '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>'),
+  desktop: svg(20, '<rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M9 21h6M12 17v4"/>'),
   share: svg(20, '<rect x="3" y="6" width="9" height="15" rx="3"/><path d="M14 4a7 7 0 0 1 7 7"/><path d="M18 4h3v3"/>'),
   settings: svg(20, '<path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><circle cx="12" cy="12" r="3.4"/>'),
   library: svg(24, '<path d="M4 4v16M8 4v16"/><path d="M12 4l7 2v12l-7 2z" fill="currentColor"/>'),

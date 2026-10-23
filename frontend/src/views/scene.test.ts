@@ -3,7 +3,7 @@ import { ARM_GEOMETRY } from "../turntable/arm";
 import { STAGE_H } from "../turntable/turntable";
 import { LYRICS_H, LYRICS_W } from "../ui/lyricsboard";
 import { SHELF_H, SHELF_W } from "../ui/wallshelf";
-import { DECK_IN_STAGE, DECK_SIZE, KNOB_SIZE, layoutScene, PILE_SCALE, TT_SCALE } from "./scene";
+import { DECK_IN_STAGE, DECK_SIZE, isPhone, KNOB_SIZE, layoutScene, PHONE_BAR_H, PHONE_DISC, PILE_SCALE, TT_SCALE } from "./scene";
 
 const PILE = { w: 500, h: 460 };
 const CONTROLS_W = 140; // colonne de commandes : libre en bas, la pile peut y déborder un peu
@@ -84,4 +84,35 @@ test.each(SIZES)("%i×%i : la molette de volume est en haut à gauche du socle, 
   // Le disque : centre et rayon de la platine mise à l'échelle.
   const cx = L.stage.x + ARM_GEOMETRY.discCenter.x * L.stage.scale, cy = L.stage.y + ARM_GEOMETRY.discCenter.y * L.stage.scale;
   expect(Math.hypot(L.knob.x - cx, L.knob.y - cy)).toBeGreaterThan(ARM_GEOMETRY.discRadius * L.stage.scale + r);
+});
+
+// iPhone SE, 15, 15 Pro Max (points CSS).
+const PHONES: [number, number][] = [[375, 667], [390, 844], [430, 932]];
+
+test.each(PHONES)("téléphone %i×%i : très grand disque qui dépasse à gauche, bras visible, place pour les touches", (w, h) => {
+  expect(isPhone(w, h)).toBe(true);
+  const L = layoutScene(w, h);
+  expect(L.phone).toBe(true);
+  const s = L.stage.scale, G = ARM_GEOMETRY;
+  const r = G.discRadius * s;
+  const cx = L.stage.x + G.discCenter.x * s, cy = L.stage.y + G.discCenter.y * s;
+  expect(2 * r).toBeGreaterThan(w * 0.9); // grand disque…
+  expect(2 * r).toBeLessThanOrEqual(w * PHONE_DISC + 1e-6);
+  expect(cx - r).toBeLessThan(0); // …qui dépasse à gauche…
+  expect(cx).toBeGreaterThan(w * 0.2); // …l'étiquette reste visible
+  // Pivot du bras dans l'écran, sous la marge du haut ; molette en haut à gauche, hors du disque.
+  const px = L.stage.x + G.pivot.x * s, py = L.stage.y + G.pivot.y * s;
+  expect(px + 48 * s).toBeLessThanOrEqual(w); // la pastille du pivot fait 96 px de platine
+  expect(py - 48 * s).toBeGreaterThan(0);
+  const kr = (KNOB_SIZE * L.k) / 2;
+  expect(L.knob.x - kr).toBeGreaterThanOrEqual(0);
+  expect(Math.hypot(L.knob.x - cx, L.knob.y - cy)).toBeGreaterThan(r + kr);
+  // Sous le disque : la place de la barre (titre, avancement, touches), à 20 px près.
+  expect(h - (cy + r)).toBeGreaterThanOrEqual(PHONE_BAR_H - 20);
+});
+
+test("ordinateur : jamais la disposition téléphone", () => {
+  for (const [w, h] of SIZES) expect(layoutScene(w, h).phone).toBe(false);
+  expect(isPhone(700, 1000)).toBe(false);
+  expect(isPhone(560, 400)).toBe(false);
 });

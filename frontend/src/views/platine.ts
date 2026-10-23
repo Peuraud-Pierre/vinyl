@@ -1,4 +1,4 @@
-import { activeSource, api, onHistory, onSettings, onSnapshot, onSpectrum, onStats, type Item, type Snapshot, type StatsSnapshot } from "../api";
+import { activeSource, api, onHistory, onSettings, onSnapshot, onSpectrum, onStats, playPause, type Item, type Snapshot, type StatsSnapshot } from "../api";
 import { go, type Route } from "../router";
 import { openShareCard } from "../share/sharecard";
 import { Turntable } from "../turntable/turntable";
@@ -10,8 +10,12 @@ import { mountOdometer } from "../ui/odometer";
 import { mountRoomTable } from "../ui/roomtable";
 import { mountVolume } from "../ui/volume";
 import { mountLyricsBoard } from "../ui/lyricsboard";
+import { mountFavorite } from "../ui/favorite";
+import { mountAddToPlaylist } from "../ui/addtoplaylist";
+import { phonePreview, setPhonePreview } from "../ui/phoneframe";
 import { mountWallShelf, openPlaylistShelf, SHELF_MAX } from "../ui/wallshelf";
-import { DECK_IN_STAGE, EQ_IN_STAGE, layoutScene } from "./scene";
+import { estimatePosition } from "../turntable/clock";
+import { DECK_IN_STAGE, EQ_IN_STAGE, isPhone, layoutScene } from "./scene";
 
 // Place réservée à droite pour la gélule et les boutons ronds.
 const CONTROLS_W = 140;
@@ -33,8 +37,27 @@ export function mount(el: HTMLElement): () => void {
         <div id="pl-shelf"></div>
         <p id="pl-recent-msg" class="glass pointer-events-none absolute hidden rounded-full px-5 py-2 text-[14px]" role="status"></p>
       </div>
+      <button id="pl-phone" class="glass round-btn vy-drop fixed z-30" style="right:175px;top:28px" aria-label="Aperçu téléphone" title="Aperçu téléphone (développement)" hidden>${icons.phone}</button>
       <button id="pl-share" class="glass round-btn vy-drop fixed z-30" style="right:113px;top:28px" aria-label="Partager">${icons.share}</button>
       <button id="pl-settings" class="glass round-btn vy-drop fixed z-30" style="right:51px;top:28px" aria-label="Réglages">${icons.settings}</button>
+      <div id="pb-top" class="vy-ptop">
+        <button id="pb-lib" class="glass round-btn" aria-label="Bibliothèque">${icons.library}</button>
+        <button id="pb-settings" class="glass round-btn" aria-label="Réglages">${icons.settings}</button>
+        <button id="pb-phone" class="glass round-btn" aria-label="Revenir à l'affichage ordinateur" title="Affichage ordinateur (développement)" hidden>${icons.desktop}</button>
+      </div>
+      <div id="pl-pbar" class="vy-pbar" aria-label="Morceau en cours">
+        <div class="vy-pbar-head">
+          <div class="vy-pbar-now"><b id="pb-title"></b><span id="pb-artist"></span></div>
+          <button id="pb-add" class="vy-pbar-round" hidden></button>
+          <button id="pb-fav" class="vy-pbar-round" hidden></button>
+          <div id="pb-menu" class="vy-pbar-menu"></div>
+        </div>
+        <div class="vy-pbar-time"><span id="pb-pos">0:00</span><i><b id="pb-fill"></b></i><span id="pb-left"></span></div>
+        <div class="vy-pbar-keys">
+          <span class="vy-pbar-key"><button id="pb-pp" class="vy-key" aria-label="Lecture">${icons.play}</button><small id="pb-pp-cap">PLAY</small></span>
+          <div id="pb-deck"></div>
+        </div>
+      </div>
       <div id="pl-problem" class="glass absolute bottom-10 left-1/2 hidden -translate-x-1/2 rounded-[28px] px-7 py-4 text-center text-[15px]" style="margin-left:-${CONTROLS_W / 2}px"></div>
     </section>
     <footer class="relative flex flex-col items-center gap-7 pb-20 pt-16" style="background:#1b1b1b">
@@ -75,14 +98,29 @@ export function mount(el: HTMLElement): () => void {
       add: (np, id) => api.AddToPlaylist(np.source, np.trackId, id),
     },
   });
+  // Téléphone : cœur et « + » à côté du titre (le tableau des paroles n'est pas affiché).
+  const pbFav = mountFavorite($("pb-fav") as HTMLButtonElement, {
+    get: (np) => api.IsFavorite(np.source, np.trackId), set: (np, on) => api.SetFavorite(np.source, np.trackId, on),
+  });
+  const pbAdd = mountAddToPlaylist($("pb-add") as HTMLButtonElement, $("pb-menu"), {
+    playlists: (source) => api.EditablePlaylists(source).then((l) => l ?? []),
+    add: (np, id) => api.AddToPlaylist(np.source, np.trackId, id),
+  });
   // Volume de l'ordinateur : molette en haut à gauche du socle (pas de bouton).
   const volume = mountVolume($("pl-vol"), { get: () => api.Volume(), set: (v) => api.SetVolume(v) });
   const eq = mountEqualizer($("pl-eq"), { start: () => api.StartSpectrum(), stop: () => api.StopSpectrum(), onSpectrum });
   const canHear = api.SpectrumAvailable().catch(() => false);
   const setEqLive = (on: boolean) => void canHear.then((ok) => eq.setLive(ok && on));
   const fit = () => {
+    // Téléphone en portrait : la platine prend toute la largeur (pas de colonne de commandes) ; voir scene.
+    // Ses touches (précédent, aléatoire, suivant) passent dans la barre du bas, à côté de « Lecture ».
+    const phone = phonePreview() || isPhone(window.innerWidth, window.innerHeight);
+    document.documentElement.classList.toggle("vy-phone", phone);
+    $("pl-wrap").style.right = phone ? "0px" : `${CONTROLS_W}px`;
+    const deckEl = $("pl-deck"), deckHome = phone ? $("pb-deck") : $("pl-scaled");
+    if (deckEl.parentElement !== deckHome) deckHome.append(deckEl);
     const wrap = $("pl-wrap").getBoundingClientRect();
-    const L = layoutScene(wrap.width, wrap.height);
+    const L = layoutScene(wrap.width, wrap.height, phone);
     const s = $("pl-scaled");
     s.style.transform = `scale(${L.stage.scale})`;
     s.style.left = `${L.stage.x}px`;
@@ -122,6 +160,7 @@ export function mount(el: HTMLElement): () => void {
   };
   const ro = new ResizeObserver(fit);
   ro.observe($("pl-wrap"));
+  window.addEventListener("resize", fit);
 
   // Touches sous la pochette : précédent, aléatoire, suivant (comme sur une platine).
   const deck = mountDeck($("pl-deck"), {
@@ -161,12 +200,44 @@ export function mount(el: HTMLElement): () => void {
   const onFocus = () => { if (!snap?.problem) deck.refresh(); };
   window.addEventListener("focus", onFocus);
 
+  // Barre du bas (téléphone) : titre, avancement, touches. L'avancement est estimé entre deux sondages.
+  const fmt = (ms: number) => {
+    const t = Math.max(0, Math.round(ms / 1000));
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+  };
+  let barAt = 0;
+  let barTimer = 0;
+  const tickBar = () => {
+    if (!snap || !document.documentElement.classList.contains("vy-phone")) return;
+    const np = snap.nowPlaying;
+    const pos = estimatePosition(np.positionMs, np.durationMs, np.state === "playing", barAt, performance.now());
+    $("pb-pos").textContent = fmt(pos);
+    $("pb-left").textContent = np.durationMs > 0 ? `−${fmt(np.durationMs - pos)}` : "";
+    $("pb-fill").style.transform = `scaleX(${np.durationMs > 0 ? Math.min(1, pos / np.durationMs) : 0})`;
+  };
+  const paintBar = (s: Snapshot) => {
+    barAt = performance.now();
+    const np = s.nowPlaying, playing = !s.problem && np.state === "playing";
+    $("pb-title").textContent = s.problem ? "Vinyl" : np.title;
+    $("pb-artist").textContent = s.problem ? "" : np.artist;
+    $("pb-pp").innerHTML = playing ? icons.pause : icons.play;
+    $("pb-pp").setAttribute("aria-label", playing ? "Pause" : "Lecture");
+    $("pb-pp-cap").textContent = playing ? "PAUSE" : "PLAY";
+    const cur = s.problem || !np.trackId ? null : np;
+    pbFav.update(cur);
+    pbAdd.update(cur);
+    clearInterval(barTimer);
+    barTimer = playing ? window.setInterval(tickBar, 500) : 0;
+    tickBar();
+  };
+
   const render = (s: Snapshot) => {
     snap = s;
     deck.setEnabled(!s.problem);
     // Aléatoire relu à chaque changement de morceau (il a pu être réglé dans Musique ou Spotify).
     if (!s.problem && s.nowPlaying.trackId !== deckTrack) { deckTrack = s.nowPlaying.trackId; deck.refresh(); }
     tt.update(s);
+    paintBar(s);
     lyrics.update(s);
     eq.setPlaying(!s.problem && s.nowPlaying.state === "playing", s.nowPlaying.trackId);
     $("pl-title").textContent = s.problem ? "Vinyl" : `${s.nowPlaying.title} — ${s.nowPlaying.artist}`;
@@ -182,6 +253,18 @@ export function mount(el: HTMLElement): () => void {
   };
 
   $("pl-settings").onclick = () => go("reglages");
+  $("pb-settings").onclick = () => go("reglages");
+  // Version de développement : bascule de la fenêtre en taille téléphone, et retour (absent des releases).
+  api.Version().then((v) => {
+    if (v !== "dev") return;
+    $("pl-phone").hidden = false;
+    $("pb-phone").hidden = false;
+  }).catch(() => {});
+  // L'aperçu reste en téléphone même si la fenêtre grandit (plein écran) : cadre centré (ui/phoneframe).
+  $("pl-phone").onclick = () => { setPhonePreview(true); api.PhonePreview(true).catch(() => {}); };
+  $("pb-phone").onclick = () => { setPhonePreview(false); api.PhonePreview(false).catch(() => {}); };
+  $("pb-lib").onclick = () => go("bibliotheque", "albums");
+  $("pb-pp").onclick = () => { playPause().catch(() => {}); };
   $("pl-share").onclick = () => {
     const np = snap?.nowPlaying;
     if (np && !snap!.problem) openShareCard({ title: np.title, subtitle: np.artist, artworkUrl: np.artworkUrl });
@@ -193,6 +276,10 @@ export function mount(el: HTMLElement): () => void {
   api.GetSettings().then((s) => { tt.setAppearance(s); setEqLive(s.eqAudio); });
 
   return () => {
+    clearInterval(barTimer);
+    window.removeEventListener("resize", fit);
+    pbAdd.destroy();
+    document.documentElement.classList.remove("vy-phone");
     offStats();
     offSnap();
     window.removeEventListener("focus", onFocus);
