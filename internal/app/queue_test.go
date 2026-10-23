@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"vinyl/internal/catalog"
+	"vinyl/internal/history"
 	"vinyl/internal/player"
 )
 
@@ -253,6 +254,28 @@ func TestReplayFallbackOnWindowsNeverSendsFingerprint(t *testing.T) {
 	err := s.PlayFromHistory("applemusic", "w1234")
 	if err == nil || !strings.Contains(err.Error(), "plus dans la file") || len(p.played) != 0 || len(opened) != 0 {
 		t.Errorf("err=%v lancé=%v ouvert=%v", err, p.played, opened)
+	}
+}
+
+type spotifyBackOnly struct{ backOnly }
+
+func (*spotifyBackOnly) Name() string { return "spotify" }
+
+// Spotify sous Windows : la pile ne connaît que des empreintes (« w… »), jamais envoyées à l'API web ;
+// le morceau est retrouvé par « précédent » comme pour Apple Music.
+func TestReplaySpotifyFingerprintOnWindowsGoesBack(t *testing.T) {
+	p := &spotifyBackOnly{backOnly{saved: player.PlaybackContext{TrackID: "w4", PositionSec: 12}}}
+	s := serviceWith(p)
+	h := history.NewStore(t.TempDir() + "/h.json")
+	for _, id := range []string{"w1", "w2", "w3", "w4"} {
+		h.Playing(history.Entry{Source: "spotify", TrackID: id})
+	}
+	s.SetHistory(h, nil)
+	if err := s.PlayFromHistory("spotify", "w2"); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.backs) != 1 || p.backs[0] != "w2" {
+		t.Fatalf("recul : %v", p.backs)
 	}
 }
 

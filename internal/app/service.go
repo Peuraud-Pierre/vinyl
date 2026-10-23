@@ -360,8 +360,9 @@ func (s *VinylService) PlayFromHistory(source, trackID string) error {
 			return s.replaceCurrent(r, q, trackID)
 		}
 	}
-	// Spotify : le morceau est mis en tête de la file, puis « suivant ».
-	if source == "spotify" {
+	// Spotify : le morceau est mis en tête de la file, puis « suivant ». Sous Windows la pile ne connaît
+	// qu'une empreinte (« w… »), jamais envoyée à l'API : le morceau est retrouvé par « précédent ».
+	if source == "spotify" && strings.HasPrefix(trackID, "spotify:track:") {
 		web, ok := s.catalogs["spotify"].(*catalog.SpotifyWeb)
 		if !ok || s.spotifyAuth == nil || !s.spotifyAuth.LoggedIn() {
 			return errors.New("connecte Spotify dans les réglages pour réécouter un morceau de la pile")
